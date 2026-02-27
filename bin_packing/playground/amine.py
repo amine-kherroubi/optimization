@@ -5,7 +5,7 @@ from attr import dataclass
 
 
 # Dataclass mli7a for memory efficiency
-@dataclass(slots=False)
+@dataclass(slots=True)
 class State:
     bins_used: int  # Number of bins used in this state
     assignments: dict[int, set[int]]  # Mapping from bin index to items packed
