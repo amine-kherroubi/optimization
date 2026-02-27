@@ -19,7 +19,9 @@ class BinPacking:
     def __init__(self, sizes: list[int], bin_capacity: int) -> None:
         # Ensure all items can fit in a single bin
         if any(size > bin_capacity for size in sizes):
-            raise ValueError("All item sizes must be <= bin capacity.")
+            raise ValueError(
+                "All item sizes must be less than or equal to bin capacity."
+            )
 
         self._sizes = sizes
         self._number_of_items: int = len(sizes)
@@ -96,10 +98,10 @@ class BinPacking:
 
         while frontier:
             current_state = frontier.pop()
-            if self._is_goal(current_state) and self._evaluation(
-                current_state
-            ) < self._evaluation(incumbent):
-                incumbent = current_state
+            if current_state.next_item == self._number_of_items:
+                if self._evaluation(current_state) < self._evaluation(incumbent):
+                    incumbent = current_state
+                    continue
             else:
                 for state in self._generate_new_states(current_state):
                     # Prune states that cannot improve incumbent
