@@ -3,9 +3,9 @@ from dataclasses import dataclass
 
 @dataclass(slots=True)
 class Solution:
-    bins_used: int  # Number of bins used in this state
+    bins_used: int  # Number of bins used
     assignments: dict[int, set[int]]  # Mapping from bin index to items packed
-    loads: dict[int, int]  # Current load of each bin
+    loads: dict[int, int]  # Load of each bin
 
 
 @dataclass(slots=True)
