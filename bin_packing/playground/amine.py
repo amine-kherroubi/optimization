@@ -37,8 +37,13 @@ class BinPacking(object):
         else:
             raise ValueError("Unknown solving method.")
 
-    def get_solution(self) -> Solution | None:
+    def get_solution(self) -> Solution:
         """Retrieve computed solution."""
+        if self._solution is None:
+            raise RuntimeError(
+                "No solution available: you must call 'solve()' before retrieving the solution."
+            )
+
         return self._solution
 
     def _evaluation(self, state: State) -> int:
