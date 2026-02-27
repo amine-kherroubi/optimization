@@ -1,12 +1,16 @@
 from math import inf
-from attr import dataclass
+from dataclasses import dataclass
 
 
 @dataclass(slots=True)
-class State:
+class Solution:
     bins_used: int  # Number of bins used in this state
     assignments: dict[int, set[int]]  # Mapping from bin index to items packed
     loads: dict[int, int]  # Current load of each bin
+
+
+@dataclass(slots=True)
+class State(Solution):
     next_item: int  # Index of the next item to assign
 
 
@@ -21,19 +25,20 @@ class BinPacking:
         self._sizes = sizes
         self._number_of_items: int = len(sizes)
         self._bin_capacity: int = bin_capacity
-        self._solution: State | None = None
+        self._solution: Solution | None = None
 
     def solve(self, method: str = "bb") -> None:
-        """Select solving method (branch-and-bound or dynamic programming)."""
-        match method:
-            case "bb":
-                print("Solving using Branch-and-Bound...")
-                self._solution = self._branch_and_bound()
-            case "dp":
-                print("Solving using Dynamic Programming...")
-                self._solution = self._dynamic_programming()
-            case _:
-                raise ValueError("Unknown solving method.")
+        """Select solving method."""
+        if method == "bb":
+            self._branch_and_bound()
+        elif method == "dp":
+            self._dynamic_programming()
+        else:
+            raise ValueError("Unknown solving method.")
+
+    def get_solution(self) -> Solution | None:
+        """Retrieve computed solution."""
+        return self._solution
 
     def _evaluation(self, state: State) -> int:
         """Objective function: number of bins used."""
@@ -43,7 +48,7 @@ class BinPacking:
         """Check if all items have been assigned exactly once."""
         encountered = [False] * self._number_of_items
         item_count = 0
-        for _, items in state.assignments.items():
+        for items in state.assignments.values():
             for item in items:
                 if encountered[item]:
                     return False
@@ -61,7 +66,10 @@ class BinPacking:
             if self._sizes[current_item] <= self._bin_capacity - state.loads.get(
                 bin_index, 0
             ):
-                new_assignments = {k: set(v) for k, v in state.assignments.items()}
+                # Deep copy assignments
+                new_assignments = {
+                    key: set(value) for key, value in state.assignments.items()
+                }
                 new_assignments[bin_index].add(current_item)
                 new_loads = state.loads.copy()
                 new_loads[bin_index] = (
@@ -83,32 +91,26 @@ class BinPacking:
 
         return new_states
 
-    def _branch_and_bound(self) -> State:
+    def _branch_and_bound(self) -> None:
         """Branch-and-bound search to minimize number of bins."""
         frontier: list[State] = [State(0, {}, {}, 0)]
         incumbent: State = State(int(inf), {}, {}, 0)
 
         while frontier:
             current_state = frontier.pop()
-
             if self._is_goal(current_state) and self._evaluation(
                 current_state
             ) < self._evaluation(incumbent):
                 incumbent = current_state
-                print(f"New incumbent found with {incumbent.bins_used} bins.")
-
             else:
-                new_states = self._generate_new_states(current_state)
-                for state in new_states:
+                for state in self._generate_new_states(current_state):
+                    # Prune states that cannot improve incumbent
                     if state.bins_used >= incumbent.bins_used:
-                        continue  # Prune states that cannot improve incumbent
+                        continue
                     frontier.append(state)
 
-        print(
-            f"Branch-and-Bound completed. Best solution uses {incumbent.bins_used} bins."
-        )
-        return incumbent
+        self._solution = incumbent
 
-    def _dynamic_programming(self) -> State:
+    def _dynamic_programming(self) -> None:
         """Dynamic programming method placeholder."""
         ...
