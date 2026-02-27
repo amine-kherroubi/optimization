@@ -3,6 +3,7 @@ from attr import dataclass
 
 # Mazal ma kemmeltch
 
+
 # Dataclass mli7a for memory efficiency
 @dataclass(slots=False)
 class State:
@@ -12,6 +13,8 @@ class State:
 
 
 class BinPacking(object):
+    # Hadi tan tdir optimization ta3 memoire
+    # (tsupprimi le dictionnaire associé lel class psk ma ra7ch nzido new attributes f runtime)
     __slots__ = ("_sizes", "_number_of_items", "_bin_capacity", "_solution")
 
     def __init__(self, sizes: list[int], bin_capacity: int) -> None:
@@ -26,6 +29,7 @@ class BinPacking(object):
         self._bin_capacity: int = bin_capacity  # Maximum capacity of each bin
         self._solution: State | None = None  # Stores best solution after solving
 
+    # Hadi strategy design pattern
     def solve(self, method: str = "bb") -> None:
         # Select solving method
         match method:
@@ -83,6 +87,7 @@ class BinPacking(object):
 
         return new_states
 
+    # mazal ma dertch pruning
     def _branch_and_bound(self) -> State:
         # Branch-and-bound search to minimize number of bins
         current_item: int = 0
