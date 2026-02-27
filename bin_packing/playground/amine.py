@@ -65,7 +65,6 @@ class BinPacking:
             if self._sizes[current_item] <= self._bin_capacity - state.loads.get(
                 bin_index, 0
             ):
-                # Deep copy assignments
                 new_assignments = {
                     key: set(value) for key, value in state.assignments.items()
                 }
@@ -80,7 +79,7 @@ class BinPacking:
 
         # Place item in a new bin
         new_bins_used = state.bins_used + 1
-        new_assignments = {k: set(v) for k, v in state.assignments.items()}
+        new_assignments = {key: set(value) for key, value in state.assignments.items()}
         new_assignments[new_bins_used - 1] = {current_item}
         new_loads = state.loads.copy()
         new_loads[new_bins_used - 1] = self._sizes[current_item]
