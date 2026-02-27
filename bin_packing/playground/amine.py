@@ -28,9 +28,9 @@ class BinPacking:
         self._bin_capacity: int = bin_capacity
         self._solution: Solution | None = None
 
-    def solve(self, method: str = "bb") -> None:
+    def solve(self, method: str = "b&b") -> None:
         """Select solving method."""
-        if method == "bb":
+        if method == "b&b":
             self._branch_and_bound()
         elif method == "dp":
             self._dynamic_programming()
