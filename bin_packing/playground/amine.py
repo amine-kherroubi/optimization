@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 
 @dataclass(slots=True)
-class Solution:
+class Solution(object):
     bins_used: int  # Number of bins used
     assignments: dict[int, set[int]]  # Mapping from bin index to items packed
     loads: dict[int, int]  # Load of each bin
@@ -13,7 +13,7 @@ class State(Solution):
     next_item: int  # Index of the next item to assign
 
 
-class BinPacking:
+class BinPacking(object):
     __slots__ = ("_sizes", "_number_of_items", "_bin_capacity", "_solution")
 
     def __init__(self, sizes: list[int], bin_capacity: int) -> None:
