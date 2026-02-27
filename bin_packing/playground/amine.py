@@ -109,4 +109,4 @@ class BinPacking(object):
 
     def _dynamic_programming(self) -> None:
         """Dynamic programming method placeholder."""
-        ...
+        raise NotImplementedError("Dynamic programming solver not implemented.")
