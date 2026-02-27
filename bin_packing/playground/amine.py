@@ -84,7 +84,7 @@ class BinPacking(object):
         return new_states
 
     def _branch_and_bound(self) -> None:
-        """Branch-and-bound search to minimize number of bins."""
+        """Branch-and-bound method."""
         frontier: list[State] = [State(0, {}, {}, 0)]
         incumbent: State = State(self._number_of_items + 1, {}, {}, 0)
 
@@ -108,5 +108,5 @@ class BinPacking(object):
         )
 
     def _dynamic_programming(self) -> None:
-        """Dynamic programming method placeholder."""
-        raise NotImplementedError("Dynamic programming solver not implemented.")
+        """Dynamic programming method."""
+        raise NotImplementedError("Dynamic programming not implemented.")
