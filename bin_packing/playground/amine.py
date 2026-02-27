@@ -1,9 +1,9 @@
 from math import inf
 from attr import dataclass
 
-# THIS IS UNFINISHED!
+# Mazal ma kemmeltch
 
-
+# Dataclass mli7a for memory efficiency
 @dataclass(slots=False)
 class State:
     bins_used: int  # Number of bins used in this state
