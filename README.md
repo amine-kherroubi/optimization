@@ -1,1 +1,1 @@
-# bin-packing-optimization
+# Optimization Labs Repository
