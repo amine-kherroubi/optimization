@@ -1,4 +1,3 @@
-from math import inf
 from dataclasses import dataclass
 
 
@@ -94,7 +93,7 @@ class BinPacking:
     def _branch_and_bound(self) -> None:
         """Branch-and-bound search to minimize number of bins."""
         frontier: list[State] = [State(0, {}, {}, 0)]
-        incumbent: State = State(int(inf), {}, {}, 0)
+        incumbent: State = State(self._number_of_items + 1, {}, {}, 0)
 
         while frontier:
             current_state = frontier.pop()
