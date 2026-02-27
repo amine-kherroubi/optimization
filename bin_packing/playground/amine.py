@@ -109,7 +109,11 @@ class BinPacking:
                         continue
                     frontier.append(state)
 
-        self._solution = incumbent
+        self._solution = Solution(
+            bins_used=incumbent.bins_used,
+            assignments=incumbent.assignments,
+            loads=incumbent.loads,
+        )
 
     def _dynamic_programming(self) -> None:
         """Dynamic programming method placeholder."""
