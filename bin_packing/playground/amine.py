@@ -46,16 +46,8 @@ class BinPacking:
         return state.bins_used
 
     def _is_goal(self, state: State) -> bool:
-        """Check if all items have been assigned exactly once."""
-        encountered = [False] * self._number_of_items
-        item_count = 0
-        for items in state.assignments.values():
-            for item in items:
-                if encountered[item]:
-                    return False
-                encountered[item] = True
-                item_count += 1
-        return item_count == self._number_of_items
+        """Check if all items have been assigned."""
+        return state.next_item == self._number_of_items
 
     def _generate_new_states(self, state: State) -> list[State]:
         """Generate successor states by placing next item in existing or new bins."""
@@ -98,16 +90,16 @@ class BinPacking:
 
         while frontier:
             current_state = frontier.pop()
-            if current_state.next_item == self._number_of_items:
+            if self._is_goal(current_state):
                 if self._evaluation(current_state) < self._evaluation(incumbent):
                     incumbent = current_state
+                continue
+
+            for state in self._generate_new_states(current_state):
+                # Prune states that cannot improve incumbent
+                if state.bins_used >= incumbent.bins_used:
                     continue
-            else:
-                for state in self._generate_new_states(current_state):
-                    # Prune states that cannot improve incumbent
-                    if state.bins_used >= incumbent.bins_used:
-                        continue
-                    frontier.append(state)
+                frontier.append(state)
 
         self._solution = Solution(
             bins_used=incumbent.bins_used,
