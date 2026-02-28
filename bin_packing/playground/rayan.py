@@ -5,9 +5,9 @@ import heapq
 
 @dataclass(slots=True)
 class Solution(object):
-    bins_used: int                    # Number of bins used
-    assignments: dict[int, set[int]] # Mapping from bin index to items packed
-    loads: dict[int, int]            # Load of each bin
+    bins_used: int  # Number of bins used
+    assignments: dict[int, set[int]]  # Mapping from bin index to items packed
+    loads: dict[int, int]  # Load of each bin
 
 
 @dataclass(slots=True)
@@ -30,7 +30,6 @@ class BinPacking(object):
         self._bin_capacity: int = bin_capacity
         self._solution: Solution | None = None
 
-
     def solve(self, method: str = "b&b") -> None:
         """Select solving method."""
         if method == "b&b":
@@ -47,21 +46,20 @@ class BinPacking(object):
                 "No solution available: you must call 'solve()' before retrieving the solution."
             )
         return self._solution
-    
 
     """
-    Lower bound evaluation 
+    Lower bound evaluation
     extra_volume = max(0, remaining_volume - free_space)
     LB = bins_used + ceil(extra_volume / bin_capacity)
     """
+
     def _evaluation(self, state: State) -> int:
         remaining_volume: int = sum(
             self._sizes[i] for i in range(state.next_item, self._number_of_items)
         )
 
         free_space: int = sum(
-            self._bin_capacity - state.loads.get(b, 0)
-            for b in range(state.bins_used)
+            self._bin_capacity - state.loads.get(b, 0) for b in range(state.bins_used)
         )
 
         extra_volume: int = max(0, remaining_volume - free_space)
@@ -71,12 +69,12 @@ class BinPacking(object):
     def _is_goal(self, state: State) -> bool:
         """Check if all items have been assigned (inchangé)."""
         return state.next_item == self._number_of_items
-    
 
     """
     Group bins by load and generate one state per unique load
-    Bins with same load are interchangeable → avoid duplicates.     
+    Bins with same load are interchangeable → avoid duplicates.
     """
+
     def _generate_new_states(self, state: State) -> list[State]:
         """
         Generate successor states by placing next item in existing or new bins.
@@ -120,8 +118,8 @@ class BinPacking(object):
 
         return new_states
 
+    """Gives realistic initial solution → early pruning"""
 
-    """Gives realistic initial solution → early pruning""" 
     def _first_fit_decreasing(self) -> State:
         """
         Greedy FFD heuristic to build an initial feasible solution.
@@ -146,12 +144,12 @@ class BinPacking(object):
 
         return State(bins_used, assignments, loads, self._number_of_items)
 
-    
     """
     Best-First Search using min-heap
     priority queue ordered by lower bound
     Explore most promising states first → reach optimum earlier
     """
+
     def _branch_and_bound(self) -> None:
         # Incumbent initial via FFD
         incumbent: State = self._first_fit_decreasing()
@@ -161,10 +159,12 @@ class BinPacking(object):
         counter = 0
         initial_state = State(0, {}, {}, 0)
         frontier: list[tuple[int, int, State]] = []
-        heapq.heappush(frontier, (self._evaluation(initial_state), counter, initial_state))
+        heapq.heappush(
+            frontier, (self._evaluation(initial_state), counter, initial_state)
+        )
 
         while frontier:
-            lb, _, current_state = heapq.heappop(frontier) 
+            lb, _, current_state = heapq.heappop(frontier)
 
             # Prune if bound already worse than incumbent
             if lb >= incumbent.bins_used:
@@ -177,7 +177,7 @@ class BinPacking(object):
                 continue
 
             for state in self._generate_new_states(current_state):
-                lb_state = self._evaluation(state) 
+                lb_state = self._evaluation(state)
                 #  Prune states that cannot improve incumbent
                 if lb_state >= incumbent.bins_used:
                     continue
