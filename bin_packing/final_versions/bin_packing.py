@@ -67,13 +67,13 @@ class BinPacking(object):
     def _generate_new_states(self, state: State) -> list[State]:
         """Generate successor states by placing the next item in existing or new bins."""
         new_states: list[State] = []
-        current_item = state.next_item
-        item_size = self._sizes[current_item]
+        current_item: int = state.next_item
+        item_size: int = self._sizes[current_item]
         seen_loads: set[int] = set()  # Track visited load values to skip symmetric bins
 
         # Place item in existing bins if it fits
         for bin_index in range(state.bins_used):
-            current_load = state.loads.get(bin_index, 0)
+            current_load: int = state.loads.get(bin_index, 0)
 
             # Skip bins with duplicate loads — they are interchangeable
             if current_load in seen_loads:
@@ -81,19 +81,23 @@ class BinPacking(object):
 
             if item_size <= self._bin_capacity - current_load:
                 seen_loads.add(current_load)
-                new_assignments = {k: set(v) for k, v in state.assignments.items()}
+                new_assignments: dict[int, set[int]] = {
+                    key: set(value) for key, value in state.assignments.items()
+                }
                 new_assignments[bin_index].add(current_item)
-                new_loads = state.loads.copy()
+                new_loads: dict[int, int] = state.loads.copy()
                 new_loads[bin_index] = current_load + item_size
                 new_states.append(
                     State(state.bins_used, new_assignments, new_loads, current_item + 1)
                 )
 
         # Place item in a new bin
-        new_bins_used = state.bins_used + 1
-        new_assignments = {k: set(v) for k, v in state.assignments.items()}
+        new_bins_used: int = state.bins_used + 1
+        new_assignments: dict[int, set[int]] = {
+            key: set(value) for key, value in state.assignments.items()
+        }
         new_assignments[new_bins_used - 1] = {current_item}
-        new_loads = state.loads.copy()
+        new_loads: dict[int, int] = state.loads.copy()
         new_loads[new_bins_used - 1] = item_size
         new_states.append(
             State(new_bins_used, new_assignments, new_loads, current_item + 1)
@@ -105,10 +109,10 @@ class BinPacking(object):
         """Build an initial feasible solution using the FFD greedy heuristic."""
         loads: dict[int, int] = {}
         assignments: dict[int, set[int]] = {}
-        bins_used = 0
+        bins_used: int = 0
 
         for item_index, size in enumerate(self._sizes):
-            placed = False
+            placed: bool = False
             for bin_index in range(bins_used):
                 if loads[bin_index] + size <= self._bin_capacity:
                     loads[bin_index] += size
@@ -128,8 +132,8 @@ class BinPacking(object):
         incumbent: State = self._first_fit_decreasing()  # Warm start via FFD
 
         # Min-heap ordered by lower bound; counter breaks ties without comparing States
-        counter = 0
-        initial_state = State(0, {}, {}, 0)
+        counter: int = 0
+        initial_state: State = State(0, {}, {}, 0)
         frontier: list[tuple[int, int, State]] = []
         heapq.heappush(
             frontier, (self._evaluation(initial_state), counter, initial_state)
@@ -147,7 +151,7 @@ class BinPacking(object):
                 continue
 
             for state in self._generate_new_states(current_state):
-                state_lower_bound = self._evaluation(state)
+                state_lower_bound: int = self._evaluation(state)
                 # Prune states that cannot improve the incumbent
                 if state_lower_bound >= incumbent.bins_used:
                     continue
