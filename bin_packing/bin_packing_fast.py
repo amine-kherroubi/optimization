@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import ceil
 import heapq
 from typing import Optional
 
