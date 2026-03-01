@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from math import ceil
 import heapq
@@ -19,7 +21,7 @@ class State(object):
     used_volume: int  # Total volume packed so far
 
     # Parent pointer for solution reconstruction — avoids copying assignments at every node
-    parent: "State | None"
+    parent: State | None
     placed_bin: int  # Bin index where item (next_item - 1) was placed; -1 for root
 
 
@@ -166,8 +168,8 @@ class BinPacking(object):
     def _reconstruct_item_bins(self, goal: State) -> list[int]:
         """Walk parent pointers backward to recover per-item bin assignments."""
         item_bins: list[int] = [0] * self._number_of_items
-        current: State | None = goal
-        while current is not None and current.parent is not None:
+        current: State = goal
+        while current.parent is not None:
             item: int = current.next_item - 1
             item_bins[item] = current.placed_bin
             current = current.parent
