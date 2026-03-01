@@ -2,8 +2,8 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-# from bin_packing import BinPacking, Solution
-from bin_packing_fast import BinPacking, Solution
+# from bin_packing.slow import BinPacking, Solution
+from bin_packing.fast import BinPacking, Solution
 
 
 @dataclass(slots=True)
@@ -149,8 +149,8 @@ class Benchmark:
 
 
 if __name__ == "__main__":
-    print("Running benchmark on all instances in 'Instances/Benchmarks'...")
-    instances_dir = Path(__file__).parent.parent / "Instances" / "Benchmarks"
+    print("Running benchmark on all instances in 'Benchmarks'...")
+    instances_dir = Path(__file__).parent.parent / "benchmarks"
     bench = Benchmark(instances_dir)
     bench.run(method="b&b")
     bench.print_summary()
