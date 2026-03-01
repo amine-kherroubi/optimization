@@ -7,17 +7,17 @@ from bin_packing.fast import BinPacking, Solution
 
 
 @dataclass(slots=True)
-class BenchmarkResult:
-    instance_name: str
-    num_items: int
-    bin_capacity: int
-    bins_used: int
-    elapsed_time: float  # seconds
-    method: str
+class BenchmarkResult(object):
+    instance_name: str  # Name of the instance file (without extension)
+    num_items: int  # Number of items in the instance
+    bin_capacity: int  # Capacity of each bin
+    bins_used: int  # Number of bins used in the solution
+    elapsed_time: float  # Wall-clock solve time in seconds
+    method: str  # Solving method used
 
 
-class Benchmark:
-    """Benchmarks BinPacking instances from text files.
+class Benchmark(object):
+    """Benchmarks BinPacking instances loaded from text files.
 
     Instance file format:
         Line 1: number of items
@@ -29,29 +29,21 @@ class Benchmark:
         self._instances_dir: Path = Path(instances_dir)
         self._results: list[BenchmarkResult] = []
 
-    # ------------------------------------------------------------------
-    # Parsing
-    # ------------------------------------------------------------------
-
     @staticmethod
     def _parse_instance(filepath: Path) -> tuple[int, list[int]]:
-        """Return (bin_capacity, sizes) parsed from an instance file."""
-        lines = filepath.read_text().splitlines()
-        num_items = int(lines[0])
-        bin_capacity = int(lines[1])
-        sizes = [int(lines[i]) for i in range(2, 2 + num_items)]
+        """Parse an instance file and return (bin_capacity, sizes)."""
+        lines: list[str] = filepath.read_text().splitlines()
+        num_items: int = int(lines[0])
+        bin_capacity: int = int(lines[1])
+        sizes: list[int] = [int(lines[i]) for i in range(2, 2 + num_items)]
         return bin_capacity, sizes
-
-    # ------------------------------------------------------------------
-    # Running
-    # ------------------------------------------------------------------
 
     def run(self, method: str = "b&b") -> None:
         """Run the benchmark on every *.txt instance in the instances directory."""
         if method != "b&b":
             raise ValueError("This solver version only supports method='b&b'.")
 
-        instance_files = sorted(self._instances_dir.glob("*.txt"))
+        instance_files: list[Path] = sorted(self._instances_dir.glob("*.txt"))
         if not instance_files:
             raise FileNotFoundError(
                 f"No instance files found in '{self._instances_dir}'."
@@ -68,18 +60,21 @@ class Benchmark:
         if method != "b&b":
             raise ValueError("This solver version only supports method='b&b'.")
 
-        result = self._run_single(Path(filepath), method)
+        result: BenchmarkResult = self._run_single(Path(filepath), method)
         self._results.append(result)
         return result
 
     def _run_single(self, filepath: Path, method: str) -> BenchmarkResult:
-        """Parse, solve, and time one instance."""
+        """Parse, solve, and time a single instance."""
+        bin_capacity: int
+        sizes: list[int]
         bin_capacity, sizes = self._parse_instance(filepath)
-        solver = BinPacking(sizes, bin_capacity)
 
-        start = time.perf_counter()
-        solver.solve()  # updated: new solver has no method parameter
-        elapsed = time.perf_counter() - start
+        solver: BinPacking = BinPacking(sizes, bin_capacity)
+
+        start: float = time.perf_counter()
+        solver.solve()
+        elapsed: float = time.perf_counter() - start
 
         solution: Solution = solver.get_solution()
         return BenchmarkResult(
@@ -91,10 +86,6 @@ class Benchmark:
             method=method,
         )
 
-    # ------------------------------------------------------------------
-    # Results
-    # ------------------------------------------------------------------
-
     def get_results(self) -> list[BenchmarkResult]:
         """Return a copy of all collected benchmark results."""
         return list(self._results)
@@ -103,54 +94,53 @@ class Benchmark:
         """Clear all stored results."""
         self._results.clear()
 
-    # ------------------------------------------------------------------
-    # Reporting
-    # ------------------------------------------------------------------
-
     def print_summary(self) -> None:
         """Print a formatted summary table of all benchmark results."""
         if not self._results:
             print("No results available. Run the benchmark first.")
             return
 
-        name_w = max(len(r.instance_name) for r in self._results)
-        name_w = max(name_w, len("Instance"))
+        # Column widths
+        name_width: int = max(len(r.instance_name) for r in self._results)
+        name_width = max(name_width, len("Instance"))
 
-        header = (
-            f"{'Instance':<{name_w}}  "
+        header: str = (
+            f"{'Instance':<{name_width}}  "
             f"{'Items':>5}  "
             f"{'Capacity':>8}  "
             f"{'Bins':>4}  "
             f"{'Time (s)':>10}  "
             f"{'Method'}"
         )
-        sep = "-" * len(header)
+        separator: str = "-" * len(header)
 
-        print(sep)
+        print(separator)
         print(header)
-        print(sep)
+        print(separator)
 
-        for r in self._results:
+        for result in self._results:
             print(
-                f"{r.instance_name:<{name_w}}  "
-                f"{r.num_items:>5}  "
-                f"{r.bin_capacity:>8}  "
-                f"{r.bins_used:>4}  "
-                f"{r.elapsed_time:>10.4f}  "
-                f"{r.method}"
+                f"{result.instance_name:<{name_width}}  "
+                f"{result.num_items:>5}  "
+                f"{result.bin_capacity:>8}  "
+                f"{result.bins_used:>4}  "
+                f"{result.elapsed_time:>10.4f}  "
+                f"{result.method}"
             )
 
-        print(sep)
-        total_time = sum(r.elapsed_time for r in self._results)
-        avg_bins = sum(r.bins_used for r in self._results) / len(self._results)
+        print(separator)
+
+        # Aggregate statistics
+        total_time: float = sum(r.elapsed_time for r in self._results)
+        avg_bins: float = sum(r.bins_used for r in self._results) / len(self._results)
         print(f"Instances : {len(self._results)}")
         print(f"Total time: {total_time:.4f} s")
         print(f"Avg bins  : {avg_bins:.2f}")
 
 
 if __name__ == "__main__":
-    print("Running benchmark on all instances in 'Benchmarks'...")
-    instances_dir = Path(__file__).parent.parent / "benchmarks"
-    bench = Benchmark(instances_dir)
+    print("Running benchmark on all instances in 'benchmarks'...")
+    instances_dir: Path = Path(__file__).parent.parent / "benchmarks"
+    bench: Benchmark = Benchmark(instances_dir)
     bench.run(method="b&b")
     bench.print_summary()

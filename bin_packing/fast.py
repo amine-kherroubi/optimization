@@ -1,31 +1,29 @@
-from __future__ import annotations
-
 from dataclasses import dataclass
+from math import ceil
 import heapq
-from typing import Optional
 
 
 @dataclass(slots=True)
-class Solution:
-    bins_used: int
-    assignments: dict[int, set[int]]
-    loads: list[int]  # loads[b] = load in bin b
+class Solution(object):
+    bins_used: int  # Number of bins used
+    assignments: dict[int, set[int]]  # Mapping from bin index to items packed
+    loads: list[int]  # Load of each bin
 
 
 @dataclass(slots=True)
-class State:
+class State(object):
     # Core search state
-    bins_used: int
-    loads: list[int]  # length == bins_used
-    next_item: int  # assign item indices [0..next_item-1] already
-    used_volume: int  # sum(loads)
+    bins_used: int  # Number of open bins
+    loads: list[int]  # Load of each open bin
+    next_item: int  # Index of the next item to assign
+    used_volume: int  # Total volume packed so far
 
-    # Parent pointer for reconstruction (no per-node item_bins copying)
-    parent: Optional["State"]
-    placed_bin: int  # bin index where item (next_item-1) was placed; -1 for root
+    # Parent pointer for solution reconstruction — avoids copying assignments at every node
+    parent: "State | None"
+    placed_bin: int  # Bin index where item (next_item - 1) was placed; -1 for root
 
 
-class BinPacking:
+class BinPacking(object):
     __slots__ = (
         "_sizes",
         "_number_of_items",
@@ -35,171 +33,170 @@ class BinPacking:
     )
 
     def __init__(self, sizes: list[int], bin_capacity: int) -> None:
-        if any(s > bin_capacity for s in sizes):
+        # Ensure all items can fit in a single bin
+        if any(size > bin_capacity for size in sizes):
             raise ValueError("All item sizes must be <= bin capacity.")
 
-        self._sizes: list[int] = sorted(sizes, reverse=True)
+        self._sizes: list[int] = sorted(sizes, reverse=True)  # Decreasing order for BFD
         self._number_of_items: int = len(self._sizes)
         self._bin_capacity: int = bin_capacity
         self._solution: Solution | None = None
 
-        # Precompute suffix sums for O(1) remaining volume
-        n = self._number_of_items
-        suf = [0] * (n + 1)
-        total = 0
+        # Precompute suffix sums for O(1) remaining-volume queries
+        n: int = self._number_of_items
+        suffix_sum: list[int] = [0] * (n + 1)
+        total: int = 0
         for i in range(n - 1, -1, -1):
             total += self._sizes[i]
-            suf[i] = total
-        self._suffix_sum = suf
+            suffix_sum[i] = total
+        self._suffix_sum: list[int] = suffix_sum
 
     def solve(self) -> None:
+        """Run the branch-and-bound solver."""
         self._branch_and_bound()
 
     def get_solution(self) -> Solution:
+        """Retrieve the computed solution."""
         if self._solution is None:
-            raise RuntimeError("No solution: call solve() first.")
+            raise RuntimeError(
+                "No solution available: you must call 'solve()' before retrieving the solution."
+            )
         return self._solution
 
-    # ---------- bounds / helpers ----------
-
     def _evaluation(self, state: State) -> int:
+        """Lower bound on the number of bins needed from this state onward.
+
+        Uses suffix sums and aggregated free space for an O(1) computation.
         """
-        Fast LB:
-          remaining = suffix_sum[next_item]
-          free_space = bins_used*C - used_volume
-          extra = max(0, remaining - free_space)
-          LB = bins_used + ceil(extra/C)
-        All O(1).
-        """
-        remaining = self._suffix_sum[state.next_item]
-        free_space = state.bins_used * self._bin_capacity - state.used_volume
-        extra = remaining - free_space
-        if extra <= 0:
+        remaining_volume: int = self._suffix_sum[state.next_item]
+        free_space: int = state.bins_used * self._bin_capacity - state.used_volume
+        extra_volume: int = remaining_volume - free_space
+
+        if extra_volume <= 0:
             return state.bins_used
-        # ceil(extra/C) without floats is fine, but ceil(int/int) is OK too
-        return state.bins_used + (extra + self._bin_capacity - 1) // self._bin_capacity
+        return state.bins_used + ceil(extra_volume / self._bin_capacity)
 
     def _is_goal(self, state: State) -> bool:
+        """Check if all items have been assigned."""
         return state.next_item == self._number_of_items
 
-    @staticmethod
-    def _build_assignments_from_item_bins(
-        item_bins: list[int], bins_used: int
-    ) -> dict[int, set[int]]:
-        a: dict[int, set[int]] = {b: set() for b in range(bins_used)}
-        for i, b in enumerate(item_bins):
-            a[b].add(i)
-        return a
+    def _best_fit_decreasing(self) -> tuple[int, list[int], list[int]]:
+        """Build an initial feasible solution using the BFD greedy heuristic.
 
-    def _reconstruct_item_bins(self, goal: State) -> list[int]:
-        """Walk parent pointers backward and fill item_bins."""
-        n = self._number_of_items
-        item_bins = [0] * n
-        s = goal
-        while s.parent is not None:
-            item = s.next_item - 1
-            item_bins[item] = s.placed_bin
-            s = s.parent
-        return item_bins
-
-    # ---------- heuristics (upper bound) ----------
-
-    def _best_fit_decreasing_upper_bound(self) -> tuple[int, list[int], list[int]]:
+        Returns (bins_used, item_bins, loads).
         """
-        Best-Fit Decreasing (often tighter than FFD):
-        returns (bins_used, item_bins, loads_list)
-        """
-        C = self._bin_capacity
         loads: list[int] = []
         item_bins: list[int] = [0] * self._number_of_items
 
-        for i, size in enumerate(self._sizes):
-            best_bin = -1
-            best_rem = C + 1
-            for b, load in enumerate(loads):
-                rem = C - load
-                if size <= rem and rem - size < best_rem:
-                    best_rem = rem - size
-                    best_bin = b
+        for item_index, size in enumerate(self._sizes):
+            best_bin: int = -1
+            best_remaining: int = self._bin_capacity + 1
+
+            # Find the bin with the tightest fit
+            for bin_index, load in enumerate(loads):
+                remaining: int = self._bin_capacity - load
+                if size <= remaining and remaining - size < best_remaining:
+                    best_remaining = remaining - size
+                    best_bin = bin_index
 
             if best_bin >= 0:
                 loads[best_bin] += size
-                item_bins[i] = best_bin
+                item_bins[item_index] = best_bin
             else:
-                item_bins[i] = len(loads)
+                # Open a new bin
+                item_bins[item_index] = len(loads)
                 loads.append(size)
 
         return len(loads), item_bins, loads
 
-    # ---------- branching ----------
-
     def _generate_children(self, state: State) -> list[State]:
-        """
+        """Generate successor states by placing the next item in existing or new bins.
+
         Symmetry breaking:
-        - Skip bins with equal loads (interchangeable)
-        - Only open a new bin if the item does NOT fit in any existing bin
-          (huge branching reduction, still exact)
+        - Bins with equal loads are interchangeable and are deduplicated.
+        - A new bin is opened only when the item fits nowhere else.
         """
         children: list[State] = []
-        i = state.next_item
-        size = self._sizes[i]
-        C = self._bin_capacity
-        loads = state.loads
+        current_item: int = state.next_item
+        item_size: int = self._sizes[current_item]
+        seen_loads: set[int] = set()  # Track visited load values to skip symmetric bins
+        fits_somewhere: bool = False
 
-        seen_loads: set[int] = set()
-        fits_somewhere = False
+        # Place item in existing bins if it fits
+        for bin_index in range(state.bins_used):
+            current_load: int = state.loads[bin_index]
 
-        # Try existing bins
-        for b in range(state.bins_used):
-            lb = loads[b]
-            if lb in seen_loads:
+            # Skip bins with duplicate loads — they are interchangeable
+            if current_load in seen_loads:
                 continue
-            seen_loads.add(lb)
+            seen_loads.add(current_load)
 
-            if lb + size <= C:
+            if current_load + item_size <= self._bin_capacity:
                 fits_somewhere = True
-                new_loads = loads.copy()
-                new_loads[b] = lb + size
+                new_loads: list[int] = state.loads.copy()
+                new_loads[bin_index] = current_load + item_size
                 children.append(
                     State(
                         bins_used=state.bins_used,
                         loads=new_loads,
-                        next_item=i + 1,
-                        used_volume=state.used_volume + size,
+                        next_item=current_item + 1,
+                        used_volume=state.used_volume + item_size,
                         parent=state,
-                        placed_bin=b,
+                        placed_bin=bin_index,
                     )
                 )
 
-        # Open new bin only if needed (exact + big cut)
+        # Open a new bin only when the item fits nowhere else
         if not fits_somewhere:
-            new_loads = loads.copy()
-            new_loads.append(size)
+            new_loads = state.loads.copy()
+            new_loads.append(item_size)
             children.append(
                 State(
                     bins_used=state.bins_used + 1,
                     loads=new_loads,
-                    next_item=i + 1,
-                    used_volume=state.used_volume + size,
+                    next_item=current_item + 1,
+                    used_volume=state.used_volume + item_size,
                     parent=state,
-                    placed_bin=state.bins_used,  # new bin index
+                    placed_bin=state.bins_used,  # Index of the newly opened bin
                 )
             )
 
         return children
 
-    # ---------- main search ----------
+    def _reconstruct_item_bins(self, goal: State) -> list[int]:
+        """Walk parent pointers backward to recover per-item bin assignments."""
+        item_bins: list[int] = [0] * self._number_of_items
+        current: State | None = goal
+        while current is not None and current.parent is not None:
+            item: int = current.next_item - 1
+            item_bins[item] = current.placed_bin
+            current = current.parent
+        return item_bins
+
+    @staticmethod
+    def _build_assignments(item_bins: list[int], bins_used: int) -> dict[int, set[int]]:
+        """Build a bin-to-items mapping from a flat item_bins list."""
+        assignments: dict[int, set[int]] = {b: set() for b in range(bins_used)}
+        for item_index, bin_index in enumerate(item_bins):
+            assignments[bin_index].add(item_index)
+        return assignments
 
     def _branch_and_bound(self) -> None:
-        # Upper bound from greedy
-        ub_bins, ub_item_bins, ub_loads = self._best_fit_decreasing_upper_bound()
-        incumbent_bins_used = ub_bins
+        """Branch-and-bound method using best-first search."""
+        # Warm start via BFD greedy heuristic
+        incumbent_bins_used: int
+        incumbent_item_bins: list[int]
+        incumbent_loads: list[int]
+        incumbent_bins_used, incumbent_item_bins, incumbent_loads = (
+            self._best_fit_decreasing()
+        )
         incumbent_goal_state: State | None = (
-            None  # if we find an optimal-by-search solution
+            None  # Set only if search improves on the greedy UB
         )
 
-        # Root
-        root = State(
+        # Min-heap ordered by lower bound; counter breaks ties without comparing States
+        counter: int = 0
+        root: State = State(
             bins_used=0,
             loads=[],
             next_item=0,
@@ -207,44 +204,41 @@ class BinPacking:
             parent=None,
             placed_bin=-1,
         )
+        frontier: list[tuple[int, int, State]] = []
+        heapq.heappush(frontier, (self._evaluation(root), counter, root))
 
-        # Best-first search by lower bound
-        heap: list[tuple[int, int, State]] = []
-        counter = 0
-        heapq.heappush(heap, (self._evaluation(root), counter, root))
+        while frontier:
+            lower_bound, _, current_state = heapq.heappop(frontier)
 
-        while heap:
-            lb, _, s = heapq.heappop(heap)
-            if lb >= incumbent_bins_used:
+            # Prune if this branch cannot improve the incumbent
+            if lower_bound >= incumbent_bins_used:
                 continue
 
-            if self._is_goal(s):
-                # Found a better feasible solution
-                incumbent_bins_used = s.bins_used
-                incumbent_goal_state = s
+            if self._is_goal(current_state):
+                incumbent_bins_used = current_state.bins_used
+                incumbent_goal_state = current_state
                 continue
 
-            # Expand
-            for child in self._generate_children(s):
-                child_lb = self._evaluation(child)
-                if child_lb >= incumbent_bins_used:
+            for child in self._generate_children(current_state):
+                child_lower_bound: int = self._evaluation(child)
+                # Prune states that cannot improve the incumbent
+                if child_lower_bound >= incumbent_bins_used:
                     continue
                 counter += 1
-                heapq.heappush(heap, (child_lb, counter, child))
+                heapq.heappush(frontier, (child_lower_bound, counter, child))
 
-        # Build final solution:
-        # - If search found a better goal state, reconstruct from it
-        # - Else return greedy UB
+        # Reconstruct from search if it improved on the greedy upper bound; otherwise use greedy
         if incumbent_goal_state is not None:
-            item_bins = self._reconstruct_item_bins(incumbent_goal_state)
-            bins_used = incumbent_goal_state.bins_used
-            loads = incumbent_goal_state.loads
+            item_bins: list[int] = self._reconstruct_item_bins(incumbent_goal_state)
+            bins_used: int = incumbent_goal_state.bins_used
+            loads: list[int] = incumbent_goal_state.loads
         else:
-            item_bins = ub_item_bins
-            bins_used = ub_bins
-            loads = ub_loads
+            item_bins = incumbent_item_bins
+            bins_used = incumbent_bins_used
+            loads = incumbent_loads
 
-        assignments = self._build_assignments_from_item_bins(item_bins, bins_used)
         self._solution = Solution(
-            bins_used=bins_used, assignments=assignments, loads=loads
+            bins_used=bins_used,
+            assignments=self._build_assignments(item_bins, bins_used),
+            loads=loads,
         )
