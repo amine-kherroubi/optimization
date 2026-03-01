@@ -175,8 +175,9 @@ class BinPacking(object):
             current = current.parent
         return item_bins
 
-    @staticmethod
-    def _build_assignments(item_bins: list[int], bins_used: int) -> dict[int, set[int]]:
+    def _build_assignments(
+        self, item_bins: list[int], bins_used: int
+    ) -> dict[int, set[int]]:
         """Build a bin-to-items mapping from a flat item_bins list."""
         assignments: dict[int, set[int]] = {b: set() for b in range(bins_used)}
         for item_index, bin_index in enumerate(item_bins):
