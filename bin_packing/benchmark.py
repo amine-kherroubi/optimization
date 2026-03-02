@@ -4,6 +4,7 @@ import argparse
 import multiprocessing as mp
 import queue
 import sys
+import threading
 import time
 from dataclasses import dataclass
 from math import ceil
@@ -28,7 +29,6 @@ GRAPHS_DIR: Path = _PACKAGE_DIR / "results"
 # ═══════════════════════════════════════════════════════════════════════════════
 # Core data types
 # ═══════════════════════════════════════════════════════════════════════════════
-
 
 @dataclass(slots=True)
 class BenchmarkInstance:
@@ -91,7 +91,6 @@ class TableWidths:
 # Instance parsers
 # ═══════════════════════════════════════════════════════════════════════════════
 
-
 def parse_standard(filepath: Path, dataset_key: str) -> BenchmarkInstance:
     """Parses the standard one-instance-per-file format:
         line 0   — number of items
@@ -116,7 +115,6 @@ def parse_standard(filepath: Path, dataset_key: str) -> BenchmarkInstance:
 # Dataset registry
 # ═══════════════════════════════════════════════════════════════════════════════
 
-
 @dataclass(frozen=True)
 class DatasetConfig:
     """Immutable descriptor for a benchmark dataset.
@@ -125,11 +123,11 @@ class DatasetConfig:
     register_dataset(). No other code in this module needs to change.
     """
 
-    key: str  # CLI identifier, e.g. "scholl-1"
-    label: str  # Human-readable name
-    directory: Path  # Root directory of instance files
+    key: str                                          # CLI identifier, e.g. "scholl-1"
+    label: str                                        # Human-readable name
+    directory: Path                                   # Root directory of instance files
     parser: Callable[[Path, str], BenchmarkInstance]  # File → BenchmarkInstance
-    glob: str = "*.txt"  # Filename glob pattern
+    glob: str = "*.txt"                               # Filename glob pattern
 
 
 # Global registry — populated at module load time via register_dataset().
@@ -145,52 +143,41 @@ def register_dataset(config: DatasetConfig) -> None:
 
 # ── Built-in datasets ──────────────────────────────────────────────────────────
 
-register_dataset(
-    DatasetConfig(
-        key="falkenauer-t",
-        label="Falkenauer T",
-        directory=_BENCHMARKS_ROOT / "Falkenauer" / "Falkenauer_T",
-        parser=parse_standard,
-    )
-)
-register_dataset(
-    DatasetConfig(
-        key="falkenauer-u",
-        label="Falkenauer U",
-        directory=_BENCHMARKS_ROOT / "Falkenauer" / "Falkenauer U",
-        parser=parse_standard,
-    )
-)
-register_dataset(
-    DatasetConfig(
-        key="scholl-1",
-        label="Scholl 1",
-        directory=_BENCHMARKS_ROOT / "Scholl" / "Scholl_1",
-        parser=parse_standard,
-    )
-)
-register_dataset(
-    DatasetConfig(
-        key="scholl-2",
-        label="Scholl 2",
-        directory=_BENCHMARKS_ROOT / "Scholl" / "Scholl_2",
-        parser=parse_standard,
-    )
-)
-register_dataset(
-    DatasetConfig(
-        key="scholl-3",
-        label="Scholl 3",
-        directory=_BENCHMARKS_ROOT / "Scholl" / "Scholl_3",
-        parser=parse_standard,
-    )
-)
+register_dataset(DatasetConfig(
+    key="falkenauer-t",
+    label="Falkenauer T",
+    directory=_BENCHMARKS_ROOT / "Falkenauer" / "Falkenauer_T",
+    parser=parse_standard,
+))
+register_dataset(DatasetConfig(
+    key="falkenauer-u",
+    label="Falkenauer U",
+    directory=_BENCHMARKS_ROOT / "Falkenauer" / "Falkenauer U",
+    parser=parse_standard,
+))
+register_dataset(DatasetConfig(
+    key="scholl-1",
+    label="Scholl 1",
+    directory=_BENCHMARKS_ROOT / "Scholl" / "Scholl_1",
+    parser=parse_standard,
+))
+register_dataset(DatasetConfig(
+    key="scholl-2",
+    label="Scholl 2",
+    directory=_BENCHMARKS_ROOT / "Scholl" / "Scholl_2",
+    parser=parse_standard,
+))
+register_dataset(DatasetConfig(
+    key="scholl-3",
+    label="Scholl 3",
+    directory=_BENCHMARKS_ROOT / "Scholl" / "Scholl_3",
+    parser=parse_standard,
+))
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Solver worker (multiprocessing isolation)
 # ═══════════════════════════════════════════════════════════════════════════════
-
 
 def _solver_worker(
     sizes: list[int],
@@ -221,6 +208,57 @@ def _solver_worker(
 # ═══════════════════════════════════════════════════════════════════════════════
 # Generic benchmark runner
 # ═══════════════════════════════════════════════════════════════════════════════
+
+class _StdinWatcher(threading.Thread):
+    """Background daemon thread that sets a stop_flag when the user presses 'q'.
+
+    Ctrl+C is intentionally left to the OS/Python default mechanism (SIGINT →
+    KeyboardInterrupt on the main thread) and is never intercepted here.
+    The thread exits cleanly when stop() is called or when the process ends.
+    """
+
+    def __init__(self, stop_flag: threading.Event) -> None:
+        super().__init__(daemon=True)
+        self._stop_flag = stop_flag
+        self._quit = threading.Event()
+
+    def stop(self) -> None:
+        self._quit.set()
+
+    def run(self) -> None:
+        if not sys.stdin.isatty():
+            return
+        try:
+            import select
+            import termios
+            import tty
+        except ImportError:
+            return
+
+        fd = sys.stdin.fileno()
+        try:
+            old_settings = termios.tcgetattr(fd)
+        except termios.error:
+            return
+
+        try:
+            tty.setcbreak(fd)  # Disables canonical input only; preserves output processing (OPOST)
+            while not self._quit.is_set():
+                rlist, _, _ = select.select([sys.stdin], [], [], 0.05)
+                if rlist:
+                    key = sys.stdin.read(1)
+                    if key.lower() == "q":
+                        self._stop_flag.set()
+                        break
+                    # Let Ctrl+C (0x03) pass through to the OS signal handler
+                    # by restoring cooked mode before the main thread sees SIGINT.
+                    if key == "\x03":
+                        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+                        import signal, os
+                        os.kill(os.getpid(), signal.SIGINT)
+                        return
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
 
 class Benchmark:
@@ -267,29 +305,35 @@ class Benchmark:
         print(f"\n\033[1;36mStarting Benchmark:\033[0m {self._dataset.label}")
         self._print_header(widths)
 
-        for i, instance in enumerate(instances):
-            try:
-                result: BenchmarkResult = self._solve(instance, method)
-            except Exception as exc:
-                print(f"\033[91m[!] Skipping '{instance.name}': {exc}\033[0m")
-                continue
+        # Background thread: sets stop_flag when the user presses 'q'.
+        # Ctrl+C is delivered as SIGINT to the main thread and raises
+        # KeyboardInterrupt normally — no raw-mode interference here.
+        stop_flag = threading.Event()
+        _stdin_watcher = _StdinWatcher(stop_flag)
+        _stdin_watcher.start()
 
-            self._results.append(result)
-            self._print_row(result, widths)
-
-            if i < len(instances) - 1:
-                if self._inter_instance_pause():
+        try:
+            for instance in instances:
+                if stop_flag.is_set():
                     print("\n\033[93m  [Benchmark stopped by user]\033[0m")
                     break
+                try:
+                    result: BenchmarkResult = self._solve(instance, method, stop_flag)
+                except Exception as exc:
+                    print(f"\033[91m[!] Skipping '{instance.name}': {exc}\033[0m")
+                    continue
+
+                self._results.append(result)
+                self._print_row(result, widths)
+        finally:
+            _stdin_watcher.stop()
 
         self._print_footer(widths)
 
         if generate_graphs and self._results:
             self._generate_graphs()
 
-    def run_instance(
-        self, filepath: str | Path, method: str = "branch and bound"
-    ) -> BenchmarkResult:
+    def run_instance(self, filepath: str | Path, method: str = "branch and bound") -> BenchmarkResult:
         instance = self._dataset.parser(Path(filepath), self._dataset.key)
         result = self._solve(instance, method)
         self._results.append(result)
@@ -347,7 +391,7 @@ class Benchmark:
         instances.sort(key=lambda i: (i.num_items, i.name))
         return instances
 
-    def _solve(self, instance: BenchmarkInstance, method: str) -> BenchmarkResult:
+    def _solve(self, instance: BenchmarkInstance, method: str, stop_flag: threading.Event | None = None) -> BenchmarkResult:
         total_weight: int = sum(instance.sizes)
         lower_bound: int = ceil(total_weight / instance.bin_capacity)
 
@@ -383,7 +427,15 @@ class Benchmark:
             daemon=True,
         )
         process.start()
-        process.join(timeout=self._time_limit)
+
+        # Poll in short increments so that KeyboardInterrupt and the 'q' stop_flag
+        # are never deferred for the full timeout duration.
+        deadline: float = time.monotonic() + (self._time_limit or float("inf"))
+        poll_interval: float = 0.05  # 50 ms — imperceptible to users
+        while process.is_alive() and time.monotonic() < deadline:
+            if stop_flag is not None and stop_flag.is_set():
+                break
+            process.join(timeout=poll_interval)
 
         timed_out: bool = process.is_alive()
         if timed_out:
@@ -433,33 +485,27 @@ class Benchmark:
             return max(len(title), max(len(v) for v in values))
 
         if instances is not None:
-            name_w = _max_len("Instance", [i.name for i in instances])
-            items_w = _max_len("Items", [str(i.num_items) for i in instances])
-            cap_w = _max_len("Capacity", [str(i.bin_capacity) for i in instances])
-            lb_w = _max_len(
-                "LB", [str(ceil(sum(i.sizes) / i.bin_capacity)) for i in instances]
-            )
-            bins_w = _max_len("Bins", [str(i.num_items) for i in instances])
-            gap_w = _max_len("Gap", [str(i.num_items) for i in instances])
+            name_w  = _max_len("Instance", [i.name for i in instances])
+            items_w = _max_len("Items",    [str(i.num_items) for i in instances])
+            cap_w   = _max_len("Capacity", [str(i.bin_capacity) for i in instances])
+            lb_w    = _max_len("LB",       [str(ceil(sum(i.sizes) / i.bin_capacity)) for i in instances])
+            bins_w  = _max_len("Bins",     [str(i.num_items) for i in instances])
+            gap_w   = _max_len("Gap",      [str(i.num_items) for i in instances])
         elif results is not None:
-            name_w = _max_len("Instance", [r.instance_name for r in results])
-            items_w = _max_len("Items", [str(r.num_items) for r in results])
-            cap_w = _max_len("Capacity", [str(r.bin_capacity) for r in results])
-            lb_w = _max_len("LB", [str(r.lower_bound) for r in results])
-            bins_w = _max_len("Bins", [str(r.bins_used) for r in results])
-            gap_w = _max_len("Gap", [str(r.bins_used - r.lower_bound) for r in results])
+            name_w  = _max_len("Instance", [r.instance_name for r in results])
+            items_w = _max_len("Items",    [str(r.num_items) for r in results])
+            cap_w   = _max_len("Capacity", [str(r.bin_capacity) for r in results])
+            lb_w    = _max_len("LB",       [str(r.lower_bound) for r in results])
+            bins_w  = _max_len("Bins",     [str(r.bins_used) for r in results])
+            gap_w   = _max_len("Gap",      [str(r.bins_used - r.lower_bound) for r in results])
         else:
             raise ValueError("Either instances or results must be provided.")
 
-        time_w = max(len("Time (s)"), 10)
-        method_w = _max_len(
-            "Method", [r.method for r in (results or [])] or ["branch and bound"]
-        )
-        state_w = _max_len("State", ["Done", "T.O."])
+        time_w   = max(len("Time (s)"), 10)
+        method_w = _max_len("Method", [r.method for r in (results or [])] or ["branch and bound"])
+        state_w  = _max_len("State", ["Done", "T.O."])
 
-        return TableWidths(
-            name_w, items_w, cap_w, lb_w, bins_w, gap_w, time_w, method_w, state_w
-        )
+        return TableWidths(name_w, items_w, cap_w, lb_w, bins_w, gap_w, time_w, method_w, state_w)
 
     def _print_header(self, widths: TableWidths) -> None:
         header = (
@@ -514,16 +560,14 @@ class Benchmark:
             print(" No results to display.")
             return
 
-        total_time = sum(r.elapsed_time for r in self._results)
-        avg_time = total_time / len(self._results)
-        avg_bins = sum(r.bins_used for r in self._results) / len(self._results)
+        total_time    = sum(r.elapsed_time for r in self._results)
+        avg_time      = total_time / len(self._results)
+        avg_bins      = sum(r.bins_used for r in self._results) / len(self._results)
         timeout_count = sum(1 for r in self._results if r.timed_out)
         optimal_count = sum(1 for r in self._results if r.bins_used == r.lower_bound)
 
         print(f"\033[1mInstances processed :\033[0m {len(self._results)}")
-        print(
-            f"\033[1mOptimal solutions   :\033[0m {optimal_count} / {len(self._results)}"
-        )
+        print(f"\033[1mOptimal solutions   :\033[0m {optimal_count} / {len(self._results)}")
         print(f"\033[1mTotal elapsed time  :\033[0m {total_time:.4f} s")
         print(f"\033[1mAverage time        :\033[0m {avg_time:.4f} s")
         print(f"\033[1mAverage bins used   :\033[0m {avg_bins:.2f}")
@@ -552,26 +596,16 @@ class Benchmark:
         max_t = max(times)
         colors = ["#e74c3c" if t == max_t else "#3498db" for t in times]
 
-        ax.bar(
-            range(len(self._completed)),
-            times,
-            color=colors,
-            edgecolor="white",
-            linewidth=0.5,
-        )
+        ax.bar(range(len(self._completed)), times, color=colors, edgecolor="white", linewidth=0.5)
         ax.set_xticks(range(len(self._completed)))
         ax.set_xticklabels(
             [r.instance_name for r in self._completed],
-            rotation=45,
-            ha="right",
-            fontsize=7,
+            rotation=45, ha="right", fontsize=7,
         )
         ax.set_ylabel("Solve time (s)", fontsize=12)
         ax.set_title(
             f"Solve Time per Instance  \u2014  {self._dataset.label}",
-            fontsize=13,
-            fontweight="bold",
-            pad=12,
+            fontsize=13, fontweight="bold", pad=12,
         )
         fig.tight_layout()
 
@@ -583,40 +617,22 @@ class Benchmark:
     def _plot_bins_vs_lb(self, dataset_key: str) -> None:
         fig, ax = plt.subplots(figsize=(max(10, len(self._completed) * 0.6), 5))
 
-        x = range(len(self._completed))
-        lb_vals = [r.lower_bound for r in self._completed]
-        gap_vals = [r.bins_used - r.lower_bound for r in self._completed]
+        x         = range(len(self._completed))
+        lb_vals   = [r.lower_bound for r in self._completed]
+        gap_vals  = [r.bins_used - r.lower_bound for r in self._completed]
 
-        ax.bar(
-            x,
-            lb_vals,
-            label="Lower Bound",
-            color="#2ecc71",
-            alpha=0.85,
-            edgecolor="white",
-        )
-        ax.bar(
-            x,
-            gap_vals,
-            bottom=lb_vals,
-            label="Gap",
-            color="#e74c3c",
-            alpha=0.85,
-            edgecolor="white",
-        )
+        ax.bar(x, lb_vals,  label="Lower Bound", color="#2ecc71", alpha=0.85, edgecolor="white")
+        ax.bar(x, gap_vals, bottom=lb_vals, label="Gap",
+               color="#e74c3c", alpha=0.85, edgecolor="white")
         ax.set_xticks(list(x))
         ax.set_xticklabels(
             [r.instance_name for r in self._completed],
-            rotation=45,
-            ha="right",
-            fontsize=7,
+            rotation=45, ha="right", fontsize=7,
         )
         ax.set_ylabel("Bins", fontsize=12)
         ax.set_title(
             f"Bins Used vs Lower Bound  \u2014  {self._dataset.label}",
-            fontsize=13,
-            fontweight="bold",
-            pad=12,
+            fontsize=13, fontweight="bold", pad=12,
         )
         ax.legend(fontsize=10)
         fig.tight_layout()
@@ -638,10 +654,8 @@ class Benchmark:
         colors = [cmap(norm(v)) for v in fill_rates]
 
         ax.bar(range(len(self._completed)), fill_rates, color=colors, edgecolor="white")
-        ax.axhline(100, color="black", linewidth=1.2, linestyle="--", label="100 %")
-        ax.axhline(
-            80, color="orange", linewidth=1.0, linestyle=":", label="Threshold 80 %"
-        )
+        ax.axhline(100, color="black",  linewidth=1.2, linestyle="--", label="100 %")
+        ax.axhline(80,  color="orange", linewidth=1.0, linestyle=":",  label="Threshold 80 %")
 
         for i, rate in enumerate(fill_rates):
             ax.text(i, rate + 0.4, f"{rate:.1f}%", ha="center", va="bottom", fontsize=7)
@@ -652,17 +666,13 @@ class Benchmark:
         ax.set_xticks(range(len(self._completed)))
         ax.set_xticklabels(
             [r.instance_name for r in self._completed],
-            rotation=45,
-            ha="right",
-            fontsize=7,
+            rotation=45, ha="right", fontsize=7,
         )
         ax.set_ylim(0, 115)
         ax.set_ylabel("Average bin fill rate (%)", fontsize=12)
         ax.set_title(
             f"Solution Quality: Average Bin Fill Rate  \u2014  {self._dataset.label}",
-            fontsize=13,
-            fontweight="bold",
-            pad=12,
+            fontsize=13, fontweight="bold", pad=12,
         )
         ax.legend(fontsize=10)
         fig.tight_layout()
@@ -684,8 +694,8 @@ class Benchmark:
         fig, ax = plt.subplots(figsize=(8, 5))
 
         sorted_sizes = sorted(size_groups.keys())
-        group_times = [size_groups[n] for n in sorted_sizes]
-        labels = [str(n) for n in sorted_sizes]
+        group_times  = [size_groups[n] for n in sorted_sizes]
+        labels       = [str(n) for n in sorted_sizes]
 
         box = ax.boxplot(
             group_times,
@@ -707,11 +717,8 @@ class Benchmark:
             jitter = rng.uniform(-0.12, 0.12, size=len(times))
             ax.scatter(
                 np.full(len(times), idx + 1) + jitter,
-                times,
-                s=28,
-                zorder=3,
-                edgecolors="white",
-                linewidths=0.4,
+                times, s=28, zorder=3,
+                edgecolors="white", linewidths=0.4,
                 color=palette[idx],
             )
 
@@ -720,9 +727,7 @@ class Benchmark:
         ax.set_ylabel("Solve time (s)  [log scale]", fontsize=12)
         ax.set_title(
             f"Solve Time Distribution by Instance Size  \u2014  {self._dataset.label}",
-            fontsize=13,
-            fontweight="bold",
-            pad=12,
+            fontsize=13, fontweight="bold", pad=12,
         )
         fig.tight_layout()
 
@@ -731,35 +736,7 @@ class Benchmark:
         plt.close(fig)
         print(f"\033[94mFig 4 \033[90m\u2192\033[0m {path}")
 
-    @staticmethod
-    def _inter_instance_pause(wait: float = 3.0) -> bool:
-        """Cross-platform pause: returns True if the user pressed 'q'."""
-        if not sys.stdin.isatty():
-            return False
-        try:
-            import select
-            import termios
-            import tty
-        except ImportError:
-            time.sleep(wait)
-            return False
 
-        fd = sys.stdin.fileno()
-        try:
-            old_settings = termios.tcgetattr(fd)
-        except termios.error:
-            time.sleep(wait)
-            return False
-
-        try:
-            tty.setraw(fd)
-            rlist, _, _ = select.select([sys.stdin], [], [], wait)
-            if rlist:
-                key = sys.stdin.read(1)
-                return key.lower() == "q"
-            return False
-        finally:
-            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -788,31 +765,20 @@ if __name__ == "__main__":
 
     size_group = arg_parser.add_mutually_exclusive_group()
     size_group.add_argument(
-        "--num-items",
-        type=int,
-        default=None,
-        metavar="N",
+        "--num-items", type=int, default=None, metavar="N",
         help="Run only instances with exactly N items.",
     )
     size_group.add_argument(
-        "--max-items",
-        type=int,
-        default=None,
-        metavar="N",
+        "--max-items", type=int, default=None, metavar="N",
         help="Run only instances with at most N items.",
     )
 
     arg_parser.add_argument(
-        "--no-graphs",
-        action="store_true",
-        default=False,
+        "--no-graphs", action="store_true", default=False,
         help="Skip graph generation.",
     )
     arg_parser.add_argument(
-        "--time-limit",
-        type=float,
-        default=None,
-        metavar="SECS",
+        "--time-limit", type=float, default=None, metavar="SECS",
         help="Per-instance time limit in seconds (enables multiprocessing isolation).",
     )
     arg_parser.add_argument(
