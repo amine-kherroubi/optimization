@@ -2,22 +2,28 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from math import ceil
-import heapq
+import heapq, warnings
+
+warnings.warn(
+    "This module is deprecated. Use the optimized implementation in `bin_packing.solver` instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 
 @dataclass(slots=True)
-class Solution(object):
+class BinPackingSolution:
     bins_used: int  # Number of bins used
     assignments: dict[int, set[int]]  # Mapping from bin index to items packed
     loads: dict[int, int]  # Load of each bin
 
 
 @dataclass(slots=True)
-class State(Solution):
+class SearchState(BinPackingSolution):
     next_item: int  # Index of the next item to assign
 
 
-class BinPacking(object):
+class BinPackingSolver:
     __slots__ = ("_sizes", "_number_of_items", "_bin_capacity", "_solution")
 
     def __init__(self, sizes: list[int], bin_capacity: int) -> None:
@@ -30,7 +36,7 @@ class BinPacking(object):
         self._sizes: list[int] = sorted(sizes, reverse=True)  # Decreasing order for FFD
         self._number_of_items: int = len(sizes)
         self._bin_capacity: int = bin_capacity
-        self._solution: Solution | None = None
+        self._solution: BinPackingSolution | None = None
 
     def solve(self, method: str = "b&b") -> None:
         """Select solving method."""
@@ -41,7 +47,7 @@ class BinPacking(object):
         else:
             raise ValueError("Unknown solving method.")
 
-    def get_solution(self) -> Solution:
+    def get_solution(self) -> BinPackingSolution:
         """Retrieve computed solution."""
         if self._solution is None:
             raise RuntimeError(
@@ -50,7 +56,7 @@ class BinPacking(object):
 
         return self._solution
 
-    def _evaluation(self, state: State) -> int:
+    def _evaluation(self, state: SearchState) -> int:
         """Lower bound on the number of bins needed from this state onward."""
         remaining_volume: int = sum(
             self._sizes[i] for i in range(state.next_item, self._number_of_items)
@@ -62,13 +68,13 @@ class BinPacking(object):
 
         return state.bins_used + ceil(extra_volume / self._bin_capacity)
 
-    def _is_goal(self, state: State) -> bool:
+    def _is_goal(self, state: SearchState) -> bool:
         """Check if all items have been assigned."""
         return state.next_item == self._number_of_items
 
-    def _generate_new_states(self, state: State) -> list[State]:
+    def _generate_new_states(self, state: SearchState) -> list[SearchState]:
         """Generate successor states by placing the next item in existing or new bins."""
-        new_states: list[State] = []
+        new_states: list[SearchState] = []
         current_item: int = state.next_item
         item_size: int = self._sizes[current_item]
         seen_loads: set[int] = set()  # Track visited load values to skip symmetric bins
@@ -90,7 +96,9 @@ class BinPacking(object):
                 new_loads: dict[int, int] = state.loads.copy()
                 new_loads[bin_index] = current_load + item_size
                 new_states.append(
-                    State(state.bins_used, new_assignments, new_loads, current_item + 1)
+                    SearchState(
+                        state.bins_used, new_assignments, new_loads, current_item + 1
+                    )
                 )
 
         # Place item in a new bin
@@ -102,12 +110,12 @@ class BinPacking(object):
         new_loads: dict[int, int] = state.loads.copy()
         new_loads[new_bins_used - 1] = item_size
         new_states.append(
-            State(new_bins_used, new_assignments, new_loads, current_item + 1)
+            SearchState(new_bins_used, new_assignments, new_loads, current_item + 1)
         )
 
         return new_states
 
-    def _first_fit_decreasing(self) -> State:
+    def _first_fit_decreasing(self) -> SearchState:
         """Build an initial feasible solution using the FFD greedy heuristic."""
         loads: dict[int, int] = {}
         assignments: dict[int, set[int]] = {}
@@ -127,16 +135,16 @@ class BinPacking(object):
                 loads[bins_used] = size
                 bins_used += 1
 
-        return State(bins_used, assignments, loads, self._number_of_items)
+        return SearchState(bins_used, assignments, loads, self._number_of_items)
 
     def _branch_and_bound(self) -> None:
         """Branch-and-bound method using best-first search."""
-        incumbent: State = self._first_fit_decreasing()  # Warm start via FFD
+        incumbent: SearchState = self._first_fit_decreasing()  # Warm start via FFD
 
         # Min-heap ordered by lower bound; counter breaks ties without comparing States
         counter: int = 0
-        initial_state: State = State(0, {}, {}, 0)
-        frontier: list[tuple[int, int, State]] = []
+        initial_state: SearchState = SearchState(0, {}, {}, 0)
+        frontier: list[tuple[int, int, SearchState]] = []
         heapq.heappush(
             frontier, (self._evaluation(initial_state), counter, initial_state)
         )
@@ -160,7 +168,7 @@ class BinPacking(object):
                 counter += 1
                 heapq.heappush(frontier, (state_lower_bound, counter, state))
 
-        self._solution = Solution(
+        self._solution = BinPackingSolution(
             bins_used=incumbent.bins_used,
             assignments=incumbent.assignments,
             loads=incumbent.loads,
