@@ -318,7 +318,7 @@ class Benchmark:
         try:
             for instance in instances:
                 if stop_flag.is_set():
-                    print("\n\033[93m  [Benchmark stopped by user]\033[0m")
+                    print("\n\033[93m[Benchmark stopped by user]\033[0m")
                     break
                 try:
                     result = self._solve(instance, method, stop_flag)
@@ -583,26 +583,21 @@ class Benchmark:
 
         completed = self._completed
         timeout_count = len(self._results) - len(completed)
-        # Optimal count excludes timed-out results; their bins_used is a sentinel.
-        optimal_count = sum(1 for r in completed if r.bins_used == r.lower_bound)
         total_time = sum(r.elapsed_time for r in self._results)
 
-        print(f"\033[1mInstances processed :\033[0m {len(self._results)}")
-        print(
-            f"\033[1mOptimal solutions   :\033[0m {optimal_count} / {len(completed)} completed"
-        )
+        print(f"\033[1mInstances processed      :\033[0m {len(self._results)}")
 
         if completed:
-            avg_time = sum(r.elapsed_time for r in completed) / len(completed)
-            avg_bins = sum(r.bins_used for r in completed) / len(completed)
-            print(f"\033[1mAvg time (completed):\033[0m {avg_time:.4f} s")
-            print(f"\033[1mAvg bins (completed):\033[0m {avg_bins:.2f}")
+            average_time = sum(r.elapsed_time for r in completed) / len(completed)
+            average_bins = sum(r.bins_used for r in completed) / len(completed)
+            print(f"\033[1mAverage time (completed) :\033[0m {average_time:.4f} s")
+            print(f"\033[1mAverage bins (completed) :\033[0m {average_bins:.2f}")
 
-        print(f"\033[1mTotal elapsed time  :\033[0m {total_time:.4f} s")
+        print(f"\033[1mTotal elapsed time       :\033[0m {total_time:.4f} s")
 
         if timeout_count:
             print(
-                f"\033[1mTimeouts            :\033[0m "
+                f"\033[1mTimeouts                 :\033[0m "
                 f"\033[91m{timeout_count} / {len(self._results)}\033[0m"
             )
 
@@ -652,7 +647,9 @@ class Benchmark:
         path = GRAPHS_DIR / f"fig1_solve_times_{dataset_key}.png"
         fig.savefig(path, dpi=150)
         plt.close(fig)
-        print(f"\033[94mFig 1 \033[90m\u2192\033[0m {path}")
+        print(
+            f"\033[94mFig 1 \033[90m\u2192\033[0m {path.relative_to(_PACKAGE_DIR.parent)}"
+        )
 
     def _plot_bins_vs_lb(self, dataset_key: str) -> None:
         fig, ax = plt.subplots(figsize=(max(10, len(self._completed) * 0.6), 5))
@@ -698,7 +695,9 @@ class Benchmark:
         path = GRAPHS_DIR / f"fig2_bins_vs_lb_{dataset_key}.png"
         fig.savefig(path, dpi=150)
         plt.close(fig)
-        print(f"\033[94mFig 2 \033[90m\u2192\033[0m {path}")
+        print(
+            f"\033[94mFig 2 \033[90m\u2192\033[0m {path.relative_to(_PACKAGE_DIR.parent)}"
+        )
 
     def _plot_fill_rate(self, dataset_key: str) -> None:
         fig, ax = plt.subplots(figsize=(max(10, len(self._completed) * 0.6), 5))
@@ -744,7 +743,9 @@ class Benchmark:
         path = GRAPHS_DIR / f"fig3_fill_rate_{dataset_key}.png"
         fig.savefig(path, dpi=150)
         plt.close(fig)
-        print(f"\033[94mFig 3 \033[90m\u2192\033[0m {path}")
+        print(
+            f"\033[94mFig 3 \033[90m\u2192\033[0m {path.relative_to(_PACKAGE_DIR.parent)}"
+        )
 
     def _plot_time_by_size_group(self, dataset_key: str) -> None:
         size_groups: dict[int, list[float]] = {}
@@ -802,7 +803,9 @@ class Benchmark:
         path = GRAPHS_DIR / f"fig4_time_by_size_{dataset_key}.png"
         fig.savefig(path, dpi=150)
         plt.close(fig)
-        print(f"\033[94mFig 4 \033[90m\u2192\033[0m {path}")
+        print(
+            f"\033[94mFig 4 \033[90m\u2192\033[0m {path.relative_to(_PACKAGE_DIR.parent)}"
+        )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
