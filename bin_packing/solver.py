@@ -14,7 +14,7 @@ class BinPackingSolution:
 class SearchState:
     item_index: int
     current_bin_loads: list[int]
-    assignments: list[int] = field(default_factory=list[int])
+    assignments: list[int] = field(default_factory=list)
 
     @property
     def bins_count(self) -> int:
