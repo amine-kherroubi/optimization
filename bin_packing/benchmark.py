@@ -199,6 +199,11 @@ def _solver_worker(
     out_queue: mp.Queue[tuple[int | None, float | None, str | None]],
 ) -> None:
     """Run the solver in an isolated subprocess and report (bins, elapsed, error)."""
+    import signal
+
+    signal.signal(
+        signal.SIGINT, signal.SIG_IGN
+    )  # parent handles Ctrl+C via process.terminate()
     try:
         from bin_packing.solver import BinPackingSolver
 
@@ -221,7 +226,8 @@ def _solver_worker(
 class _StdinWatcher(threading.Thread):
     """Daemon thread that sets stop_flag when the user presses 'q'.
 
-    Ctrl+C is left to the OS SIGINT mechanism and is never intercepted here.
+    The caller is responsible for putting stdin into cbreak mode before
+    starting this thread and restoring it afterwards. This thread only reads.
     """
 
     def __init__(self, stop_flag: threading.Event) -> None:
@@ -233,38 +239,18 @@ class _StdinWatcher(threading.Thread):
         self._quit.set()
 
     def run(self) -> None:
-        if not sys.stdin.isatty():
-            return
         try:
             import select
-            import termios
-            import tty
         except ImportError:
             return
 
-        fd = sys.stdin.fileno()
-        try:
-            old_settings = termios.tcgetattr(fd)
-        except termios.error:
-            return
-
-        try:
-            tty.setcbreak(fd)
-            while not self._quit.is_set():
-                rlist, _, _ = select.select([sys.stdin], [], [], 0.05)
-                if rlist:
-                    key = sys.stdin.read(1)
-                    if key.lower() == "q":
-                        self._stop_flag.set()
-                        break
-                    if key == "\x03":
-                        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-                        import signal, os
-
-                        os.kill(os.getpid(), signal.SIGINT)
-                        return
-        finally:
-            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        while not self._quit.is_set():
+            rlist, _, _ = select.select([sys.stdin], [], [], 0.05)
+            if rlist:
+                key = sys.stdin.read(1)
+                if key.lower() == "q":
+                    self._stop_flag.set()
+                    break
 
 
 class Benchmark:
@@ -308,9 +294,26 @@ class Benchmark:
         print(f"\n\033[1;36mStarting Benchmark:\033[0m {self._dataset.label}")
         self._print_header(widths)
 
+        # Put stdin into cbreak mode in the main thread so that the main
+        # thread's finally block is guaranteed to restore it — even on
+        # KeyboardInterrupt. Daemon threads are torn down before their finally
+        # blocks run when the process exits, so terminal restore must live here.
+        old_terminal_settings = None
+        if sys.stdin.isatty():
+            try:
+                import termios
+                import tty
+
+                fd = sys.stdin.fileno()
+                old_terminal_settings = termios.tcgetattr(fd)
+                tty.setcbreak(fd)
+            except Exception:
+                old_terminal_settings = None
+
         stop_flag = threading.Event()
         stdin_watcher = _StdinWatcher(stop_flag)
-        stdin_watcher.start()
+        if old_terminal_settings is not None:
+            stdin_watcher.start()
 
         try:
             for instance in instances:
@@ -327,6 +330,16 @@ class Benchmark:
                 self._print_row(result, widths)
         finally:
             stdin_watcher.stop()
+            stdin_watcher.join(timeout=0.5)
+            if old_terminal_settings is not None:
+                try:
+                    import termios
+
+                    termios.tcsetattr(
+                        sys.stdin.fileno(), termios.TCSADRAIN, old_terminal_settings
+                    )
+                except Exception:
+                    pass
 
         self._print_footer(widths)
 
