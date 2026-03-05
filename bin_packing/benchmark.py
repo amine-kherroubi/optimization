@@ -200,6 +200,12 @@ def _solver_worker(
 ) -> None:
     """Run the solver in an isolated subprocess and report (bins, elapsed, error)."""
     import signal
+    import sys
+    from pathlib import Path
+
+    PROJECT_ROOT = Path(__file__).parent.parent  # dossier contenant bin_packing
+    if str(PROJECT_ROOT) not in sys.path:
+        sys.path.insert(0, str(PROJECT_ROOT))
 
     signal.signal(
         signal.SIGINT, signal.SIG_IGN
@@ -330,7 +336,8 @@ class Benchmark:
                 self._print_row(result, widths)
         finally:
             stdin_watcher.stop()
-            stdin_watcher.join(timeout=0.5)
+            if stdin_watcher.is_alive():
+                stdin_watcher.join(timeout=0.5)
             if old_terminal_settings is not None:
                 try:
                     import termios
