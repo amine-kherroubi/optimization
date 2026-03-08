@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import multiprocessing as mp
 import queue
 import sys
@@ -18,17 +19,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import Normalize
 
-
-# ── Project paths ──────────────────────────────────────────────────────────────
-
-_PACKAGE_DIR: Path = Path(__file__).parent
-_BENCHMARKS_ROOT: Path = _PACKAGE_DIR.parent / "benchmarks"
-GRAPHS_DIR: Path = _PACKAGE_DIR / "results"
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Core data types
-# ═══════════════════════════════════════════════════════════════════════════════
+_PROJECT_ROOT: Path = Path(__file__).parent
+_BENCHMARKS_ROOT: Path = _PROJECT_ROOT / "benchmarks"
+_RESULTS_ROOT: Path = _PROJECT_ROOT / "results"
 
 
 @dataclass(slots=True)
@@ -84,13 +77,8 @@ class TableWidths:
             + self.time
             + self.method
             + self.state
-            + (8 * 3)  # 8 " | " separators, 3 chars each
+            + (8 * 3)
         )
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Instance parsers
-# ═══════════════════════════════════════════════════════════════════════════════
 
 
 def parse_standard(filepath: Path, dataset_key: str) -> BenchmarkInstance:
@@ -113,11 +101,6 @@ def parse_standard(filepath: Path, dataset_key: str) -> BenchmarkInstance:
     )
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# Dataset registry
-# ═══════════════════════════════════════════════════════════════════════════════
-
-
 @dataclass(frozen=True)
 class DatasetConfig:
     """Immutable descriptor for a benchmark dataset.
@@ -126,11 +109,11 @@ class DatasetConfig:
     register_dataset(). No other code in this module needs to change.
     """
 
-    key: str  # CLI identifier, e.g. "scholl-1"
-    label: str  # Human-readable name
-    directory: Path  # Root directory of instance files
-    parser: Callable[[Path, str], BenchmarkInstance]  # File → BenchmarkInstance
-    glob: str = "*.txt"  # Filename glob pattern
+    key: str
+    label: str
+    directory: Path
+    parser: Callable[[Path, str], BenchmarkInstance]
+    glob: str = "*.txt"
 
 
 DATASET_REGISTRY: dict[str, DatasetConfig] = {}
@@ -142,8 +125,6 @@ def register_dataset(config: DatasetConfig) -> None:
         raise ValueError(f"Dataset key '{config.key}' is already registered.")
     DATASET_REGISTRY[config.key] = config
 
-
-# ── Built-in datasets ──────────────────────────────────────────────────────────
 
 register_dataset(
     DatasetConfig(
@@ -187,31 +168,27 @@ register_dataset(
 )
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# Solver worker (multiprocessing isolation)
-# ═══════════════════════════════════════════════════════════════════════════════
-
-
 def _solver_worker(
     sizes: list[int],
     bin_capacity: int,
     method: str,
+    solver_path: str,
     out_queue: mp.Queue[tuple[int | None, float | None, str | None]],
 ) -> None:
     """Run the solver in an isolated subprocess and report (bins, elapsed, error)."""
+    import importlib.util
     import signal
-    import sys
+    import time
     from pathlib import Path
 
-    PROJECT_ROOT = Path(__file__).parent.parent  # dossier contenant bin_packing
-    if str(PROJECT_ROOT) not in sys.path:
-        sys.path.insert(0, str(PROJECT_ROOT))
-
-    signal.signal(
-        signal.SIGINT, signal.SIG_IGN
-    )  # parent handles Ctrl+C via process.terminate()
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
     try:
-        from bin_packing.solver import BinPackingSolver
+        abs_path = Path(__file__).parent / solver_path
+        spec = importlib.util.spec_from_file_location("solver", abs_path)
+        solver_mod = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = solver_mod
+        spec.loader.exec_module(solver_mod)
+        BinPackingSolver = solver_mod.BinPackingSolver
 
         start: float = time.perf_counter()
         solver = BinPackingSolver(sizes, bin_capacity)
@@ -220,13 +197,7 @@ def _solver_worker(
         solution = solver.get_solution()
         out_queue.put((solution.total_bins_used, elapsed, None))
     except Exception as exc:
-        # Stringify to avoid pickling errors across process boundaries.
         out_queue.put((None, None, f"{type(exc).__name__}: {exc}"))
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Benchmark runner
-# ═══════════════════════════════════════════════════════════════════════════════
 
 
 class _StdinWatcher(threading.Thread):
@@ -260,22 +231,24 @@ class _StdinWatcher(threading.Thread):
 
 
 class Benchmark:
-    """Dataset-agnostic benchmark runner. Accepts any DatasetConfig."""
+    """Dataset-agnostic benchmark runner."""
 
     def __init__(
         self,
         dataset: DatasetConfig,
+        solver_path: Path,
+        graphs_dir: Path,
         time_limit: float | None = None,
     ) -> None:
         self._dataset: DatasetConfig = dataset
+        self._solver_path: Path = solver_path
+        self._graphs_dir: Path = graphs_dir
         self._time_limit: float | None = time_limit
         self._results: list[BenchmarkResult] = []
 
-    # ── Public API ─────────────────────────────────────────────────────────────
-
     def run(
         self,
-        method: str = "branch and bound",
+        method: str,
         num_items: int | None = None,
         max_items: int | None = None,
         generate_graphs: bool = True,
@@ -300,10 +273,6 @@ class Benchmark:
         print(f"\n\033[1;36mStarting Benchmark:\033[0m {self._dataset.label}")
         self._print_header(widths)
 
-        # Put stdin into cbreak mode in the main thread so that the main
-        # thread's finally block is guaranteed to restore it — even on
-        # KeyboardInterrupt. Daemon threads are torn down before their finally
-        # blocks run when the process exits, so terminal restore must live here.
         old_terminal_settings = None
         if sys.stdin.isatty():
             try:
@@ -353,9 +322,7 @@ class Benchmark:
         if generate_graphs and self._results:
             self._generate_graphs()
 
-    def run_instance(
-        self, filepath: str | Path, method: str = "branch and bound"
-    ) -> BenchmarkResult:
+    def run_instance(self, filepath: str | Path, method: str) -> BenchmarkResult:
         instance = self._dataset.parser(Path(filepath), self._dataset.key)
         result = self._solve(instance, method)
         self._results.append(result)
@@ -386,8 +353,6 @@ class Benchmark:
         for result in self._results:
             self._print_row(result, widths)
         self._print_footer(widths)
-
-    # ── Internal helpers ───────────────────────────────────────────────────────
 
     @property
     def _completed(self) -> list[BenchmarkResult]:
@@ -424,7 +389,12 @@ class Benchmark:
         solver_method = "branch and bound" if method == "b&b" else method
 
         if self._time_limit is None:
-            from bin_packing.solver import BinPackingSolver
+            abs_path = self._solver_path
+            spec = importlib.util.spec_from_file_location("solver", abs_path)
+            solver_mod = importlib.util.module_from_spec(spec)
+            sys.modules[spec.name] = solver_mod
+            spec.loader.exec_module(solver_mod)
+            BinPackingSolver = solver_mod.BinPackingSolver
 
             start = time.perf_counter()
             solver = BinPackingSolver(instance.sizes, instance.bin_capacity)
@@ -447,7 +417,13 @@ class Benchmark:
         out_queue: mp.Queue[tuple[int | None, float | None, str | None]] = mp.Queue()
         process = mp.Process(
             target=_solver_worker,
-            args=(instance.sizes, instance.bin_capacity, solver_method, out_queue),
+            args=(
+                instance.sizes,
+                instance.bin_capacity,
+                solver_method,
+                str(self._solver_path),
+                out_queue,
+            ),
             daemon=True,
         )
         process.start()
@@ -463,7 +439,7 @@ class Benchmark:
         if timed_out:
             process.terminate()
             process.join()
-            bins_used = lower_bound  # sentinel; excluded from quality stats
+            bins_used = lower_bound
             elapsed = self._time_limit
         else:
             try:
@@ -493,8 +469,6 @@ class Benchmark:
             method=method,
             timed_out=timed_out,
         )
-
-    # ── Table rendering ────────────────────────────────────────────────────────
 
     def _calculate_widths(
         self,
@@ -526,9 +500,7 @@ class Benchmark:
             raise ValueError("Either instances or results must be provided.")
 
         time_w = max(len("Time (s)"), 10)
-        method_w = _max_len(
-            "Method", [r.method for r in (results or [])] or ["branch and bound"]
-        )
+        method_w = _max_len("Method", [r.method for r in (results or [])])
         state_w = _max_len("State", ["Done", "T.O."])
 
         return TableWidths(
@@ -610,10 +582,8 @@ class Benchmark:
 
         print(f"\033[1;36m{chr(0x2550) * widths.total_width}\033[0m\n")
 
-    # ── Graph generation ───────────────────────────────────────────────────────
-
     def _generate_graphs(self) -> None:
-        GRAPHS_DIR.mkdir(parents=True, exist_ok=True)
+        self._graphs_dir.mkdir(parents=True, exist_ok=True)
         key = self._dataset.key
         print(f"\n\033[1;36mGenerating graphs...\033[0m")
         self._plot_solve_times(key)
@@ -651,12 +621,10 @@ class Benchmark:
         )
         fig.tight_layout()
 
-        path = GRAPHS_DIR / f"fig1_solve_times_{dataset_key}.png"
+        path = self._graphs_dir / f"fig1_solve_times_{dataset_key}.png"
         fig.savefig(path, dpi=150)
         plt.close(fig)
-        print(
-            f"\033[94mFig 1 \033[90m\u2192\033[0m {path.relative_to(_PACKAGE_DIR.parent)}"
-        )
+        print(f"\033[94mFig 1 \033[90m\u2192\033[0m {path.relative_to(_PROJECT_ROOT)}")
 
     def _plot_bins_vs_lb(self, dataset_key: str) -> None:
         fig, ax = plt.subplots(figsize=(max(10, len(self._completed) * 0.6), 5))
@@ -699,12 +667,10 @@ class Benchmark:
         ax.legend(fontsize=10)
         fig.tight_layout()
 
-        path = GRAPHS_DIR / f"fig2_bins_vs_lb_{dataset_key}.png"
+        path = self._graphs_dir / f"fig2_bins_vs_lb_{dataset_key}.png"
         fig.savefig(path, dpi=150)
         plt.close(fig)
-        print(
-            f"\033[94mFig 2 \033[90m\u2192\033[0m {path.relative_to(_PACKAGE_DIR.parent)}"
-        )
+        print(f"\033[94mFig 2 \033[90m\u2192\033[0m {path.relative_to(_PROJECT_ROOT)}")
 
     def _plot_fill_rate(self, dataset_key: str) -> None:
         fig, ax = plt.subplots(figsize=(max(10, len(self._completed) * 0.6), 5))
@@ -747,12 +713,10 @@ class Benchmark:
         ax.legend(fontsize=10)
         fig.tight_layout()
 
-        path = GRAPHS_DIR / f"fig3_fill_rate_{dataset_key}.png"
+        path = self._graphs_dir / f"fig3_fill_rate_{dataset_key}.png"
         fig.savefig(path, dpi=150)
         plt.close(fig)
-        print(
-            f"\033[94mFig 3 \033[90m\u2192\033[0m {path.relative_to(_PACKAGE_DIR.parent)}"
-        )
+        print(f"\033[94mFig 3 \033[90m\u2192\033[0m {path.relative_to(_PROJECT_ROOT)}")
 
     def _plot_time_by_size_group(self, dataset_key: str) -> None:
         size_groups: dict[int, list[float]] = {}
@@ -807,17 +771,11 @@ class Benchmark:
         )
         fig.tight_layout()
 
-        path = GRAPHS_DIR / f"fig4_time_by_size_{dataset_key}.png"
+        path = self._graphs_dir / f"fig4_time_by_size_{dataset_key}.png"
         fig.savefig(path, dpi=150)
         plt.close(fig)
-        print(
-            f"\033[94mFig 4 \033[90m\u2192\033[0m {path.relative_to(_PACKAGE_DIR.parent)}"
-        )
+        print(f"\033[94mFig 4 \033[90m\u2192\033[0m {path.relative_to(_PROJECT_ROOT)}")
 
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# CLI entry point
-# ═══════════════════════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
     mp.freeze_support()
@@ -832,11 +790,23 @@ if __name__ == "__main__":
         formatter_class=argparse.RawTextHelpFormatter,
     )
     arg_parser.add_argument(
+        "--solver",
+        required=True,
+        metavar="PATH",
+        help="Path to the solver.py to benchmark (e.g. 1_exact/solver.py).",
+    )
+    arg_parser.add_argument(
         "--dataset",
         choices=_dataset_keys,
         required=True,
         metavar="DATASET",
         help=f"Dataset to benchmark. Available:\n{_dataset_help}",
+    )
+    arg_parser.add_argument(
+        "--method",
+        required=True,
+        metavar="METHOD",
+        help="Solving method passed to BinPackingSolver.solve().",
     )
 
     size_group = arg_parser.add_mutually_exclusive_group()
@@ -868,22 +838,17 @@ if __name__ == "__main__":
         metavar="SECS",
         help="Per-instance time limit in seconds (enables multiprocessing isolation).",
     )
-    arg_parser.add_argument(
-        "--method",
-        choices=["branch and bound", "backtracking", "dynamic programming"],
-        default="branch and bound",
-        metavar="METHOD",
-        help=(
-            "Solving method (default: 'branch and bound').\n"
-            "  branch and bound    \u2014 exact, with L1 pruning\n"
-            "  backtracking        \u2014 exact, symmetry-breaking\n"
-            "  dynamic programming \u2014 exact, bitmask DP (n \u2264 20 only)"
-        ),
-    )
 
     args = arg_parser.parse_args()
+
+    solver_path = (_PROJECT_ROOT / args.solver).resolve()
+    if not solver_path.is_file():
+        arg_parser.error(f"Solver file not found: {solver_path}")
+
+    graphs_dir = (_RESULTS_ROOT / solver_path.parent.name).resolve()
+
     dataset_cfg = DATASET_REGISTRY[args.dataset]
-    bench = Benchmark(dataset_cfg, time_limit=args.time_limit)
+    bench = Benchmark(dataset_cfg, solver_path, graphs_dir, time_limit=args.time_limit)
 
     try:
         bench.run(
