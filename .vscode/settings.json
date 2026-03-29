@@ -1,3 +1,17 @@
 {
-  "ROS2.distro": "jazzy"
+  "ROS2.distro": "jazzy",
+  "python.autoComplete.extraPaths": [
+    "/home/amine/robot_ws/install/esibot_vision/lib/python3.12/site-packages",
+    "/home/amine/robot_ws/install/esibot_sensors/lib/python3.12/site-packages",
+    "/home/amine/robot_ws/install/esibot_camera/lib/python3.12/site-packages",
+    "/home/amine/robot_ws/install/esibot_bringup/lib/python3.12/site-packages",
+    "/opt/ros/jazzy/lib/python3.12/site-packages"
+  ],
+  "python.analysis.extraPaths": [
+    "/home/amine/robot_ws/install/esibot_vision/lib/python3.12/site-packages",
+    "/home/amine/robot_ws/install/esibot_sensors/lib/python3.12/site-packages",
+    "/home/amine/robot_ws/install/esibot_camera/lib/python3.12/site-packages",
+    "/home/amine/robot_ws/install/esibot_bringup/lib/python3.12/site-packages",
+    "/opt/ros/jazzy/lib/python3.12/site-packages"
+  ]
 }
