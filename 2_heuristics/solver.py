@@ -32,7 +32,7 @@ class BinPackingSolver:
         self._final_solution: BinPackingSolution | None = None
 
         # Preserve the input order and a descending-by-size order for the
-        # "decreasing" heuristics. We keep original indices for readability
+        # "decreasing" heuristics. Original indices are retained for readability
         # when inspecting solutions.
         self._items_in_input_order: list[tuple[int, int]] = list(
             enumerate(self._item_sizes)
@@ -91,7 +91,7 @@ class BinPackingSolver:
         return " ".join(normalized.split())
 
     def _next_fit(self, items: list[tuple[int, int]]) -> BinPackingSolution:
-        """Next Fit: keep a single open bin and open a new one when needed."""
+        """Next Fit: keep a single open bin and open a new one when necessary."""
         bin_loads: list[int] = []
         assignments: list[list[int]] = []
 
@@ -195,7 +195,7 @@ class BinPackingSolver:
         bin_loads: list[int],
         assignments: list[list[int]],
     ) -> tuple[list[int], list[list[int]]]:
-        """Try to empty lightly loaded bins by relocating their items elsewhere."""
+        """Attempt to empty lightly loaded bins by relocating their items elsewhere."""
         improved = True
         while improved:
             improved = False
@@ -210,7 +210,7 @@ class BinPackingSolver:
                 if not assignments[source_bin_index]:
                     continue
 
-                # Work on a temporary copy so we can revert if relocation fails.
+                # Work on a temporary copy so the state can be reverted if relocation fails.
                 temporary_loads = list(bin_loads)
                 temporary_assignments = [list(items) for items in assignments]
                 all_items_placed = True
@@ -249,7 +249,7 @@ class BinPackingSolver:
         return bin_loads, assignments
 
     def _relocation(self) -> None:
-        """Improve an FFD solution by repeatedly relocating items out of light bins."""
+        """Improve a First-Fit Decreasing solution by repeatedly relocating items from light bins."""
         base_solution = self._first_fit(self._items_in_descending)
         bin_loads = list(base_solution.final_bin_loads)
         assignments = [
@@ -297,7 +297,7 @@ class BinPackingSolver:
                             ):
                                 continue
 
-                            # Apply the swap on a temporary state to test improvement.
+                            # Apply the swap to a temporary state to test for improvement.
                             candidate_loads = list(bin_loads)
                             candidate_assignments = [
                                 list(items) for items in assignments
@@ -309,7 +309,7 @@ class BinPackingSolver:
                             candidate_assignments[bin_b_index].remove(item_b_index)
                             candidate_assignments[bin_b_index].append(item_a_index)
 
-                            # Relocation might empty a bin after a beneficial swap.
+                            # Relocation can empty a bin after a beneficial swap.
                             candidate_loads, candidate_assignments = (
                                 self._apply_relocation(
                                     candidate_loads, candidate_assignments
@@ -339,7 +339,7 @@ class BinPackingSolver:
         bin_loads: list[int],
         assignments: list[list[int]],
     ) -> BinPackingSolution:
-        """Remove empty bins and rebuild with contiguous indices."""
+        """Remove empty bins and rebuild the solution with contiguous indices."""
         non_empty_bins = [
             (load, items) for load, items in zip(bin_loads, assignments) if items
         ]
