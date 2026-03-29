@@ -13,6 +13,8 @@ class BinPackingSolution:
 
 
 class BinPackingSolver:
+    """Heuristic solvers for the 1D bin packing problem."""
+
     __slots__ = (
         "_item_sizes",
         "_bin_capacity",
