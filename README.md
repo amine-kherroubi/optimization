@@ -22,7 +22,7 @@ optimization/
         └── Scholl_3/
 ```
 
-All commands must be run from the **project root**.
+All commands must be executed from the **project root**.
 
 ---
 
@@ -72,9 +72,9 @@ python benchmark.py --solver 2_heuristics/solver.py --dataset falkenauer-u --met
 | `1_exact`      | `branch and bound`, `backtracking`, `dynamic programming`                                                                                                            |
 | `2_heuristics` | `next fit`, `first fit`, `best fit`, `worst fit`, `next fit decreasing`, `first fit decreasing`, `best fit decreasing`, `worst fit decreasing`, `relocation`, `swap` |
 
-Shorthand aliases are also accepted for the greedy fits: `nf`, `ff`, `bf`, `wf`, `nfd`, `ffd`, `bfd`, `wfd`.
+Shorthand aliases are accepted for the greedy-fit methods: `nf`, `ff`, `bf`, `wf`, `nfd`, `ffd`, `bfd`, `wfd`.
 
-> `dynamic programming` is limited to instances with n ≤ 20 items.
+> `dynamic programming` is limited to instances with n <= 20 items.
 
 ---
 
@@ -110,17 +110,17 @@ register_dataset(DatasetConfig(
 ))
 ```
 
-Supply a custom `parser` if the file format differs from standard. Its signature must be `(filepath: Path, dataset_key: str) -> BenchmarkInstance`.
+Supply a custom `parser` if the file format differs from the standard format. Its signature must be `(filepath: Path, dataset_key: str) -> BenchmarkInstance`.
 
 ---
 
 ## Output
 
-Results are printed as a table: `Instance`, `Items`, `Capacity`, `LB`, `Bins`, `Gap` (bins − LB), `Time (s)`, `Method`, `State` (`Done` / `T.O.`).
+Results are printed as a table: `Instance`, `Items`, `Capacity`, `LB`, `Bins`, `Gap` (bins - LB), `Time (s)`, `Method`, `State` (`Done` / `T.O.`).
 
 A summary block follows with aggregate statistics. Instances that raise an error are skipped with a warning; the rest of the run continues normally.
 
-Unless `--no-graphs` is set, four PNG graphs are saved to `results/<solver-folder>/`:
+Unless `--no-graphs` is set, four PNG graphs are written to `results/<solver-folder>/`:
 
 | File                              | Description                                                         |
 | --------------------------------- | ------------------------------------------------------------------- |

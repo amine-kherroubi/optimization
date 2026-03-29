@@ -35,7 +35,7 @@ class BinPackingSolver:
             raise ValueError("No single item size can exceed the bin capacity.")
 
         # Sorting items in descending order is a crucial optimization for
-        # both the initial heuristic and the search tree pruning.
+        # both the initial heuristic and search-tree pruning.
         self._item_sizes: list[int] = sorted(item_sizes, reverse=True)
         self._total_item_count: int = len(item_sizes)
         self._bin_capacity: int = bin_capacity
@@ -94,7 +94,7 @@ class BinPackingSolver:
             self._final_solution = BinPackingSolution(0, {}, [])
             return
 
-        # Use FFD to get an initial upper bound, then try to improve it.
+        # Use First-Fit Decreasing to obtain an initial upper bound, then attempt to improve it.
         best_solution = self._first_fit_decreasing()
         best_bin_count = best_solution.total_bins_used
 
@@ -103,7 +103,7 @@ class BinPackingSolver:
         while stack:
             state = stack.pop()
 
-            # All items placed — check if this solution beats the current best.
+            # All items are placed; check whether this solution improves the current best.
             if state.item_index == self._total_item_count:
                 if state.bins_count < best_bin_count:
                     best_bin_count = state.bins_count
@@ -112,8 +112,8 @@ class BinPackingSolver:
 
             current_item_size = self._item_sizes[state.item_index]
 
-            # Try placing the item into existing bins with symmetry breaking:
-            # skip bins with the same load as one already tried to avoid duplicate paths.
+            # Try placing the item into existing bins with symmetry breaking.
+            # Skip bins with the same load to avoid duplicate paths.
             seen_loads: set[int] = set()
             for bin_index, load in enumerate(state.current_bin_loads):
                 if (
@@ -131,7 +131,7 @@ class BinPackingSolver:
                         )
                     )
 
-            # Try opening a new bin only if it can still beat the current best.
+            # Open a new bin only if this branch can still improve the current best.
             if state.bins_count + 1 < best_bin_count:
                 stack.append(
                     SearchState(
@@ -148,27 +148,27 @@ class BinPackingSolver:
             self._final_solution = BinPackingSolution(0, {}, [])
             return
 
-        # Establish initial upper bound using First-Fit Decreasing.
+        # Establish the initial upper bound using First-Fit Decreasing.
         initial_heuristic = self._first_fit_decreasing()
         best_bin_count = initial_heuristic.total_bins_used
         self._final_solution = initial_heuristic
 
-        # Establish global lower bound.
+        # Establish the global lower bound.
         global_lower_bound = self._compute_l1_lower_bound(
             list(range(self._total_item_count))
         )
 
-        # If our heuristic already matched the theoretical minimum, we are done.
+        # If the heuristic already matches the theoretical minimum, return.
         if best_bin_count == global_lower_bound:
             return
 
-        # Depth-First Search with Pruning
+        # Perform depth-first search with pruning.
         stack: list[SearchState] = [SearchState(0, [], [])]
 
         while stack:
             state = stack.pop()
 
-            # If we've assigned all items, check if this is a new best solution.
+            # If all items are assigned, check whether this is a new best solution.
             if state.item_index == self._total_item_count:
                 if state.bins_count < best_bin_count:
                     best_bin_count = state.bins_count
@@ -177,13 +177,13 @@ class BinPackingSolver:
 
             current_item_size = self._item_sizes[state.item_index]
 
-            # Calculate L1 bound for items not yet packed.
+            # Compute the L1 bound for items not yet packed.
             remaining_indices = list(range(state.item_index, self._total_item_count))
             lower_bound = state.bins_count + self._compute_l1_lower_bound(
                 remaining_indices
             )
 
-            # If the best possible outcome of this branch can't beat our current best, prune it.
+            # If the best possible outcome of this branch cannot beat the current best, prune it.
             if lower_bound >= best_bin_count:
                 continue
 
@@ -196,7 +196,7 @@ class BinPackingSolver:
                 )
 
             # Try placing the item in existing bins using symmetry breaking.
-            # We only try one bin of each unique "load" size to avoid redundant paths.
+            # Only one bin is tried for each unique load to avoid redundant paths.
             seen_loads: set[int] = set()
             for bin_index, load in enumerate(state.current_bin_loads):
                 if (
@@ -215,7 +215,7 @@ class BinPackingSolver:
                         )
                     )
 
-    # Bitmask DP requires O(2^n) memory. Beyond this threshold the allocation is
+    # Bitmask DP requires O(2^n) memory. Beyond this threshold, the allocation is
     # infeasible regardless of available RAM.
     _DP_MAX_ITEMS: int = 20
 
@@ -231,13 +231,13 @@ class BinPackingSolver:
                 f"Use 'backtracking' or 'branch and bound' for larger instances."
             )
 
-        # Bitmask DP: dp[mask] = minimum bins needed to pack the items in that mask.
+        # Bitmask DP: dp[mask] is the minimum number of bins needed to pack the items in that mask.
         # For each mask, every fitting submask is a candidate single bin,
         # so dp[mask] = min(dp[mask ^ submask] + 1) over all valid submasks.
         total_masks = 1 << self._total_item_count
         infinity = self._total_item_count + 1
 
-        # Precompute the total size of every subset using the lowest set bit trick.
+        # Precompute the total size of every subset using the lowest-set-bit trick.
         subset_sum: list[int] = [0] * total_masks
         for mask in range(1, total_masks):
             lowest_bit = mask & (-mask)
@@ -249,7 +249,7 @@ class BinPackingSolver:
         dp: list[int] = [infinity] * total_masks
         dp[0] = 0
 
-        # Track which submask was assigned to the last bin for reconstruction.
+        # Track the submask assigned to the last bin for reconstruction.
         last_bin_mask: list[int] = [0] * total_masks
 
         for mask in range(1, total_masks):
