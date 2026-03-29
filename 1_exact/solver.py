@@ -5,6 +5,8 @@ from dataclasses import dataclass, field
 
 @dataclass(slots=True)
 class BinPackingSolution:
+    """Compact representation of a bin packing solution."""
+
     total_bins_used: int
     bin_assignments: dict[int, list[int]]
     final_bin_loads: list[int]
@@ -12,6 +14,8 @@ class BinPackingSolution:
 
 @dataclass(slots=True)
 class SearchState:
+    """State container for the depth-first search variants."""
+
     item_index: int
     current_bin_loads: list[int]
     assignments: list[int] = field(default_factory=list)
@@ -22,6 +26,8 @@ class SearchState:
 
 
 class BinPackingSolver:
+    """Exact solvers for the 1D bin packing problem."""
+
     __slots__ = ("_item_sizes", "_total_item_count", "_bin_capacity", "_final_solution")
 
     def __init__(self, item_sizes: list[int], bin_capacity: int):
