@@ -5,36 +5,68 @@ from dataclasses import dataclass
 
 @dataclass(slots=True)
 class BinPackingSolution:
+    """Compact representation of a bin packing solution."""
+
     total_bins_used: int
     bin_assignments: dict[int, list[int]]
     final_bin_loads: list[int]
 
 
 class BinPackingSolver:
-    __slots__ = ("_item_sizes", "_bin_capacity", "_final_solution")
+    __slots__ = (
+        "_item_sizes",
+        "_bin_capacity",
+        "_final_solution",
+        "_items_in_input_order",
+        "_items_in_descending",
+    )
 
     def __init__(self, item_sizes: list[int], bin_capacity: int):
         if any(size > bin_capacity for size in item_sizes):
             raise ValueError("No single item size can exceed the bin capacity.")
 
-        # Items are sorted in descending order for better packing quality.
-        self._item_sizes: list[int] = sorted(item_sizes, reverse=True)
+        self._item_sizes: list[int] = list(item_sizes)
         self._bin_capacity: int = bin_capacity
         self._final_solution: BinPackingSolution | None = None
 
+        # Preserve the input order and a descending-by-size order for the
+        # "decreasing" heuristics. We keep original indices for readability
+        # when inspecting solutions.
+        self._items_in_input_order: list[tuple[int, int]] = list(
+            enumerate(self._item_sizes)
+        )
+        self._items_in_descending: list[tuple[int, int]] = sorted(
+            self._items_in_input_order,
+            key=lambda pair: (-pair[1], pair[0]),
+        )
+
     def solve(self, method: str) -> None:
-        match method.lower():
-            case "next fit":
-                self._next_fit()
+        normalized_method = self._normalize_method(method)
 
-            case "first fit":
-                self._first_fit()
+        match normalized_method:
+            case "next fit" | "nf":
+                self._final_solution = self._next_fit(self._items_in_input_order)
 
-            case "best fit":
-                self._best_fit()
+            case "next fit decreasing" | "nfd":
+                self._final_solution = self._next_fit(self._items_in_descending)
 
-            case "first fit decreasing":
-                self._first_fit_decreasing()
+            case "first fit" | "ff":
+                self._final_solution = self._first_fit(self._items_in_input_order)
+
+            case "first fit decreasing" | "ffd":
+                self._final_solution = self._first_fit(self._items_in_descending)
+
+            case "best fit" | "bf":
+                self._final_solution = self._best_fit(self._items_in_input_order)
+
+            case "best fit decreasing" | "bfd":
+                self._final_solution = self._best_fit(self._items_in_descending)
+
+            case "worst fit" | "wf":
+                self._final_solution = self._worst_fit(self._items_in_input_order)
+
+            case "worst fit decreasing" | "wfd":
+                self._final_solution = self._worst_fit(self._items_in_descending)
 
             case "relocation":
                 self._relocation()
@@ -44,114 +76,129 @@ class BinPackingSolver:
 
             case _:
                 raise ValueError(
-                    "Unsupported method. Available methods: next fit, first fit, "
-                    "best fit, first fit decreasing, relocation, swap."
+                    "Unsupported method. Available methods: next fit (nf), first fit "
+                    "(ff), best fit (bf), worst fit (wf), next fit decreasing (nfd), "
+                    "first fit decreasing (ffd), best fit decreasing (bfd), worst fit "
+                    "decreasing (wfd), relocation, swap."
                 )
 
-    def _next_fit(self) -> None:
-        # Only the current open bin is considered for placement.
+    @staticmethod
+    def _normalize_method(method: str) -> str:
+        normalized = method.strip().lower()
+        normalized = normalized.replace("_", " ").replace("-", " ")
+        return " ".join(normalized.split())
+
+    def _next_fit(self, items: list[tuple[int, int]]) -> BinPackingSolution:
+        """Next Fit: keep a single open bin and open a new one when needed."""
         bin_loads: list[int] = []
-        assignments: dict[int, list[int]] = {}
+        assignments: list[list[int]] = []
 
         current_bin_index = -1
 
-        for item_index, size in enumerate(self._item_sizes):
-            if current_bin_index == -1:
-                bin_loads.append(size)
-                assignments[0] = [item_index]
-                current_bin_index = 0
-                continue
-
-            if bin_loads[current_bin_index] + size <= self._bin_capacity:
-                bin_loads[current_bin_index] += size
-                assignments[current_bin_index].append(item_index)
-            else:
+        for item_index, size in items:
+            if current_bin_index == -1 or (
+                bin_loads[current_bin_index] + size > self._bin_capacity
+            ):
                 current_bin_index += 1
                 bin_loads.append(size)
-                assignments[current_bin_index] = [item_index]
+                assignments.append([item_index])
+                continue
 
-        self._final_solution = BinPackingSolution(
-            total_bins_used=len(bin_loads),
-            bin_assignments=assignments,
-            final_bin_loads=bin_loads,
-        )
+            bin_loads[current_bin_index] += size
+            assignments[current_bin_index].append(item_index)
 
-    def _first_fit(self) -> None:
-        # Place each item in the first bin that can accommodate it.
+        return self._build_solution(bin_loads, assignments)
+
+    def _first_fit(self, items: list[tuple[int, int]]) -> BinPackingSolution:
+        """First Fit: place each item in the first bin that can hold it."""
         bin_loads: list[int] = []
-        assignments: dict[int, list[int]] = {}
+        assignments: list[list[int]] = []
 
-        for item_index, size in enumerate(self._item_sizes):
-            placed = False
+        for item_index, size in items:
+            target_bin_index: int | None = None
 
+            # Scan bins in order and pick the first one that fits.
             for bin_index, load in enumerate(bin_loads):
                 if load + size <= self._bin_capacity:
-                    bin_loads[bin_index] += size
-                    assignments[bin_index].append(item_index)
-                    placed = True
+                    target_bin_index = bin_index
                     break
 
-            if not placed:
-                new_bin_index = len(bin_loads)
+            if target_bin_index is None:
                 bin_loads.append(size)
-                assignments[new_bin_index] = [item_index]
+                assignments.append([item_index])
+            else:
+                bin_loads[target_bin_index] += size
+                assignments[target_bin_index].append(item_index)
 
-        self._final_solution = BinPackingSolution(
-            total_bins_used=len(bin_loads),
-            bin_assignments=assignments,
-            final_bin_loads=bin_loads,
-        )
+        return self._build_solution(bin_loads, assignments)
 
-    def _best_fit(self) -> None:
-        # Place the item into the bin that leaves the smallest remaining capacity.
+    def _best_fit(self, items: list[tuple[int, int]]) -> BinPackingSolution:
+        """Best Fit: choose the bin with the least remaining capacity after placement."""
         bin_loads: list[int] = []
-        assignments: dict[int, list[int]] = {}
+        assignments: list[list[int]] = []
 
-        for item_index, size in enumerate(self._item_sizes):
+        for item_index, size in items:
             best_bin_index: int | None = None
             smallest_remaining_capacity = self._bin_capacity + 1
 
             for bin_index, load in enumerate(bin_loads):
                 new_load = load + size
+                if new_load > self._bin_capacity:
+                    continue
 
-                if new_load <= self._bin_capacity:
-                    remaining_capacity = self._bin_capacity - new_load
+                remaining_capacity = self._bin_capacity - new_load
+                if remaining_capacity < smallest_remaining_capacity:
+                    smallest_remaining_capacity = remaining_capacity
+                    best_bin_index = bin_index
 
-                    if remaining_capacity < smallest_remaining_capacity:
-                        smallest_remaining_capacity = remaining_capacity
-                        best_bin_index = bin_index
-
-            if best_bin_index is not None:
+            if best_bin_index is None:
+                bin_loads.append(size)
+                assignments.append([item_index])
+            else:
                 bin_loads[best_bin_index] += size
                 assignments[best_bin_index].append(item_index)
-            else:
-                new_bin_index = len(bin_loads)
+
+        return self._build_solution(bin_loads, assignments)
+
+    def _worst_fit(self, items: list[tuple[int, int]]) -> BinPackingSolution:
+        """Worst Fit: choose the bin with the most remaining capacity after placement."""
+        bin_loads: list[int] = []
+        assignments: list[list[int]] = []
+
+        for item_index, size in items:
+            worst_bin_index: int | None = None
+            largest_remaining_capacity = -1
+
+            for bin_index, load in enumerate(bin_loads):
+                new_load = load + size
+                if new_load > self._bin_capacity:
+                    continue
+
+                remaining_capacity = self._bin_capacity - new_load
+                if remaining_capacity > largest_remaining_capacity:
+                    largest_remaining_capacity = remaining_capacity
+                    worst_bin_index = bin_index
+
+            if worst_bin_index is None:
                 bin_loads.append(size)
-                assignments[new_bin_index] = [item_index]
+                assignments.append([item_index])
+            else:
+                bin_loads[worst_bin_index] += size
+                assignments[worst_bin_index].append(item_index)
 
-        self._final_solution = BinPackingSolution(
-            total_bins_used=len(bin_loads),
-            bin_assignments=assignments,
-            final_bin_loads=bin_loads,
-        )
-
-    def _first_fit_decreasing(self) -> None:
-        # Items are already sorted in descending order by the constructor.
-        # Running first fit on a descending-sorted list is first fit decreasing.
-        self._first_fit()
+        return self._build_solution(bin_loads, assignments)
 
     def _apply_relocation(
         self,
         bin_loads: list[int],
         assignments: list[list[int]],
     ) -> tuple[list[int], list[list[int]]]:
-        # Repeatedly attempt to empty the least loaded bin by moving all its items elsewhere.
-        # If every item in the least loaded bin can be relocated, that bin is eliminated.
-        # This continues until no bin can be emptied.
+        """Try to empty lightly loaded bins by relocating their items elsewhere."""
         improved = True
         while improved:
             improved = False
 
+            # Attempt bins from lightest to heaviest to maximize the chance of removal.
             source_order = sorted(
                 range(len(assignments)),
                 key=lambda index: bin_loads[index],
@@ -161,7 +208,7 @@ class BinPackingSolver:
                 if not assignments[source_bin_index]:
                     continue
 
-                # Work on a temporary copy so the original state is preserved on failure.
+                # Work on a temporary copy so we can revert if relocation fails.
                 temporary_loads = list(bin_loads)
                 temporary_assignments = [list(items) for items in assignments]
                 all_items_placed = True
@@ -170,12 +217,16 @@ class BinPackingSolver:
                     item_size = self._item_sizes[item_index]
                     item_placed = False
 
+                    # Move each item to the first bin that can accept it.
                     for target_bin_index in range(len(temporary_loads)):
                         if target_bin_index == source_bin_index:
                             continue
                         if not temporary_assignments[target_bin_index]:
                             continue
-                        if temporary_loads[target_bin_index] + item_size <= self._bin_capacity:
+                        if (
+                            temporary_loads[target_bin_index] + item_size
+                            <= self._bin_capacity
+                        ):
                             temporary_loads[target_bin_index] += item_size
                             temporary_assignments[target_bin_index].append(item_index)
                             temporary_loads[source_bin_index] -= item_size
@@ -196,27 +247,25 @@ class BinPackingSolver:
         return bin_loads, assignments
 
     def _relocation(self) -> None:
-        # Start from the first fit decreasing solution, then apply relocation.
-        self._first_fit_decreasing()
-
-        bin_loads: list[int] = list(self._final_solution.final_bin_loads)
-        assignments: list[list[int]] = [
-            list(items) for items in self._final_solution.bin_assignments.values()
+        """Improve an FFD solution by repeatedly relocating items out of light bins."""
+        base_solution = self._first_fit(self._items_in_descending)
+        bin_loads = list(base_solution.final_bin_loads)
+        assignments = [
+            list(base_solution.bin_assignments[i])
+            for i in range(base_solution.total_bins_used)
         ]
 
         bin_loads, assignments = self._apply_relocation(bin_loads, assignments)
-
         self._final_solution = self._build_solution(bin_loads, assignments)
 
     def _swap(self) -> None:
-        # Start from the relocation solution, then attempt pairwise item swaps.
-        # A swap is accepted if, after swapping two items between two bins and
-        # re-running relocation, the total number of bins strictly decreases.
+        """Try pairwise swaps plus relocation to reduce the number of bins."""
         self._relocation()
 
-        bin_loads: list[int] = list(self._final_solution.final_bin_loads)
-        assignments: list[list[int]] = [
-            list(items) for items in self._final_solution.bin_assignments.values()
+        bin_loads = list(self._final_solution.final_bin_loads)
+        assignments = [
+            list(self._final_solution.bin_assignments[i])
+            for i in range(self._final_solution.total_bins_used)
         ]
 
         improved = True
@@ -240,12 +289,17 @@ class BinPackingSolver:
                             new_load_b = bin_loads[bin_b_index] - size_b + size_a
 
                             # The swap must keep both bins within capacity.
-                            if new_load_a > self._bin_capacity or new_load_b > self._bin_capacity:
+                            if (
+                                new_load_a > self._bin_capacity
+                                or new_load_b > self._bin_capacity
+                            ):
                                 continue
 
-                            # Tentatively apply the swap on a copy of the current state.
+                            # Apply the swap on a temporary state to test improvement.
                             candidate_loads = list(bin_loads)
-                            candidate_assignments = [list(items) for items in assignments]
+                            candidate_assignments = [
+                                list(items) for items in assignments
+                            ]
                             candidate_loads[bin_a_index] = new_load_a
                             candidate_loads[bin_b_index] = new_load_b
                             candidate_assignments[bin_a_index].remove(item_a_index)
@@ -253,11 +307,15 @@ class BinPackingSolver:
                             candidate_assignments[bin_b_index].remove(item_b_index)
                             candidate_assignments[bin_b_index].append(item_a_index)
 
-                            # Run relocation on the candidate state to check for improvement.
-                            candidate_loads, candidate_assignments = self._apply_relocation(
-                                candidate_loads, candidate_assignments
+                            # Relocation might empty a bin after a beneficial swap.
+                            candidate_loads, candidate_assignments = (
+                                self._apply_relocation(
+                                    candidate_loads, candidate_assignments
+                                )
                             )
-                            candidate_bin_count = sum(1 for items in candidate_assignments if items)
+                            candidate_bin_count = sum(
+                                1 for items in candidate_assignments if items
+                            )
 
                             if candidate_bin_count < current_bin_count:
                                 bin_loads = candidate_loads
@@ -279,11 +337,9 @@ class BinPackingSolver:
         bin_loads: list[int],
         assignments: list[list[int]],
     ) -> BinPackingSolution:
-        # Remove empty bins and rebuild with contiguous indices.
+        """Remove empty bins and rebuild with contiguous indices."""
         non_empty_bins = [
-            (load, items)
-            for load, items in zip(bin_loads, assignments)
-            if items
+            (load, items) for load, items in zip(bin_loads, assignments) if items
         ]
         compacted_loads = [load for load, _ in non_empty_bins]
         compacted_assignments = {

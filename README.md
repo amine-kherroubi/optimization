@@ -8,7 +8,7 @@ optimization/
 ├── 1_exact/
 │   └── solver.py          # Backtracking, Branch & Bound, Dynamic Programming
 ├── 2_heuristics/
-│   └── solver.py          # Next Fit, First Fit, Best Fit
+│   └── solver.py          # Greedy fits + decreasing variants, relocation, swap
 ├── results/
 │   ├── 1_exact/           # Graphs from exact runs
 │   └── 2_heuristics/      # Graphs from heuristic runs
@@ -67,10 +67,12 @@ python benchmark.py --solver 2_heuristics/solver.py --dataset falkenauer-u --met
 
 ### Available methods
 
-| Solver         | Methods                                                   |
-| -------------- | --------------------------------------------------------- |
-| `1_exact`      | `branch and bound`, `backtracking`, `dynamic programming` |
-| `2_heuristics` | `next fit`, `first fit`, `best fit`                       |
+| Solver         | Methods                                                                                                                                                              |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `1_exact`      | `branch and bound`, `backtracking`, `dynamic programming`                                                                                                            |
+| `2_heuristics` | `next fit`, `first fit`, `best fit`, `worst fit`, `next fit decreasing`, `first fit decreasing`, `best fit decreasing`, `worst fit decreasing`, `relocation`, `swap` |
+
+Shorthand aliases are also accepted for the greedy fits: `nf`, `ff`, `bf`, `wf`, `nfd`, `ffd`, `bfd`, `wfd`.
 
 > `dynamic programming` is limited to instances with n ≤ 20 items.
 
