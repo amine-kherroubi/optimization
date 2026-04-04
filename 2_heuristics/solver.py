@@ -84,8 +84,7 @@ class BinPackingSolver:
                     "decreasing (wfd), relocation, swap."
                 )
 
-    @staticmethod
-    def _normalize_method(method: str) -> str:
+    def _normalize_method(self, method: str) -> str:
         normalized = method.strip().lower()
         normalized = normalized.replace("_", " ").replace("-", " ")
         return " ".join(normalized.split())
@@ -264,6 +263,7 @@ class BinPackingSolver:
         """Try pairwise swaps plus relocation to reduce the number of bins."""
         self._relocation()
 
+        assert self._final_solution is not None
         bin_loads = list(self._final_solution.final_bin_loads)
         assignments = [
             list(self._final_solution.bin_assignments[i])
