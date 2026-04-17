@@ -1,4 +1,4 @@
-# Optimization Labs — Bin Packing Problem
+# Optimization — Bin Packing Problem
 
 ## Project structure
 
