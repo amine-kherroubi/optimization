@@ -73,13 +73,24 @@ class BinPackingSolver:
             case "tabu search diversified" | "ts diversified" | "hybrid tabu":
                 self._tabu_search(reactive=True, lns=True, diversification=True)
 
+            case "genetic algorithm" | "ga":
+                self._genetic_algorithm()
+
+            case "genetic algorithm memetic" | "ga memetic":
+                self._genetic_algorithm(memetic=True)
+
+            case "genetic algorithm island" | "ga island":
+                self._genetic_algorithm_island()
+
             case _:
                 raise ValueError(
                     "Unsupported method. Available methods: "
                     "simulated annealing (sa), simulated annealing reheating "
                     "(sa reheating), simulated annealing adaptive (sa adaptive), "
                     "tabu search (ts), reactive tabu search (rts), tabu search lns "
-                    "(ts lns, lnts), tabu search diversified (ts diversified, hybrid tabu)."
+                    "(ts lns, lnts), tabu search diversified (ts diversified, hybrid tabu), "
+                    "genetic algorithm (ga), genetic algorithm memetic (ga memetic), "
+                    "genetic algorithm island (ga island)."
                 )
 
 # =============================
@@ -840,7 +851,266 @@ class BinPackingSolver:
                 best_assignments = [list(items) for items in cand_assignments]
 
         return best_loads, best_assignments
-
-
+    
 # end of tabu search section
 # ===================================================
+
+
+# ======================================
+# genetic algorithm section
+
+    def _random_individual(self) -> tuple[list[int], list[list[int]]]:
+        order = list(range(len(self._item_sizes)))
+        random.shuffle(order)
+        bin_loads: list[int] = []
+        assignments: list[list[int]] = []
+        for item_index in order:
+            size = self._item_sizes[item_index]
+            placed = False
+            for bin_index, load in enumerate(bin_loads):
+                if load + size <= self._bin_capacity:
+                    bin_loads[bin_index] += size
+                    assignments[bin_index].append(item_index)
+                    placed = True
+                    break
+            if not placed:
+                bin_loads.append(size)
+                assignments.append([item_index])
+        return bin_loads, assignments
+
+    def _tournament_select(
+        self,
+        population: list[tuple[list[int], list[list[int]]]],
+        scores: list[int],
+        k: int,
+    ) -> tuple[list[int], list[list[int]]]:
+        candidates = random.sample(range(len(population)), min(k, len(population)))
+        best = min(candidates, key=lambda i: scores[i])
+        ind = population[best]
+        return list(ind[0]), [list(b) for b in ind[1]]
+
+    def _ubx_crossover(
+        self,
+        parent_a: tuple[list[int], list[list[int]]],
+        parent_b: tuple[list[int], list[list[int]]],
+    ) -> tuple[list[int], list[list[int]]]:
+        total_items = len(self._item_sizes)
+        placed = [False] * total_items
+        child_loads: list[int] = []
+        child_assignments: list[list[int]] = []
+
+        all_bins = list(parent_a[1]) + list(parent_b[1])
+        random.shuffle(all_bins)
+
+        for bin_items in all_bins:
+            if all(not placed[item] for item in bin_items):
+                load = sum(self._item_sizes[item] for item in bin_items)
+                if load <= self._bin_capacity:
+                    child_loads.append(load)
+                    child_assignments.append(list(bin_items))
+                    for item in bin_items:
+                        placed[item] = True
+
+        unplaced = sorted(
+            [(item, self._item_sizes[item]) for item in range(total_items) if not placed[item]],
+            key=lambda x: -x[1],
+        )
+        for item_index, size in unplaced:
+            target: int | None = None
+            for bin_index, load in enumerate(child_loads):
+                if load + size <= self._bin_capacity:
+                    target = bin_index
+                    break
+            if target is None:
+                child_loads.append(size)
+                child_assignments.append([item_index])
+            else:
+                child_loads[target] += size
+                child_assignments[target].append(item_index)
+
+        return child_loads, child_assignments
+
+    def _ga_local_search(
+        self,
+        bin_loads: list[int],
+        assignments: list[list[int]],
+        steps: int,
+    ) -> tuple[list[int], list[list[int]]]:
+        current_loads = list(bin_loads)
+        current_assignments = [list(b) for b in assignments]
+        current_score = self._score(current_loads)
+        for _ in range(steps):
+            nl, na = self._generate_neighbor(current_loads, current_assignments)
+            ns = self._score(nl)
+            if ns < current_score:
+                current_loads, current_assignments, current_score = nl, na, ns
+        return current_loads, current_assignments
+
+    def _genetic_algorithm(
+        self,
+        *,
+        population_size: int = 60,
+        generations: int = 400,
+        crossover_rate: float = 0.85,
+        mutation_rate: float = 0.20,
+        elite_count: int = 4,
+        tournament_k: int = 4,
+        memetic: bool = False,
+        local_search_steps: int = 80,
+    ) -> None:
+        if not self._item_sizes:
+            self._final_solution = BinPackingSolution(0, {}, [])
+            return
+
+        population: list[tuple[list[int], list[list[int]]]] = [self._simulate_initial_solution()]
+        while len(population) < population_size:
+            population.append(self._random_individual())
+
+        scores = [self._score(ind[0]) for ind in population]
+        best_idx = min(range(population_size), key=lambda i: scores[i])
+        best_loads = list(population[best_idx][0])
+        best_assignments = [list(b) for b in population[best_idx][1]]
+        best_score = scores[best_idx]
+
+        for _ in range(generations):
+            ranked = sorted(zip(scores, population), key=lambda x: x[0])
+            new_population: list[tuple[list[int], list[list[int]]]] = []
+            new_scores: list[int] = []
+
+            for sc, ind in ranked[:elite_count]:
+                new_population.append((list(ind[0]), [list(b) for b in ind[1]]))
+                new_scores.append(sc)
+
+            while len(new_population) < population_size:
+                pa = self._tournament_select(population, scores, tournament_k)
+                pb = self._tournament_select(population, scores, tournament_k)
+
+                if random.random() < crossover_rate:
+                    cl, ca = self._ubx_crossover(pa, pb)
+                else:
+                    p = pa if self._score(pa[0]) <= self._score(pb[0]) else pb
+                    cl, ca = list(p[0]), [list(b) for b in p[1]]
+
+                if random.random() < mutation_rate:
+                    cl, ca = self._generate_neighbor(cl, ca)
+
+                if memetic:
+                    cl, ca = self._ga_local_search(cl, ca, steps=local_search_steps)
+
+                cs = self._score(cl)
+                new_population.append((cl, ca))
+                new_scores.append(cs)
+
+                if cs < best_score:
+                    best_score = cs
+                    best_loads = list(cl)
+                    best_assignments = [list(b) for b in ca]
+
+            population = new_population
+            scores = new_scores
+
+        self._final_solution = self._build_solution(best_loads, best_assignments)
+
+    def _genetic_algorithm_island(
+        self,
+        *,
+        num_islands: int = 4,
+        island_size: int = 20,
+        generations: int = 400,
+        migration_interval: int = 40,
+        migration_rate: int = 2,
+        crossover_rate: float = 0.85,
+        mutation_rate: float = 0.25,
+        elite_count: int = 2,
+        tournament_k: int = 3,
+    ) -> None:
+        if not self._item_sizes:
+            self._final_solution = BinPackingSolution(0, {}, [])
+            return
+
+        islands: list[list[tuple[list[int], list[list[int]]]]] = []
+        island_scores: list[list[int]] = []
+
+        for i in range(num_islands):
+            pop: list[tuple[list[int], list[list[int]]]] = []
+            if i == 0:
+                pop.append(self._simulate_initial_solution())
+            while len(pop) < island_size:
+                pop.append(self._random_individual())
+            islands.append(pop)
+            island_scores.append([self._score(ind[0]) for ind in pop])
+
+        best_score = math.inf
+        best_loads: list[int] = []
+        best_assignments: list[list[int]] = []
+
+        for pop, scs in zip(islands, island_scores):
+            local_best = min(range(island_size), key=lambda i: scs[i])
+            if scs[local_best] < best_score:
+                best_score = scs[local_best]
+                best_loads = list(pop[local_best][0])
+                best_assignments = [list(b) for b in pop[local_best][1]]
+
+        for gen in range(1, generations + 1):
+            for isl_idx in range(num_islands):
+                pop = islands[isl_idx]
+                scs = island_scores[isl_idx]
+                ranked = sorted(zip(scs, pop), key=lambda x: x[0])
+                new_pop: list[tuple[list[int], list[list[int]]]] = []
+                new_scs: list[int] = []
+
+                for sc, ind in ranked[:elite_count]:
+                    new_pop.append((list(ind[0]), [list(b) for b in ind[1]]))
+                    new_scs.append(sc)
+
+                while len(new_pop) < island_size:
+                    pa = self._tournament_select(pop, scs, tournament_k)
+                    pb = self._tournament_select(pop, scs, tournament_k)
+
+                    if random.random() < crossover_rate:
+                        cl, ca = self._ubx_crossover(pa, pb)
+                    else:
+                        p = pa if self._score(pa[0]) <= self._score(pb[0]) else pb
+                        cl, ca = list(p[0]), [list(b) for b in p[1]]
+
+                    if random.random() < mutation_rate:
+                        cl, ca = self._generate_neighbor(cl, ca)
+
+                    cs = self._score(cl)
+                    new_pop.append((cl, ca))
+                    new_scs.append(cs)
+
+                    if cs < best_score:
+                        best_score = cs
+                        best_loads = list(cl)
+                        best_assignments = [list(b) for b in ca]
+
+                islands[isl_idx] = new_pop
+                island_scores[isl_idx] = new_scs
+
+            if gen % migration_interval == 0:
+                emigrants: list[list[tuple[list[int], list[list[int]]]]] = []
+                for isl_idx in range(num_islands):
+                    pop = islands[isl_idx]
+                    scs = island_scores[isl_idx]
+                    ranked_idx = sorted(range(island_size), key=lambda i: scs[i])
+                    emigrants.append([
+                        (list(pop[i][0]), [list(b) for b in pop[i][1]])
+                        for i in ranked_idx[:migration_rate]
+                    ])
+
+                for isl_idx in range(num_islands):
+                    target = (isl_idx + 1) % num_islands
+                    pop = islands[target]
+                    scs = island_scores[target]
+                    worst_idx = sorted(range(island_size), key=lambda i: scs[i], reverse=True)[:migration_rate]
+                    for rank, slot in enumerate(worst_idx):
+                        incoming = emigrants[isl_idx][rank]
+                        pop[slot] = incoming
+                        scs[slot] = self._score(incoming[0])
+
+        self._final_solution = self._build_solution(best_loads, best_assignments)
+
+# end of genetic algorithm section
+# ======================================
+
