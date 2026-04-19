@@ -27,83 +27,43 @@ class BinPackingSolution:
     final_bin_loads: list[int]
 
 
-class BinPackingSolver:
-    """Metaheuristic solvers for the 1D bin packing problem."""
+@dataclass(frozen=True, slots=True)
+class _SimulatedAnnealingConfig:
+    """Configuration bundle for a simulated-annealing variant."""
 
-    __slots__ = (
-        "_item_sizes",
-        "_bin_capacity",
-        "_final_solution",
-        "_items_in_descending",
-    )
+    max_iterations: int = 25_000
+    cooling_rate: float = 0.995
+    min_temperature: float = 1e-4
+    adaptive_window: int = 200
+    adaptive_step: float = 0.1
+    adaptive_target_acceptance: float = 0.3
+    reheating_stagnation_limit: int = 600
+    reheating_factor: float = 0.45
+    use_reheating: bool = False
+    use_adaptive: bool = False
+
+
+class _MetaheuristicCore:
+    """Shared utilities used by the metaheuristic variants."""
+
+    __slots__ = ("item_sizes", "bin_capacity", "items_in_descending")
 
     def __init__(self, item_sizes: list[int], bin_capacity: int):
-        if any(size > bin_capacity for size in item_sizes):
-            raise ValueError("No single item size can exceed the bin capacity.")
-
-        self._item_sizes = list(item_sizes)
-        self._bin_capacity = bin_capacity
-        self._final_solution: BinPackingSolution | None = None
-        self._items_in_descending = sorted(
-            enumerate(self._item_sizes), key=lambda pair: (-pair[1], pair[0])
+        self.item_sizes = item_sizes
+        self.bin_capacity = bin_capacity
+        self.items_in_descending = sorted(
+            enumerate(item_sizes),
+            key=lambda pair: (-pair[1], pair[0]),
         )
 
-    def solve(self, method: str) -> None:
-        normalized_method = self._normalize_method(method)
-
-        match normalized_method:
-            case "simulated annealing" | "sa":
-                self._simulated_annealing()
-
-            case "simulated annealing reheating" | "sa reheating":
-                self._simulated_annealing(reheating=True)
-
-            case "simulated annealing adaptive" | "sa adaptive":
-                self._simulated_annealing(adaptive=True)
-
-            case "tabu search" | "ts":
-                self._tabu_search()
-
-            case "reactive tabu search" | "rts":
-                self._tabu_search(reactive=True)
-
-            case "tabu search lns" | "ts lns" | "lnts":
-                self._tabu_search(reactive=True, lns=True)
-
-            case "tabu search diversified" | "ts diversified" | "hybrid tabu":
-                self._tabu_search(reactive=True, lns=True, diversification=True)
-
-            case "genetic algorithm" | "ga":
-                self._genetic_algorithm()
-
-            case "genetic algorithm memetic" | "ga memetic":
-                self._genetic_algorithm(memetic=True)
-
-            case "genetic algorithm island" | "ga island":
-                self._genetic_algorithm_island()
-
-            case _:
-                raise ValueError(
-                    "Unsupported method. Available methods: "
-                    "simulated annealing (sa), simulated annealing reheating "
-                    "(sa reheating), simulated annealing adaptive (sa adaptive), "
-                    "tabu search (ts), reactive tabu search (rts), tabu search lns "
-                    "(ts lns, lnts), tabu search diversified (ts diversified, hybrid tabu), "
-                    "genetic algorithm (ga), genetic algorithm memetic (ga memetic), "
-                    "genetic algorithm island (ga island)."
-                )
-
-# =============================
-# simulated annealing section
-
-    def _simulate_initial_solution(self) -> tuple[list[int], list[list[int]]]:
+    def simulate_initial_solution(self) -> tuple[list[int], list[list[int]]]:
         bin_loads: list[int] = []
         assignments: list[list[int]] = []
 
-        for item_index, size in self._items_in_descending:
+        for item_index, size in self.items_in_descending:
             target_bin_index: int | None = None
             for bin_index, load in enumerate(bin_loads):
-                if load + size <= self._bin_capacity:
+                if load + size <= self.bin_capacity:
                     target_bin_index = bin_index
                     break
 
@@ -116,67 +76,7 @@ class BinPackingSolver:
 
         return bin_loads, assignments
 
-    def _simulated_annealing(
-        self,
-        reheating: bool = False,
-        adaptive: bool = False,
-    ) -> None:
-        if not self._item_sizes:
-            self._final_solution = BinPackingSolution(0, {}, [])
-            return
-
-        current_loads, current_assignments = self._simulate_initial_solution()
-        current_cost = self._score(current_loads)
-        best_loads = list(current_loads)
-        best_assignments = [list(items) for items in current_assignments]
-        best_cost = current_cost
-
-        temperature = self._initial_temperature(current_loads)
-        cooling_rate = 0.995
-        min_temperature = 1e-4
-        stagnation = 0
-        acceptance_history: list[bool] = []
-
-        for iteration in range(1, 25_001):
-            candidate_loads, candidate_assignments = self._generate_neighbor(
-                current_loads, current_assignments
-            )
-            candidate_cost = self._score(candidate_loads)
-
-            if self._should_accept(candidate_cost, current_cost, temperature):
-                current_loads = candidate_loads
-                current_assignments = candidate_assignments
-                current_cost = candidate_cost
-                acceptance_history.append(True)
-            else:
-                acceptance_history.append(False)
-
-            if candidate_cost < best_cost:
-                best_cost = candidate_cost
-                best_loads = list(candidate_loads)
-                best_assignments = [list(items) for items in candidate_assignments]
-                stagnation = 0
-            else:
-                stagnation += 1
-
-            if adaptive and iteration % 200 == 0:
-                acceptance_ratio = sum(acceptance_history[-200:]) / 200
-                temperature *= 1.0 - (0.1 * (acceptance_ratio - 0.3))
-                temperature = max(temperature, min_temperature)
-
-            if reheating and stagnation >= 600:
-                temperature = max(
-                    temperature * 0.45, self._initial_temperature(best_loads)
-                )
-                stagnation = 0
-
-            temperature *= cooling_rate
-            if temperature < min_temperature:
-                temperature = min_temperature
-
-        self._final_solution = self._build_solution(best_loads, best_assignments)
-
-    def _generate_neighbor(
+    def generate_neighbor(
         self,
         bin_loads: list[int],
         assignments: list[list[int]],
@@ -185,11 +85,11 @@ class BinPackingSolver:
         candidate_assignments = [list(items) for items in assignments]
 
         if len(candidate_assignments) < 2 or random.random() < 0.6:
-            return self._relocate_item(candidate_loads, candidate_assignments)
+            return self.relocate_item(candidate_loads, candidate_assignments)
 
-        return self._swap_items(candidate_loads, candidate_assignments)
+        return self.swap_items(candidate_loads, candidate_assignments)
 
-    def _relocate_item(
+    def relocate_item(
         self,
         bin_loads: list[int],
         assignments: list[list[int]],
@@ -199,13 +99,13 @@ class BinPackingSolver:
             source_bin = random.randrange(len(assignments))
 
         item_index = random.choice(assignments[source_bin])
-        item_size = self._item_sizes[item_index]
+        item_size = self.item_sizes[item_index]
 
         target_bins = [i for i in range(len(assignments)) if i != source_bin]
         random.shuffle(target_bins)
 
         for target_bin in target_bins:
-            if bin_loads[target_bin] + item_size <= self._bin_capacity:
+            if bin_loads[target_bin] + item_size <= self.bin_capacity:
                 assignments[source_bin].remove(item_index)
                 assignments[target_bin].append(item_index)
                 bin_loads[source_bin] -= item_size
@@ -217,27 +117,27 @@ class BinPackingSolver:
             bin_loads[source_bin] -= item_size
             bin_loads.append(item_size)
 
-        return self._clean_bins(bin_loads, assignments)
+        return self.clean_bins(bin_loads, assignments)
 
-    def _swap_items(
+    def swap_items(
         self,
         bin_loads: list[int],
         assignments: list[list[int]],
     ) -> tuple[list[int], list[list[int]]]:
         non_empty = [i for i, items in enumerate(assignments) if items]
         if len(non_empty) < 2:
-            return self._relocate_item(bin_loads, assignments)
+            return self.relocate_item(bin_loads, assignments)
 
         bin_a, bin_b = random.sample(non_empty, 2)
         item_a = random.choice(assignments[bin_a])
         item_b = random.choice(assignments[bin_b])
 
-        size_a = self._item_sizes[item_a]
-        size_b = self._item_sizes[item_b]
+        size_a = self.item_sizes[item_a]
+        size_b = self.item_sizes[item_b]
 
         if (
-            bin_loads[bin_a] - size_a + size_b <= self._bin_capacity
-            and bin_loads[bin_b] - size_b + size_a <= self._bin_capacity
+            bin_loads[bin_a] - size_a + size_b <= self.bin_capacity
+            and bin_loads[bin_b] - size_b + size_a <= self.bin_capacity
         ):
             assignments[bin_a].remove(item_a)
             assignments[bin_b].remove(item_b)
@@ -246,9 +146,9 @@ class BinPackingSolver:
             bin_loads[bin_a] += size_b - size_a
             bin_loads[bin_b] += size_a - size_b
 
-        return self._clean_bins(bin_loads, assignments)
+        return self.clean_bins(bin_loads, assignments)
 
-    def _clean_bins(
+    def clean_bins(
         self,
         bin_loads: list[int],
         assignments: list[list[int]],
@@ -263,16 +163,16 @@ class BinPackingSolver:
 
         return compact_loads, compact_assignments
 
-    def _score(self, bin_loads: list[int]) -> int:
+    def score(self, bin_loads: list[int]) -> int:
         return len([load for load in bin_loads if load > 0]) * 10_000 + sum(
-            (self._bin_capacity - load) ** 2 for load in bin_loads if load > 0
+            (self.bin_capacity - load) ** 2 for load in bin_loads if load > 0
         )
 
-    def _initial_temperature(self, bin_loads: list[int]) -> float:
+    def initial_temperature(self, bin_loads: list[int]) -> float:
         average_load = sum(bin_loads) / len(bin_loads)
         return max(average_load, 1.0) * 5.0
 
-    def _should_accept(
+    def should_accept(
         self,
         candidate_cost: int,
         current_cost: int,
@@ -285,12 +185,7 @@ class BinPackingSolver:
             -(candidate_cost - current_cost) / max(temperature, 1e-8)
         )
 
-    def _normalize_method(self, method: str) -> str:
-        normalized = method.strip().lower()
-        normalized = normalized.replace("_", " ").replace("-", " ")
-        return " ".join(normalized.split())
-
-    def _build_solution(
+    def build_solution(
         self,
         bin_loads: list[int],
         assignments: list[list[int]],
@@ -309,35 +204,110 @@ class BinPackingSolver:
             final_bin_loads=compacted_loads,
         )
 
-    def get_solution(self) -> BinPackingSolution:
-        if self._final_solution is None:
-            raise RuntimeError(
-                "No solution available: you must call 'solve()' before retrieving the solution."
+
+class _SimulatedAnnealingSolver:
+    """Dedicated class for simulated annealing variants."""
+
+    __slots__ = ("_core", "_variant_configs")
+
+    def __init__(self, core: _MetaheuristicCore):
+        self._core = core
+        self._variant_configs: dict[str, _SimulatedAnnealingConfig] = {
+            "default": _SimulatedAnnealingConfig(),
+            "reheating": _SimulatedAnnealingConfig(use_reheating=True),
+            "adaptive": _SimulatedAnnealingConfig(use_adaptive=True),
+        }
+
+    def solve_variant(self, variant: str) -> BinPackingSolution:
+        config = self._variant_configs.get(variant)
+        if config is None:
+            raise ValueError(f"Unknown simulated-annealing variant: {variant}")
+        return self._solve(config)
+
+    def _solve(self, config: _SimulatedAnnealingConfig) -> BinPackingSolution:
+        if not self._core.item_sizes:
+            return BinPackingSolution(0, {}, [])
+
+        current_loads, current_assignments = self._core.simulate_initial_solution()
+        current_cost = self._core.score(current_loads)
+        best_loads = list(current_loads)
+        best_assignments = [list(items) for items in current_assignments]
+        best_cost = current_cost
+
+        temperature = self._core.initial_temperature(current_loads)
+        stagnation = 0
+        acceptance_history: list[bool] = []
+
+        for iteration in range(1, config.max_iterations + 1):
+            candidate_loads, candidate_assignments = self._core.generate_neighbor(
+                current_loads, current_assignments
             )
+            candidate_cost = self._core.score(candidate_loads)
 
-        return self._final_solution
+            if self._core.should_accept(candidate_cost, current_cost, temperature):
+                current_loads = candidate_loads
+                current_assignments = candidate_assignments
+                current_cost = candidate_cost
+                acceptance_history.append(True)
+            else:
+                acceptance_history.append(False)
 
-# end of simulated annealing section
-# ======================================
+            if candidate_cost < best_cost:
+                best_cost = candidate_cost
+                best_loads = list(candidate_loads)
+                best_assignments = [list(items) for items in candidate_assignments]
+                stagnation = 0
+            else:
+                stagnation += 1
+
+            if config.use_adaptive and iteration % config.adaptive_window == 0:
+                acceptance_ratio = (
+                    sum(acceptance_history[-config.adaptive_window :])
+                    / config.adaptive_window
+                )
+                temperature *= 1.0 - (
+                    config.adaptive_step
+                    * (acceptance_ratio - config.adaptive_target_acceptance)
+                )
+                temperature = max(temperature, config.min_temperature)
+
+            if config.use_reheating and stagnation >= config.reheating_stagnation_limit:
+                temperature = max(
+                    temperature * config.reheating_factor,
+                    self._core.initial_temperature(best_loads),
+                )
+                stagnation = 0
+
+            temperature *= config.cooling_rate
+            if temperature < config.min_temperature:
+                temperature = config.min_temperature
+
+        return self._core.build_solution(best_loads, best_assignments)
 
 
-# ======================================
-# tabu search section 
-    def _tabu_search(
+class _TabuSearchSolver:
+    """Dedicated class for tabu-search variants."""
+
+    __slots__ = ("_core",)
+
+    def __init__(self, core: _MetaheuristicCore):
+        self._core = core
+
+    def solve(
         self,
+        *,
         reactive: bool = False,
         lns: bool = False,
         diversification: bool = False,
-    ) -> None:
-        if not self._item_sizes:
-            self._final_solution = BinPackingSolution(0, {}, [])
-            return
+    ) -> BinPackingSolution:
+        if not self._core.item_sizes:
+            return BinPackingSolution(0, {}, [])
 
-        item_count = len(self._item_sizes)
+        item_count = len(self._core.item_sizes)
 
-        current_loads, current_assignments = self._simulate_initial_solution()
-        current_base_cost = self._score(current_loads)
-        lower_bound = math.ceil(sum(self._item_sizes) / self._bin_capacity)
+        current_loads, current_assignments = self._core.simulate_initial_solution()
+        current_base_cost = self._core.score(current_loads)
+        lower_bound = math.ceil(sum(self._core.item_sizes) / self._core.bin_capacity)
 
         best_loads = list(current_loads)
         best_assignments = [list(items) for items in current_assignments]
@@ -432,7 +402,9 @@ class BinPackingSolver:
                     improved=improved,
                 )
 
-            if lns and (iteration % lns_period == 0 or no_improve >= lns_stagnation_trigger):
+            if lns and (
+                iteration % lns_period == 0 or no_improve >= lns_stagnation_trigger
+            ):
                 lns_loads, lns_assignments = self._lns_destroy_repair(
                     current_loads, current_assignments
                 )
@@ -443,7 +415,7 @@ class BinPackingSolver:
                     max_candidates=max(10, max_candidates // 3),
                 )
 
-                lns_cost = self._score(lns_loads)
+                lns_cost = self._core.score(lns_loads)
                 if lns_cost <= current_base_cost:
                     current_loads = lns_loads
                     current_assignments = lns_assignments
@@ -460,7 +432,7 @@ class BinPackingSolver:
             if no_improve >= patience:
                 break
 
-        self._final_solution = self._build_solution(best_loads, best_assignments)
+        return self._core.build_solution(best_loads, best_assignments)
 
     def _select_best_tabu_neighbor(
         self,
@@ -479,18 +451,25 @@ class BinPackingSolver:
         moves = self._sample_tabu_moves(current_assignments, max_candidates)
         if not moves:
             fallback_move = _TabuMove("relocate", 0, 0, 0)
-            return fallback_move, list(current_loads), [list(b) for b in current_assignments], self._score(current_loads)
+            return (
+                fallback_move,
+                list(current_loads),
+                [list(b) for b in current_assignments],
+                self._core.score(current_loads),
+            )
 
         best_eval: float | None = None
         best_choice: tuple[_TabuMove, list[int], list[list[int]], int] | None = None
-        best_inadmissible: tuple[_TabuMove, list[int], list[list[int]], int] | None = None
+        best_inadmissible: tuple[_TabuMove, list[int], list[list[int]], int] | None = (
+            None
+        )
         best_inadmissible_eval: float | None = None
 
         for move in moves:
             candidate_loads, candidate_assignments = self._apply_move(
                 current_loads, current_assignments, move
             )
-            base_cost = self._score(candidate_loads)
+            base_cost = self._core.score(candidate_loads)
 
             tabu = self._is_tabu(move, tabu_until, iteration)
             aspiration = base_cost < best_global_cost
@@ -509,7 +488,12 @@ class BinPackingSolver:
 
             if best_inadmissible_eval is None or eval_cost < best_inadmissible_eval:
                 best_inadmissible_eval = eval_cost
-                best_inadmissible = (move, candidate_loads, candidate_assignments, base_cost)
+                best_inadmissible = (
+                    move,
+                    candidate_loads,
+                    candidate_assignments,
+                    base_cost,
+                )
 
         if best_choice is not None:
             return best_choice
@@ -520,8 +504,11 @@ class BinPackingSolver:
         fallback_loads, fallback_assignments = self._apply_move(
             current_loads, current_assignments, fallback_move
         )
-        return fallback_move, fallback_loads, fallback_assignments, self._score(
-            fallback_loads
+        return (
+            fallback_move,
+            fallback_loads,
+            fallback_assignments,
+            self._core.score(fallback_loads),
         )
 
     def _sample_tabu_moves(
@@ -541,7 +528,9 @@ class BinPackingSolver:
         relocate_attempts = 0
         max_relocate_attempts = max(20, relocate_budget * 8)
 
-        while len(sampled) < relocate_budget and relocate_attempts < max_relocate_attempts:
+        while (
+            len(sampled) < relocate_budget and relocate_attempts < max_relocate_attempts
+        ):
             relocate_attempts += 1
             source_bin = random.choice(non_empty_bins)
             item = random.choice(assignments[source_bin])
@@ -607,34 +596,34 @@ class BinPackingSolver:
             source = move.source_a
             target = move.target_a
             item = move.item_a
-            size = self._item_sizes[item]
+            size = self._core.item_sizes[item]
 
             if source >= len(bins) or item not in bins[source]:
-                return self._clean_bins(loads, bins)
+                return self._core.clean_bins(loads, bins)
 
             if target == len(bins):
                 if len(bins[source]) <= 1:
-                    return self._clean_bins(loads, bins)
+                    return self._core.clean_bins(loads, bins)
                 bins[source].remove(item)
                 loads[source] -= size
                 bins.append([item])
                 loads.append(size)
-                return self._clean_bins(loads, bins)
+                return self._core.clean_bins(loads, bins)
 
             if target >= len(bins) or target == source:
-                return self._clean_bins(loads, bins)
+                return self._core.clean_bins(loads, bins)
 
-            if loads[target] + size <= self._bin_capacity:
+            if loads[target] + size <= self._core.bin_capacity:
                 bins[source].remove(item)
                 bins[target].append(item)
                 loads[source] -= size
                 loads[target] += size
 
-            return self._clean_bins(loads, bins)
+            return self._core.clean_bins(loads, bins)
 
         if move.kind == "swap":
             if move.item_b is None or move.source_b is None:
-                return self._clean_bins(loads, bins)
+                return self._core.clean_bins(loads, bins)
 
             source_a = move.source_a
             source_b = move.source_b
@@ -642,16 +631,16 @@ class BinPackingSolver:
             item_b = move.item_b
 
             if source_a >= len(bins) or source_b >= len(bins):
-                return self._clean_bins(loads, bins)
+                return self._core.clean_bins(loads, bins)
             if item_a not in bins[source_a] or item_b not in bins[source_b]:
-                return self._clean_bins(loads, bins)
+                return self._core.clean_bins(loads, bins)
 
-            size_a = self._item_sizes[item_a]
-            size_b = self._item_sizes[item_b]
+            size_a = self._core.item_sizes[item_a]
+            size_b = self._core.item_sizes[item_b]
 
             if (
-                loads[source_a] - size_a + size_b <= self._bin_capacity
-                and loads[source_b] - size_b + size_a <= self._bin_capacity
+                loads[source_a] - size_a + size_b <= self._core.bin_capacity
+                and loads[source_b] - size_b + size_a <= self._core.bin_capacity
             ):
                 bins[source_a].remove(item_a)
                 bins[source_b].remove(item_b)
@@ -660,9 +649,9 @@ class BinPackingSolver:
                 loads[source_a] += size_b - size_a
                 loads[source_b] += size_a - size_b
 
-            return self._clean_bins(loads, bins)
+            return self._core.clean_bins(loads, bins)
 
-        return self._clean_bins(loads, bins)
+        return self._core.clean_bins(loads, bins)
 
     def _is_tabu(
         self,
@@ -673,7 +662,11 @@ class BinPackingSolver:
         if move.kind == "relocate":
             return tabu_until.get((move.item_a, move.target_a), -1) >= iteration
 
-        if move.kind == "swap" and move.item_b is not None and move.target_b is not None:
+        if (
+            move.kind == "swap"
+            and move.item_b is not None
+            and move.target_b is not None
+        ):
             first = tabu_until.get((move.item_a, move.target_a), -1) >= iteration
             second = tabu_until.get((move.item_b, move.target_b), -1) >= iteration
             return first or second
@@ -690,12 +683,18 @@ class BinPackingSolver:
         expiry = iteration + tabu_tenure
         tabu_until[(move.item_a, move.source_a)] = expiry
 
-        if move.kind == "swap" and move.item_b is not None and move.source_b is not None:
+        if (
+            move.kind == "swap"
+            and move.item_b is not None
+            and move.source_b is not None
+        ):
             tabu_until[(move.item_b, move.source_b)] = expiry
 
         if len(tabu_until) > 100_000:
             stale_before = iteration - tabu_tenure
-            stale_keys = [key for key, value in tabu_until.items() if value < stale_before]
+            stale_keys = [
+                key for key, value in tabu_until.items() if value < stale_before
+            ]
             for key in stale_keys:
                 del tabu_until[key]
 
@@ -707,7 +706,11 @@ class BinPackingSolver:
         key_a = (move.item_a, move.target_a)
         move_frequency[key_a] = move_frequency.get(key_a, 0) + 1
 
-        if move.kind == "swap" and move.item_b is not None and move.target_b is not None:
+        if (
+            move.kind == "swap"
+            and move.item_b is not None
+            and move.target_b is not None
+        ):
             key_b = (move.item_b, move.target_b)
             move_frequency[key_b] = move_frequency.get(key_b, 0) + 1
 
@@ -717,12 +720,16 @@ class BinPackingSolver:
         move_frequency: dict[tuple[int, int], int],
     ) -> int:
         penalty = move_frequency.get((move.item_a, move.target_a), 0)
-        if move.kind == "swap" and move.item_b is not None and move.target_b is not None:
+        if (
+            move.kind == "swap"
+            and move.item_b is not None
+            and move.target_b is not None
+        ):
             penalty += move_frequency.get((move.item_b, move.target_b), 0)
         return penalty
 
     def _state_signature(self, assignments: list[list[int]]) -> int:
-        item_to_bin = [0] * len(self._item_sizes)
+        item_to_bin = [0] * len(self._core.item_sizes)
         for bin_index, items in enumerate(assignments):
             for item in items:
                 item_to_bin[item] = bin_index
@@ -761,17 +768,22 @@ class BinPackingSolver:
         if removed_items:
             self._lns_repair(loads, bins, removed_items)
 
-        return self._clean_bins(loads, bins)
+        return self._core.clean_bins(loads, bins)
 
-    def _lns_destroy(self, bin_loads: list[int], assignments: list[list[int]]) -> list[int]:
-        item_count = len(self._item_sizes)
+    def _lns_destroy(
+        self, bin_loads: list[int], assignments: list[list[int]]
+    ) -> list[int]:
+        item_count = len(self._core.item_sizes)
         remove_count = max(2, int(0.12 * item_count))
         remove_count = min(remove_count, item_count)
 
         removed: list[int] = []
 
         bin_order = list(range(len(assignments)))
-        bin_order.sort(key=lambda idx: (self._bin_capacity - bin_loads[idx]), reverse=True)
+        bin_order.sort(
+            key=lambda idx: (self._core.bin_capacity - bin_loads[idx]),
+            reverse=True,
+        )
 
         for bin_index in bin_order:
             if len(removed) >= remove_count:
@@ -780,7 +792,7 @@ class BinPackingSolver:
             while assignments[bin_index] and len(removed) < remove_count:
                 item = assignments[bin_index].pop()
                 removed.append(item)
-                bin_loads[bin_index] -= self._item_sizes[item]
+                bin_loads[bin_index] -= self._core.item_sizes[item]
 
         return removed
 
@@ -790,17 +802,17 @@ class BinPackingSolver:
         assignments: list[list[int]],
         removed_items: list[int],
     ) -> None:
-        removed_items.sort(key=lambda item: self._item_sizes[item], reverse=True)
+        removed_items.sort(key=lambda item: self._core.item_sizes[item], reverse=True)
 
         for item in removed_items:
-            size = self._item_sizes[item]
+            size = self._core.item_sizes[item]
             best_bin: int | None = None
             best_residual: int | None = None
 
             for bin_index, load in enumerate(bin_loads):
-                if load + size > self._bin_capacity:
+                if load + size > self._core.bin_capacity:
                     continue
-                residual = self._bin_capacity - (load + size)
+                residual = self._core.bin_capacity - (load + size)
                 if best_residual is None or residual < best_residual:
                     best_residual = residual
                     best_bin = bin_index
@@ -823,22 +835,24 @@ class BinPackingSolver:
         current_assignments = [list(items) for items in assignments]
         best_loads = list(current_loads)
         best_assignments = [list(items) for items in current_assignments]
-        best_cost = self._score(current_loads)
+        best_cost = self._core.score(current_loads)
 
         tabu_tenure = 4
         tabu_until: dict[tuple[int, int], int] = {}
 
         for iteration in range(1, refinement_iterations + 1):
-            move, cand_loads, cand_assignments, cand_cost = self._select_best_tabu_neighbor(
-                current_loads=current_loads,
-                current_assignments=current_assignments,
-                tabu_until=tabu_until,
-                move_frequency={},
-                iteration=iteration,
-                tabu_tenure=tabu_tenure,
-                best_global_cost=best_cost,
-                diversification_weight=0.0,
-                max_candidates=max_candidates,
+            move, cand_loads, cand_assignments, cand_cost = (
+                self._select_best_tabu_neighbor(
+                    current_loads=current_loads,
+                    current_assignments=current_assignments,
+                    tabu_until=tabu_until,
+                    move_frequency={},
+                    iteration=iteration,
+                    tabu_tenure=tabu_tenure,
+                    best_global_cost=best_cost,
+                    diversification_weight=0.0,
+                    max_candidates=max_candidates,
+                )
             )
 
             current_loads = cand_loads
@@ -851,266 +865,86 @@ class BinPackingSolver:
                 best_assignments = [list(items) for items in cand_assignments]
 
         return best_loads, best_assignments
-    
-# end of tabu search section
-# ===================================================
 
 
-# ======================================
-# genetic algorithm section
+class BinPackingSolver:
+    """Metaheuristic solvers for simulated annealing and tabu search variants."""
 
-    def _random_individual(self) -> tuple[list[int], list[list[int]]]:
-        order = list(range(len(self._item_sizes)))
-        random.shuffle(order)
-        bin_loads: list[int] = []
-        assignments: list[list[int]] = []
-        for item_index in order:
-            size = self._item_sizes[item_index]
-            placed = False
-            for bin_index, load in enumerate(bin_loads):
-                if load + size <= self._bin_capacity:
-                    bin_loads[bin_index] += size
-                    assignments[bin_index].append(item_index)
-                    placed = True
-                    break
-            if not placed:
-                bin_loads.append(size)
-                assignments.append([item_index])
-        return bin_loads, assignments
+    __slots__ = (
+        "_final_solution",
+        "_core",
+        "_simulated_annealing_solver",
+        "_tabu_search_solver",
+        "_sa_method_registry",
+    )
 
-    def _tournament_select(
-        self,
-        population: list[tuple[list[int], list[list[int]]]],
-        scores: list[int],
-        k: int,
-    ) -> tuple[list[int], list[list[int]]]:
-        candidates = random.sample(range(len(population)), min(k, len(population)))
-        best = min(candidates, key=lambda i: scores[i])
-        ind = population[best]
-        return list(ind[0]), [list(b) for b in ind[1]]
+    def __init__(self, item_sizes: list[int], bin_capacity: int):
+        if any(size > bin_capacity for size in item_sizes):
+            raise ValueError("No single item size can exceed the bin capacity.")
 
-    def _ubx_crossover(
-        self,
-        parent_a: tuple[list[int], list[list[int]]],
-        parent_b: tuple[list[int], list[list[int]]],
-    ) -> tuple[list[int], list[list[int]]]:
-        total_items = len(self._item_sizes)
-        placed = [False] * total_items
-        child_loads: list[int] = []
-        child_assignments: list[list[int]] = []
+        self._final_solution: BinPackingSolution | None = None
+        self._core = _MetaheuristicCore(list(item_sizes), bin_capacity)
+        self._simulated_annealing_solver = _SimulatedAnnealingSolver(self._core)
+        self._tabu_search_solver = _TabuSearchSolver(self._core)
+        self._sa_method_registry: dict[str, str] = {
+            "simulated annealing": "default",
+            "sa": "default",
+            "simulated annealing reheating": "reheating",
+            "sa reheating": "reheating",
+            "simulated annealing adaptive": "adaptive",
+            "sa adaptive": "adaptive",
+        }
 
-        all_bins = list(parent_a[1]) + list(parent_b[1])
-        random.shuffle(all_bins)
+    def solve(self, method: str) -> None:
+        normalized_method = self._normalize_method(method)
 
-        for bin_items in all_bins:
-            if all(not placed[item] for item in bin_items):
-                load = sum(self._item_sizes[item] for item in bin_items)
-                if load <= self._bin_capacity:
-                    child_loads.append(load)
-                    child_assignments.append(list(bin_items))
-                    for item in bin_items:
-                        placed[item] = True
-
-        unplaced = sorted(
-            [(item, self._item_sizes[item]) for item in range(total_items) if not placed[item]],
-            key=lambda x: -x[1],
-        )
-        for item_index, size in unplaced:
-            target: int | None = None
-            for bin_index, load in enumerate(child_loads):
-                if load + size <= self._bin_capacity:
-                    target = bin_index
-                    break
-            if target is None:
-                child_loads.append(size)
-                child_assignments.append([item_index])
-            else:
-                child_loads[target] += size
-                child_assignments[target].append(item_index)
-
-        return child_loads, child_assignments
-
-    def _ga_local_search(
-        self,
-        bin_loads: list[int],
-        assignments: list[list[int]],
-        steps: int,
-    ) -> tuple[list[int], list[list[int]]]:
-        current_loads = list(bin_loads)
-        current_assignments = [list(b) for b in assignments]
-        current_score = self._score(current_loads)
-        for _ in range(steps):
-            nl, na = self._generate_neighbor(current_loads, current_assignments)
-            ns = self._score(nl)
-            if ns < current_score:
-                current_loads, current_assignments, current_score = nl, na, ns
-        return current_loads, current_assignments
-
-    def _genetic_algorithm(
-        self,
-        *,
-        population_size: int = 60,
-        generations: int = 400,
-        crossover_rate: float = 0.85,
-        mutation_rate: float = 0.20,
-        elite_count: int = 4,
-        tournament_k: int = 4,
-        memetic: bool = False,
-        local_search_steps: int = 80,
-    ) -> None:
-        if not self._item_sizes:
-            self._final_solution = BinPackingSolution(0, {}, [])
+        sa_variant = self._sa_method_registry.get(normalized_method)
+        if sa_variant is not None:
+            self._final_solution = self._simulated_annealing_solver.solve_variant(
+                sa_variant
+            )
             return
 
-        population: list[tuple[list[int], list[list[int]]]] = [self._simulate_initial_solution()]
-        while len(population) < population_size:
-            population.append(self._random_individual())
+        match normalized_method:
+            case "tabu search" | "ts":
+                self._final_solution = self._tabu_search_solver.solve()
 
-        scores = [self._score(ind[0]) for ind in population]
-        best_idx = min(range(population_size), key=lambda i: scores[i])
-        best_loads = list(population[best_idx][0])
-        best_assignments = [list(b) for b in population[best_idx][1]]
-        best_score = scores[best_idx]
+            case "reactive tabu search" | "rts":
+                self._final_solution = self._tabu_search_solver.solve(reactive=True)
 
-        for _ in range(generations):
-            ranked = sorted(zip(scores, population), key=lambda x: x[0])
-            new_population: list[tuple[list[int], list[list[int]]]] = []
-            new_scores: list[int] = []
+            case "tabu search lns" | "ts lns" | "lnts":
+                self._final_solution = self._tabu_search_solver.solve(
+                    reactive=True,
+                    lns=True,
+                )
 
-            for sc, ind in ranked[:elite_count]:
-                new_population.append((list(ind[0]), [list(b) for b in ind[1]]))
-                new_scores.append(sc)
+            case "tabu search diversified" | "ts diversified" | "hybrid tabu":
+                self._final_solution = self._tabu_search_solver.solve(
+                    reactive=True,
+                    lns=True,
+                    diversification=True,
+                )
 
-            while len(new_population) < population_size:
-                pa = self._tournament_select(population, scores, tournament_k)
-                pb = self._tournament_select(population, scores, tournament_k)
+            case _:
+                raise ValueError(
+                    "Unsupported method. Available methods: simulated annealing (sa), "
+                    "simulated annealing reheating (sa reheating), simulated annealing "
+                    "adaptive (sa adaptive), tabu search (ts), reactive tabu search "
+                    "(rts), tabu search lns (ts lns, lnts), tabu search diversified "
+                    "(ts diversified, hybrid tabu). Genetic algorithm methods were "
+                    "moved to 4_population_based/solver.py."
+                )
 
-                if random.random() < crossover_rate:
-                    cl, ca = self._ubx_crossover(pa, pb)
-                else:
-                    p = pa if self._score(pa[0]) <= self._score(pb[0]) else pb
-                    cl, ca = list(p[0]), [list(b) for b in p[1]]
+    @staticmethod
+    def _normalize_method(method: str) -> str:
+        normalized = method.strip().lower()
+        normalized = normalized.replace("_", " ").replace("-", " ")
+        return " ".join(normalized.split())
 
-                if random.random() < mutation_rate:
-                    cl, ca = self._generate_neighbor(cl, ca)
+    def get_solution(self) -> BinPackingSolution:
+        if self._final_solution is None:
+            raise RuntimeError(
+                "No solution available: you must call 'solve()' before retrieving the solution."
+            )
 
-                if memetic:
-                    cl, ca = self._ga_local_search(cl, ca, steps=local_search_steps)
-
-                cs = self._score(cl)
-                new_population.append((cl, ca))
-                new_scores.append(cs)
-
-                if cs < best_score:
-                    best_score = cs
-                    best_loads = list(cl)
-                    best_assignments = [list(b) for b in ca]
-
-            population = new_population
-            scores = new_scores
-
-        self._final_solution = self._build_solution(best_loads, best_assignments)
-
-    def _genetic_algorithm_island(
-        self,
-        *,
-        num_islands: int = 4,
-        island_size: int = 20,
-        generations: int = 400,
-        migration_interval: int = 40,
-        migration_rate: int = 2,
-        crossover_rate: float = 0.85,
-        mutation_rate: float = 0.25,
-        elite_count: int = 2,
-        tournament_k: int = 3,
-    ) -> None:
-        if not self._item_sizes:
-            self._final_solution = BinPackingSolution(0, {}, [])
-            return
-
-        islands: list[list[tuple[list[int], list[list[int]]]]] = []
-        island_scores: list[list[int]] = []
-
-        for i in range(num_islands):
-            pop: list[tuple[list[int], list[list[int]]]] = []
-            if i == 0:
-                pop.append(self._simulate_initial_solution())
-            while len(pop) < island_size:
-                pop.append(self._random_individual())
-            islands.append(pop)
-            island_scores.append([self._score(ind[0]) for ind in pop])
-
-        best_score = math.inf
-        best_loads: list[int] = []
-        best_assignments: list[list[int]] = []
-
-        for pop, scs in zip(islands, island_scores):
-            local_best = min(range(island_size), key=lambda i: scs[i])
-            if scs[local_best] < best_score:
-                best_score = scs[local_best]
-                best_loads = list(pop[local_best][0])
-                best_assignments = [list(b) for b in pop[local_best][1]]
-
-        for gen in range(1, generations + 1):
-            for isl_idx in range(num_islands):
-                pop = islands[isl_idx]
-                scs = island_scores[isl_idx]
-                ranked = sorted(zip(scs, pop), key=lambda x: x[0])
-                new_pop: list[tuple[list[int], list[list[int]]]] = []
-                new_scs: list[int] = []
-
-                for sc, ind in ranked[:elite_count]:
-                    new_pop.append((list(ind[0]), [list(b) for b in ind[1]]))
-                    new_scs.append(sc)
-
-                while len(new_pop) < island_size:
-                    pa = self._tournament_select(pop, scs, tournament_k)
-                    pb = self._tournament_select(pop, scs, tournament_k)
-
-                    if random.random() < crossover_rate:
-                        cl, ca = self._ubx_crossover(pa, pb)
-                    else:
-                        p = pa if self._score(pa[0]) <= self._score(pb[0]) else pb
-                        cl, ca = list(p[0]), [list(b) for b in p[1]]
-
-                    if random.random() < mutation_rate:
-                        cl, ca = self._generate_neighbor(cl, ca)
-
-                    cs = self._score(cl)
-                    new_pop.append((cl, ca))
-                    new_scs.append(cs)
-
-                    if cs < best_score:
-                        best_score = cs
-                        best_loads = list(cl)
-                        best_assignments = [list(b) for b in ca]
-
-                islands[isl_idx] = new_pop
-                island_scores[isl_idx] = new_scs
-
-            if gen % migration_interval == 0:
-                emigrants: list[list[tuple[list[int], list[list[int]]]]] = []
-                for isl_idx in range(num_islands):
-                    pop = islands[isl_idx]
-                    scs = island_scores[isl_idx]
-                    ranked_idx = sorted(range(island_size), key=lambda i: scs[i])
-                    emigrants.append([
-                        (list(pop[i][0]), [list(b) for b in pop[i][1]])
-                        for i in ranked_idx[:migration_rate]
-                    ])
-
-                for isl_idx in range(num_islands):
-                    target = (isl_idx + 1) % num_islands
-                    pop = islands[target]
-                    scs = island_scores[target]
-                    worst_idx = sorted(range(island_size), key=lambda i: scs[i], reverse=True)[:migration_rate]
-                    for rank, slot in enumerate(worst_idx):
-                        incoming = emigrants[isl_idx][rank]
-                        pop[slot] = incoming
-                        scs[slot] = self._score(incoming[0])
-
-        self._final_solution = self._build_solution(best_loads, best_assignments)
-
-# end of genetic algorithm section
-# ======================================
-
+        return self._final_solution
