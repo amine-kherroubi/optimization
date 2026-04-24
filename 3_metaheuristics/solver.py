@@ -164,6 +164,7 @@ class _MetaheuristicCore:
         return compact_loads, compact_assignments
 
     def score(self, bin_loads: list[int]) -> int:
+        # Large primary weight enforces bin count minimization before packing quality.
         return len([load for load in bin_loads if load > 0]) * 10_000 + sum(
             (self.bin_capacity - load) ** 2 for load in bin_loads if load > 0
         )
@@ -318,6 +319,7 @@ class _TabuSearchSolver:
         max_tenure = max(10, base_tenure * 4)
         tabu_tenure = base_tenure
 
+        # Advanced variants get a broader search budget and higher patience.
         if reactive or lns or diversification:
             max_iterations = min(12_000, max(2_200, item_count * 32))
             max_candidates = min(88, max(22, item_count // 3))
@@ -340,6 +342,7 @@ class _TabuSearchSolver:
 
         for iteration in range(1, max_iterations + 1):
             if diversification:
+                # Frequency penalty ramps up only after long stagnation.
                 diversification_weight = (
                     0.0
                     if no_improve < long_stagnation_trigger
@@ -379,6 +382,7 @@ class _TabuSearchSolver:
 
             cycle_detected = False
             if reactive and iteration % 40 == 0:
+                # Track coarse state signatures to detect short cycles.
                 signature = self._state_signature(current_assignments)
                 previous = seen_signatures.get(signature)
                 cycle_detected = previous is not None and iteration - previous <= 250
@@ -405,6 +409,7 @@ class _TabuSearchSolver:
             if lns and (
                 iteration % lns_period == 0 or no_improve >= lns_stagnation_trigger
             ):
+                # LNS step: destroy/repair, then short tabu refinement.
                 lns_loads, lns_assignments = self._lns_destroy_repair(
                     current_loads, current_assignments
                 )
@@ -477,6 +482,7 @@ class _TabuSearchSolver:
 
             penalty = 0.0
             if diversification_weight > 0.0:
+                # Penalize overused moves to diversify neighborhoods.
                 penalty = diversification_weight * self._move_frequency_penalty(
                     move, move_frequency
                 )

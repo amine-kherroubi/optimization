@@ -9,9 +9,15 @@ optimization/
 │   └── solver.py          # Backtracking, Branch & Bound, Dynamic Programming
 ├── 2_heuristics/
 │   └── solver.py          # Greedy fits + decreasing variants, relocation, swap
+├── 3_metaheuristics/
+│   └── solver.py          # Simulated annealing + tabu-search variants
+├── 4_population_based/
+│   └── solver.py          # Genetic algorithm variants
 ├── results/
 │   ├── 1_exact/           # Graphs from exact runs
-│   └── 2_heuristics/      # Graphs from heuristic runs
+│   ├── 2_heuristics/      # Graphs from heuristic runs
+│   ├── 3_metaheuristics/  # Graphs from metaheuristic runs
+│   └── 4_population_based/ # Graphs from population-based runs
 └── benchmarks/
     ├── Falkenauer/
     │   ├── Falkenauer_T/
@@ -49,6 +55,12 @@ python benchmark.py --solver 2_heuristics/solver.py --dataset scholl-2 --method 
 
 # Heuristics — First Fit, at most 120 items
 python benchmark.py --solver 2_heuristics/solver.py --dataset falkenauer-u --method "first fit" --max-items 120
+
+# Metaheuristics — Tabu Search with LNS on Scholl 2
+python benchmark.py --solver 3_metaheuristics/solver.py --dataset scholl-2 --method "tabu search lns"
+
+# Population-based — Memetic GA on Falkenauer U
+python benchmark.py --solver 4_population_based/solver.py --dataset falkenauer-u --method "genetic algorithm memetic"
 ```
 
 ### Options
@@ -71,8 +83,13 @@ python benchmark.py --solver 2_heuristics/solver.py --dataset falkenauer-u --met
 | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `1_exact`      | `branch and bound`, `backtracking`, `dynamic programming`                                                                                                            |
 | `2_heuristics` | `next fit`, `first fit`, `best fit`, `worst fit`, `next fit decreasing`, `first fit decreasing`, `best fit decreasing`, `worst fit decreasing`, `relocation`, `swap` |
+| `3_metaheuristics` | `simulated annealing`, `simulated annealing reheating`, `simulated annealing adaptive`, `tabu search`, `reactive tabu search`, `tabu search lns`, `tabu search diversified` |
+| `4_population_based` | `genetic algorithm`, `genetic algorithm memetic`, `genetic algorithm island` |
 
-Shorthand aliases are accepted for the greedy-fit methods: `nf`, `ff`, `bf`, `wf`, `nfd`, `ffd`, `bfd`, `wfd`.
+Shorthand aliases are accepted for many methods:
+- Greedy fits: `nf`, `ff`, `bf`, `wf`, `nfd`, `ffd`, `bfd`, `wfd`.
+- Metaheuristics: `sa`, `sa reheating`, `sa adaptive`, `ts`, `rts`, `ts lns`, `lnts`, `ts diversified`, `hybrid tabu`.
+- Population-based: `ga`, `ga memetic`, `ga island`.
 
 > `dynamic programming` is limited to instances with n <= 20 items.
 
