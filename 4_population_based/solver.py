@@ -48,11 +48,14 @@ class BinPackingSolver:
             case "genetic algorithm island" | "ga island":
                 self._genetic_algorithm_island()
 
+            case "ant colony optimization" | "aco":
+                self._ant_colony_optimization()
+
             case _:
                 raise ValueError(
                     "Unsupported method. Available methods: genetic algorithm (ga), "
                     "genetic algorithm memetic (ga memetic), genetic algorithm island "
-                    "(ga island)."
+                    "(ga island), ant colony optimization (aco)."
                 )
 
     def _simulate_initial_solution(self) -> tuple[list[int], list[list[int]]]:
@@ -326,7 +329,9 @@ class BinPackingSolver:
             new_scores: list[int] = []
 
             for score, individual in ranked[:elite_count]:
-                new_population.append((list(individual[0]), [list(b) for b in individual[1]]))
+                new_population.append(
+                    (list(individual[0]), [list(b) for b in individual[1]])
+                )
                 new_scores.append(score)
 
             while len(new_population) < population_size:
@@ -401,7 +406,9 @@ class BinPackingSolver:
             while len(population) < island_size:
                 population.append(self._random_individual())
             islands.append(population)
-            island_scores.append([self._score(individual[0]) for individual in population])
+            island_scores.append(
+                [self._score(individual[0]) for individual in population]
+            )
 
         best_score = math.inf
         best_loads: list[int] = []
@@ -423,7 +430,9 @@ class BinPackingSolver:
                 new_scores: list[int] = []
 
                 for score, individual in ranked[:elite_count]:
-                    new_population.append((list(individual[0]), [list(b) for b in individual[1]]))
+                    new_population.append(
+                        (list(individual[0]), [list(b) for b in individual[1]])
+                    )
                     new_scores.append(score)
 
                 while len(new_population) < island_size:
@@ -470,7 +479,10 @@ class BinPackingSolver:
                     ranked_idx = sorted(range(island_size), key=lambda i: scores[i])
                     emigrants.append(
                         [
-                            (list(population[i][0]), [list(b) for b in population[i][1]])
+                            (
+                                list(population[i][0]),
+                                [list(b) for b in population[i][1]],
+                            )
                             for i in ranked_idx[:migration_rate]
                         ]
                     )
@@ -490,6 +502,204 @@ class BinPackingSolver:
                         scores[slot] = self._score(incoming[0])
 
         self._final_solution = self._build_solution(best_loads, best_assignments)
+
+    def _ant_colony_optimization(
+        self,
+        *,
+        num_ants: int = 30,
+        generations: int = 300,
+        alpha: float = 1.0,  # pheromone influence exponent
+        beta: float = 3.0,  # heuristic influence exponent
+        evaporation_rate: float = 0.2,
+        pheromone_init: float = 1.0,
+        pheromone_min: float = 0.01,
+        pheromone_max: float = 6.0,
+        elite_ants: int = 3,
+        local_search_steps: int = 60,
+    ) -> None:
+        if not self._item_sizes:
+            self._final_solution = BinPackingSolution(0, {}, [])
+            return
+
+        n = len(self._item_sizes)
+
+        # τ[i][j]: how desirable it is to pack item j right after item i.
+        # Uniform start means no ordering is initially preferred over another.
+        pheromone: list[list[float]] = [[pheromone_init] * n for _ in range(n)]
+
+        # η[j] = size[j] / capacity — larger items score higher, nudging ants
+        # toward big-items-first orderings (the FFD intuition).
+        heuristic: list[float] = [s / self._bin_capacity for s in self._item_sizes]
+
+        # Seed global best from FFD so pheromone updates are meaningful from
+        # generation 1 rather than wasted on purely random early solutions.
+        seed_loads, seed_assignments = self._simulate_initial_solution()
+        best_score: float = self._score(seed_loads)
+        best_loads: list[int] = list(seed_loads)
+        best_assignments: list[list[int]] = [list(b) for b in seed_assignments]
+        best_sequence: list[int] = self._aco_assignments_to_sequence(seed_assignments)
+
+        for _ in range(generations):
+            # Each ant independently builds one complete solution this generation.
+            generation_results: list[
+                tuple[float, list[int], list[list[int]], list[int]]
+            ] = []
+
+            for _ in range(num_ants):
+                sequence = self._aco_build_sequence(pheromone, heuristic, alpha, beta)
+                loads, assignments = self._aco_first_fit(sequence)
+                generation_results.append(
+                    (self._score(loads), loads, assignments, sequence)
+                )
+
+            generation_results.sort(key=lambda x: x[0])
+
+            # Polish the iteration-best ant with local search before depositing
+            # pheromone — sharper solutions produce sharper reinforcement signals.
+            best_iter_score, best_iter_loads, best_iter_assignments, best_iter_seq = (
+                generation_results[0]
+            )
+            refined_loads, refined_assignments = self._aco_local_search(
+                best_iter_loads, best_iter_assignments, local_search_steps
+            )
+            if (refined_score := self._score(refined_loads)) < best_iter_score:
+                best_iter_seq = self._aco_assignments_to_sequence(refined_assignments)
+                generation_results[0] = (
+                    refined_score,
+                    refined_loads,
+                    refined_assignments,
+                    best_iter_seq,
+                )
+
+            if generation_results[0][0] < best_score:
+                best_score, best_loads, best_assignments, best_sequence = (
+                    generation_results[0][0],
+                    list(generation_results[0][1]),
+                    [list(b) for b in generation_results[0][2]],
+                    list(generation_results[0][3]),
+                )
+
+            # Evaporate all edges: τ[i][j] *= (1 − ρ), clamped to τ_min.
+            # Old information fades so the colony can redirect toward better paths.
+            for i in range(n):
+                for j in range(n):
+                    pheromone[i][j] = max(
+                        pheromone[i][j] * (1.0 - evaporation_rate), pheromone_min
+                    )
+
+            # Global-best deposit: reinforce the all-time best ordering every
+            # generation. Deposit amount = 1/score so better solutions lay more.
+            for k in range(len(best_sequence) - 1):
+                i, j = best_sequence[k], best_sequence[k + 1]
+                pheromone[i][j] = min(pheromone[i][j] + 1.0 / best_score, pheromone_max)
+
+            # Iteration-best deposit: a few runners-up also reinforce their edges,
+            # injecting diversity so the colony doesn't converge prematurely.
+            for score, _, _, sequence in generation_results[1 : elite_ants + 1]:
+                for k in range(len(sequence) - 1):
+                    i, j = sequence[k], sequence[k + 1]
+                    pheromone[i][j] = min(pheromone[i][j] + 1.0 / score, pheromone_max)
+
+        self._final_solution = self._build_solution(best_loads, best_assignments)
+
+    def _aco_build_sequence(
+        self,
+        pheromone: list[list[float]],
+        heuristic: list[float],
+        alpha: float,
+        beta: float,
+    ) -> list[int]:
+        unvisited = list(range(len(self._item_sizes)))
+
+        # Random start keeps different ants exploring different orderings.
+        current = random.choice(unvisited)
+        unvisited.remove(current)
+        sequence = [current]
+
+        while unvisited:
+            # Combined attractiveness: τ[current][j]^α × η[j]^β
+            weights = [
+                (pheromone[current][j] ** alpha) * (heuristic[j] ** beta)
+                for j in unvisited
+            ]
+
+            total = sum(weights)
+            if total == 0.0:
+                chosen = random.choice(unvisited)
+            else:
+                # Roulette-wheel selection: items with higher attractiveness
+                # cover a proportionally larger arc of [0, total].
+                threshold = random.random() * total
+                cumulative = 0.0
+                chosen = unvisited[-1]
+                for item, weight in zip(unvisited, weights):
+                    cumulative += weight
+                    if cumulative >= threshold:
+                        chosen = item
+                        break
+
+            sequence.append(chosen)
+            unvisited.remove(chosen)
+            current = chosen
+
+        return sequence
+
+    def _aco_first_fit(
+        self,
+        sequence: list[int],
+    ) -> tuple[list[int], list[list[int]]]:
+        # Pack items in the ant's chosen order using First-Fit:
+        # place each item into the first bin that has room, or open a new one.
+        bin_loads: list[int] = []
+        assignments: list[list[int]] = []
+
+        for item_index in sequence:
+            size = self._item_sizes[item_index]
+            placed = False
+            for bin_index, load in enumerate(bin_loads):
+                if load + size <= self._bin_capacity:
+                    bin_loads[bin_index] += size
+                    assignments[bin_index].append(item_index)
+                    placed = True
+                    break
+            if not placed:
+                bin_loads.append(size)
+                assignments.append([item_index])
+
+        return bin_loads, assignments
+
+    def _aco_assignments_to_sequence(
+        self,
+        assignments: list[list[int]],
+    ) -> list[int]:
+        # Flatten bins into a sequence, largest item first within each bin,
+        # so the sequence can be used as a pheromone deposit path.
+        sequence: list[int] = []
+        for bin_items in assignments:
+            sequence.extend(sorted(bin_items, key=lambda i: -self._item_sizes[i]))
+        return sequence
+
+    def _aco_local_search(
+        self,
+        bin_loads: list[int],
+        assignments: list[list[int]],
+        steps: int,
+    ) -> tuple[list[int], list[list[int]]]:
+        current_loads = list(bin_loads)
+        current_assignments = [list(b) for b in assignments]
+        current_score = self._score(current_loads)
+
+        for _ in range(steps):
+            neighbor_loads, neighbor_assignments = self._generate_neighbor(
+                current_loads, current_assignments
+            )
+            neighbor_score = self._score(neighbor_loads)
+            if neighbor_score < current_score:
+                current_loads = neighbor_loads
+                current_assignments = neighbor_assignments
+                current_score = neighbor_score
+
+        return current_loads, current_assignments
 
     def get_solution(self) -> BinPackingSolution:
         if self._final_solution is None:
