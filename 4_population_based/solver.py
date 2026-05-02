@@ -35,21 +35,27 @@ class BinPackingSolver:
             enumerate(self._item_sizes), key=lambda pair: (-pair[1], pair[0])
         )
 
-    def solve(self, method: str) -> None:
+    def solve(self, method: str, **params) -> None:
         normalized_method = self._normalize_method(method)
 
         match normalized_method:
             case "genetic algorithm" | "ga":
+                if params:
+                    raise ValueError("Parameter overrides are only supported for ACO.")
                 self._genetic_algorithm()
 
             case "genetic algorithm memetic" | "ga memetic":
+                if params:
+                    raise ValueError("Parameter overrides are only supported for ACO.")
                 self._genetic_algorithm(memetic=True)
 
             case "genetic algorithm island" | "ga island":
+                if params:
+                    raise ValueError("Parameter overrides are only supported for ACO.")
                 self._genetic_algorithm_island()
 
             case "ant colony optimization" | "aco":
-                self._ant_colony_optimization()
+                self._ant_colony_optimization(**params)
 
             case _:
                 raise ValueError(
@@ -516,7 +522,22 @@ class BinPackingSolver:
         pheromone_max: float = 6.0,
         elite_ants: int = 3,
         local_search_steps: int = 60,
+        deposit_strength: float = 1000.0,
     ) -> None:
+        self._validate_aco_parameters(
+            num_ants=num_ants,
+            generations=generations,
+            alpha=alpha,
+            beta=beta,
+            evaporation_rate=evaporation_rate,
+            pheromone_init=pheromone_init,
+            pheromone_min=pheromone_min,
+            pheromone_max=pheromone_max,
+            elite_ants=elite_ants,
+            local_search_steps=local_search_steps,
+            deposit_strength=deposit_strength,
+        )
+
         if not self._item_sizes:
             self._final_solution = BinPackingSolution(0, {}, [])
             return
@@ -588,19 +609,64 @@ class BinPackingSolver:
                     )
 
             # Global-best deposit: reinforce the all-time best ordering every
-            # generation. Deposit amount = 1/score so better solutions lay more.
+            # generation. Deposit amount scales with solution quality and keeps
+            # reinforcement visible despite the large objective value.
             for k in range(len(best_sequence) - 1):
                 i, j = best_sequence[k], best_sequence[k + 1]
-                pheromone[i][j] = min(pheromone[i][j] + 1.0 / best_score, pheromone_max)
+                pheromone[i][j] = min(
+                    pheromone[i][j] + deposit_strength / best_score,
+                    pheromone_max,
+                )
 
             # Iteration-best deposit: a few runners-up also reinforce their edges,
             # injecting diversity so the colony doesn't converge prematurely.
             for score, _, _, sequence in generation_results[1 : elite_ants + 1]:
                 for k in range(len(sequence) - 1):
                     i, j = sequence[k], sequence[k + 1]
-                    pheromone[i][j] = min(pheromone[i][j] + 1.0 / score, pheromone_max)
+                    pheromone[i][j] = min(
+                        pheromone[i][j] + deposit_strength / score,
+                        pheromone_max,
+                    )
 
         self._final_solution = self._build_solution(best_loads, best_assignments)
+
+    @staticmethod
+    def _validate_aco_parameters(
+        *,
+        num_ants: int,
+        generations: int,
+        alpha: float,
+        beta: float,
+        evaporation_rate: float,
+        pheromone_init: float,
+        pheromone_min: float,
+        pheromone_max: float,
+        elite_ants: int,
+        local_search_steps: int,
+        deposit_strength: float,
+    ) -> None:
+        if num_ants <= 0:
+            raise ValueError("num_ants must be positive.")
+        if generations < 0:
+            raise ValueError("generations must be non-negative.")
+        if alpha < 0.0:
+            raise ValueError("alpha must be non-negative.")
+        if beta < 0.0:
+            raise ValueError("beta must be non-negative.")
+        if not 0.0 <= evaporation_rate < 1.0:
+            raise ValueError("evaporation_rate must be in [0, 1).")
+        if pheromone_min <= 0.0:
+            raise ValueError("pheromone_min must be positive.")
+        if pheromone_max < pheromone_min:
+            raise ValueError("pheromone_max must be at least pheromone_min.")
+        if not pheromone_min <= pheromone_init <= pheromone_max:
+            raise ValueError("pheromone_init must be within the pheromone bounds.")
+        if not 0 <= elite_ants < num_ants:
+            raise ValueError("elite_ants must be between 0 and num_ants - 1.")
+        if local_search_steps < 0:
+            raise ValueError("local_search_steps must be non-negative.")
+        if deposit_strength <= 0.0:
+            raise ValueError("deposit_strength must be positive.")
 
     def _aco_build_sequence(
         self,
