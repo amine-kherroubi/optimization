@@ -40,19 +40,13 @@ class BinPackingSolver:
 
         match normalized_method:
             case "genetic algorithm" | "ga":
-                if params:
-                    raise ValueError("Parameter overrides are only supported for ACO.")
-                self._genetic_algorithm()
+                self._genetic_algorithm(**params)
 
             case "genetic algorithm memetic" | "ga memetic":
-                if params:
-                    raise ValueError("Parameter overrides are only supported for ACO.")
-                self._genetic_algorithm(memetic=True)
+                self._genetic_algorithm(memetic=True, **params)
 
             case "genetic algorithm island" | "ga island":
-                if params:
-                    raise ValueError("Parameter overrides are only supported for ACO.")
-                self._genetic_algorithm_island()
+                self._genetic_algorithm_island(**params)
 
             case "ant colony optimization" | "aco":
                 self._ant_colony_optimization(**params)
