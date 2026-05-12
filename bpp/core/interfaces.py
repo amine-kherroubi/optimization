@@ -19,5 +19,7 @@ class SolverStrategy(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def solve(self, problem: ProblemInstance, method: str, **params: object) -> Solution:
+    def solve(
+        self, problem: ProblemInstance, method: str, **params: object
+    ) -> Solution:
         raise NotImplementedError

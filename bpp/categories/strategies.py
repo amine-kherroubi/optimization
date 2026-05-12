@@ -10,7 +10,6 @@ import sys
 from bpp.core.interfaces import SolverStrategy
 from bpp.core.models import ProblemInstance, Solution
 
-
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -29,7 +28,9 @@ class _Adapter(SolverStrategy):
     def methods(self) -> tuple[str, ...]:
         return self._methods
 
-    def solve(self, problem: ProblemInstance, method: str, **params: object) -> Solution:
+    def solve(
+        self, problem: ProblemInstance, method: str, **params: object
+    ) -> Solution:
         normalized = _normalize(method)
         selected = self._aliases.get(normalized, normalized)
         if selected not in {_normalize(m) for m in self._methods}:
@@ -48,7 +49,9 @@ class _Adapter(SolverStrategy):
         filtered_params = params if accepts_var_kwargs else {}
         solver.solve(selected, **filtered_params)
         result = solver.get_solution()
-        return Solution(result.total_bins_used, result.bin_assignments, result.final_bin_loads)
+        return Solution(
+            result.total_bins_used, result.bin_assignments, result.final_bin_loads
+        )
 
 
 def _normalize(method: str) -> str:
@@ -63,7 +66,9 @@ def _load_solver(relative_solver_path: str) -> type:
         return _MODULE_CACHE[relative_solver_path].BinPackingSolver
 
     file_path = _PROJECT_ROOT / relative_solver_path
-    module_name = f"bpp_solver_{relative_solver_path.replace('/', '_').replace('.py', '')}"
+    module_name = (
+        f"bpp_solver_{relative_solver_path.replace('/', '_').replace('.py', '')}"
+    )
     spec = spec_from_file_location(module_name, file_path)
     if spec is None or spec.loader is None:
         raise ImportError(f"Unable to load solver module from {file_path}")
@@ -97,16 +102,39 @@ def build_default_strategies() -> list[SolverStrategy]:
                 "swap",
             ),
             "2_specific_heuristics/solver.py",
-            {"nf": "next fit", "ff": "first fit", "bf": "best fit", "wf": "worst fit", "nfd": "next fit decreasing", "ffd": "first fit decreasing", "bfd": "best fit decreasing", "wfd": "worst fit decreasing"},
+            {
+                "nf": "next fit",
+                "ff": "first fit",
+                "bf": "best fit",
+                "wf": "worst fit",
+                "nfd": "next fit decreasing",
+                "ffd": "first fit decreasing",
+                "bfd": "best fit decreasing",
+                "wfd": "worst fit decreasing",
+            },
         ),
         _Adapter(
             "trajectory_based_metaheuristics",
-            ("simulated annealing", "sa", "tabu search", "ts", "iterated local search", "ils"),
+            (
+                "simulated annealing",
+                "sa",
+                "tabu search",
+                "ts",
+                "iterated local search",
+                "ils",
+            ),
             "3_trajectory_based_metaheuristics/solver.py",
         ),
         _Adapter(
             "population_based_metaheuristics",
-            ("genetic algorithm", "ga", "particle swarm optimization", "pso", "ant colony optimization", "aco"),
+            (
+                "genetic algorithm",
+                "ga",
+                "particle swarm optimization",
+                "pso",
+                "ant colony optimization",
+                "aco",
+            ),
             "4_population_based_metaheuristics/solver.py",
         ),
         _Adapter(
