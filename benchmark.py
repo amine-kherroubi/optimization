@@ -140,7 +140,7 @@ register_dataset(
     DatasetConfig(
         key="falkenauer-u",
         label="Falkenauer U",
-        directory=_BENCHMARKS_ROOT / "Falkenauer" / "Falkenauer U",
+        directory=_BENCHMARKS_ROOT / "Falkenauer" / "Falkenauer_U",
         parser=parse_standard,
     )
 )
@@ -554,7 +554,11 @@ class Benchmark:
             raise ValueError("Either instances or results must be provided.")
 
         time_w = max(len("Time (s)"), 10)
-        method_w = _max_len("Method", [r.method for r in (results or [])])
+        method_w = max(
+            len("Method"),
+            20,  # minimum width
+            max((len(r.method) for r in (results or [])), default=0),
+        )
         state_w = _max_len("State", ["Done", "T.O."])
 
         return TableWidths(
