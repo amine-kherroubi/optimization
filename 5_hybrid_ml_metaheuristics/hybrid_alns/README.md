@@ -48,13 +48,12 @@ What this does exactly:
 python benchmark.py \
   --solver 5_hybrid_ml_metaheuristics/hybrid_alns/solver.py \
   --dataset falkenauer-u \
-  --method "ignored" \
   --method-args "model_path=5_hybrid_ml_metaheuristics/hybrid_alns/repair_model.pkl,max_iterations=5000"
 ```
 
 ## Important behavior details
 
-- Method naming is ignored by this solver; `solve(...)` runs the single ALNS pipeline regardless of `method`.
+- Method naming is optional for this solver; `solve(...)` runs the single ALNS pipeline regardless of `method`.
 - `model_path` is mandatory in `solve(...)`; missing model path raises `ValueError`.
 - If no existing bin is feasible for an item during repair, the solver opens a new bin.
 - Feature schema is intentionally duplicated between training and inference **by contract**; if one side changes, the other must change identically.

@@ -42,7 +42,9 @@ class BinPackingSolver:
             key=lambda pair: (-pair[1], pair[0]),
         )
 
-    def solve(self, method: str) -> None:
+    def solve(self, method: str | None = "first fit") -> None:
+        if method is None:
+            method = "first fit"
         normalized_method = self._normalize_method(method)
 
         match normalized_method:

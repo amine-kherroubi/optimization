@@ -72,7 +72,9 @@ class BinPackingSolver:
             final_bin_loads=bin_loads,
         )
 
-    def solve(self, method: str = "backtracking") -> None:
+    def solve(self, method: str | None = "backtracking") -> None:
+        if method is None:
+            method = "backtracking"
         match method.lower():
             case "backtracking":
                 self._backtracking()
