@@ -270,6 +270,7 @@ class BinPackingSolver:
                 sol.item_to_bin[item] = len(sol.bins) - 1
                 continue
 
+            assert self._model is not None
             scores = self._model.predict_proba(np.asarray(feats, dtype=np.float64))[
                 :, 1
             ]
@@ -312,7 +313,6 @@ class BinPackingSolver:
             smallest / capacity,
             (item_size / remaining_capacity) if remaining_capacity > 1e-9 else 1.0,
         ]
-
 
     def _to_presentable_solution(self, sol: _WorkingSolution) -> BinPackingSolution:
         return BinPackingSolution(
