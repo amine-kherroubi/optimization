@@ -11,7 +11,7 @@ from pathlib import Path
 from solver import BinPackingSolver
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-BENCHMARKS_ROOT = PROJECT_ROOT / "benchmarks"
+BENCHMARKS_ROOT = PROJECT_ROOT / "datasets"
 RESULTS_DIR = (
     PROJECT_ROOT / "results" / "4_population_based_metaheuristics" / "aco_tuning"
 )
