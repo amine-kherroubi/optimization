@@ -1,5 +1,13 @@
 from __future__ import annotations
 
+"""Hybrid ALNS solver for 1D Bin Packing.
+
+This module provides a single, deterministic implementation path:
+- destroy/repair ALNS with simulated annealing acceptance
+- Thompson Sampling to choose destroy operators
+- mandatory learned repair model for reconstruction
+"""
+
 import math
 import pickle
 from dataclasses import dataclass
@@ -66,16 +74,15 @@ class ThompsonSamplingBandit:
 
 
 class BinPackingSolver:
-    """Single-path hybrid ALNS solver: Thompson bandit + learned repair.
-
-    Design choice (intentional): this solver always requires a trained model.
-    There is no optional fallback path, so everyone on the team executes the
-    same algorithm when benchmarking this approach.
-    """
+    """Single-path hybrid ALNS solver: Thompson bandit + learned repair."""
 
     __slots__ = ("_item_sizes", "_bin_capacity", "_final_solution", "_model", "_rng")
 
     def __init__(self, item_sizes: list[int], bin_capacity: int):
+        if bin_capacity <= 0:
+            raise ValueError("bin_capacity must be a positive integer.")
+        if any(size <= 0 for size in item_sizes):
+            raise ValueError("All item sizes must be strictly positive.")
         if any(size > bin_capacity for size in item_sizes):
             raise ValueError("No single item size can exceed the bin capacity.")
         self._item_sizes = list(item_sizes)
@@ -85,16 +92,12 @@ class BinPackingSolver:
         self._rng = np.random.default_rng(42)
 
     def solve(self, method: str, **params) -> None:
-        # Keep method aliases flexible so benchmark runners can pass minor variants
-        # like "hybrid-alns", "ALNS", or "alns_hybrid".
         normalized = self._normalize_method(method)
         if normalized not in {"hybrid alns", "alns hybrid", "alns"}:
             raise ValueError(
                 "Unsupported method. Available methods: hybrid alns, alns hybrid, alns."
             )
 
-        # Optional learned repair model. If omitted, the solver still runs fully
-        # with deterministic BFD repair.
         model_path = params.get("model_path")
         if not model_path:
             raise ValueError(
@@ -103,12 +106,16 @@ class BinPackingSolver:
             )
         self._model = self._load_model(str(model_path))
 
-        # SA defaults calibrated for long ALNS runs.
         max_iterations = int(params.get("max_iterations", 5_000))
+        if max_iterations <= 0:
+            raise ValueError("max_iterations must be > 0.")
         t0 = float(params.get("initial_temperature", 1.0 / math.log(2.0)))
+        if t0 <= 0.0:
+            raise ValueError("initial_temperature must be > 0.")
         alpha_cool = float(params.get("alpha_cool", 0.9995))
+        if not 0.0 < alpha_cool <= 1.0:
+            raise ValueError("alpha_cool must be in (0, 1].")
 
-        # Warm start from FFD (cheap and usually much better than random packing).
         start = self._build_ffd_start_solution()
         best = start.copy()
         current = start.copy()
@@ -120,7 +127,6 @@ class BinPackingSolver:
 
         temperature = t0
         for _ in range(max_iterations):
-            # 1) Bandit selects which neighborhood structure to explore.
             arm = bandit.select_arm(self._rng)
             candidate = current.copy()
             k_items = int(self._rng.integers(k_min, k_max + 1))
@@ -132,16 +138,10 @@ class BinPackingSolver:
             else:
                 displaced = self._destroy_related(candidate, k_items)
 
-            # A destroy operator can return no items in degenerate small cases;
-            # in that case candidate==current and the SA acceptance handles it.
             if displaced:
-                # Single policy path: all repairs are model-guided.
                 self._repair_learned(candidate, displaced)
 
-            # 2) Simulated Annealing acceptance over bin-count objective.
             delta = candidate.cost() - current.cost()
-            # Metropolis acceptance: always accept improving/tie moves, sometimes
-            # accept worsening moves depending on current temperature.
             accepted = delta <= 0 or self._rng.random() < math.exp(
                 -delta / max(temperature, 1e-12)
             )
@@ -153,9 +153,6 @@ class BinPackingSolver:
                 best = current.copy()
                 improved = True
 
-            # 3) Reward only if an accepted move also improved global best.
-            # This is a strict reward signal that avoids over-crediting moves
-            # accepted only due to high temperature.
             bandit.update(arm, 1 if (accepted and improved) else 0)
             temperature *= alpha_cool
 
@@ -168,20 +165,16 @@ class BinPackingSolver:
 
     def _build_ffd_start_solution(self) -> _WorkingSolution:
         sol = _WorkingSolution(self._item_sizes, self._bin_capacity)
-        order = sorted(
-            range(len(self._item_sizes)), key=lambda i: (-self._item_sizes[i], i)
-        )
+        order = sorted(range(len(self._item_sizes)), key=lambda i: (-self._item_sizes[i], i))
         for item in order:
             size = self._item_sizes[item]
-            placed = False
             for j, load in enumerate(sol.bin_loads):
                 if load + size <= self._bin_capacity:
                     sol.bins[j].append(item)
                     sol.bin_loads[j] += size
                     sol.item_to_bin[item] = j
-                    placed = True
                     break
-            if not placed:
+            else:
                 sol.bins.append([item])
                 sol.bin_loads.append(size)
                 sol.item_to_bin[item] = len(sol.bins) - 1
@@ -242,8 +235,6 @@ class BinPackingSolver:
         return displaced
 
     def _repair_learned(self, sol: _WorkingSolution, displaced: list[int]) -> None:
-        # The learned repair policy scores every feasible (item, bin) pair and
-        # chooses the highest-probability placement.
         n = len(self._item_sizes)
         sizes_float = [float(v) for v in self._item_sizes]
         global_order = sorted(range(n), key=lambda i: -self._item_sizes[i])
@@ -253,14 +244,13 @@ class BinPackingSolver:
         for item in sorted(displaced, key=lambda i: -self._item_sizes[i]):
             remaining -= 1
             size = self._item_sizes[item]
-            feats, idxs = [], []
+            feats: list[list[float]] = []
+            idxs: list[int] = []
 
             for j, load in enumerate(sol.bin_loads):
                 capacity_left = self._bin_capacity - load
                 if capacity_left + 1e-9 < size:
                     continue
-                # Single shared feature builder ensures training and inference use
-                # exactly the same feature count/order.
                 feats.append(
                     self._make_repair_features(
                         item=item,
@@ -277,55 +267,16 @@ class BinPackingSolver:
                 idxs.append(j)
 
             if not feats:
-                # If no existing bin is feasible, opening a new bin preserves
-                # correctness (every item must be assigned exactly once).
                 sol.bins.append([item])
                 sol.bin_loads.append(size)
                 sol.item_to_bin[item] = len(sol.bins) - 1
                 continue
 
-            scores = self._model.predict_proba(np.asarray(feats, dtype=np.float64))[
-                :, 1
-            ]
+            scores = self._model.predict_proba(np.asarray(feats, dtype=np.float64))[:, 1]
             best_j = idxs[int(np.argmax(scores))]
             sol.bins[best_j].append(item)
             sol.bin_loads[best_j] += size
             sol.item_to_bin[item] = best_j
-
-    @staticmethod
-    def _make_repair_features(
-        *,
-        item: int,
-        item_size: float,
-        bin_items: list[int],
-        bin_load: float,
-        capacity: float,
-        sizes: list[float],
-        n_total: int,
-        size_rank: dict[int, int],
-        remaining_ratio: float,
-    ) -> list[float]:
-        """Feature contract for learned repair (must match training script)."""
-        remaining_capacity = capacity - bin_load
-        slack_after = remaining_capacity - item_size
-        largest = max((sizes[k] for k in bin_items), default=0.0)
-        smallest = min((sizes[k] for k in bin_items), default=0.0)
-        return [
-            item_size / capacity,
-            (item_size / capacity) ** 2,
-            item_size / capacity,
-            size_rank.get(item, 0) / max(1, n_total),
-            remaining_ratio,
-            bin_load / capacity,
-            remaining_capacity / capacity,
-            slack_after / capacity,
-            slack_after / capacity,
-            bin_load / capacity,
-            len(bin_items) / max(1, n_total),
-            largest / capacity,
-            smallest / capacity,
-            (item_size / remaining_capacity) if remaining_capacity > 1e-9 else 1.0,
-        ]
 
     @staticmethod
     def _make_repair_features(
@@ -380,4 +331,7 @@ class BinPackingSolver:
         if not path.exists():
             raise FileNotFoundError(f"Model file not found: {model_path}")
         with path.open("rb") as handle:
-            return pickle.load(handle)
+            model = pickle.load(handle)
+        if not hasattr(model, "predict_proba"):
+            raise TypeError("Loaded model must expose predict_proba(features).")
+        return model
