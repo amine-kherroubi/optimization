@@ -11,6 +11,7 @@ A research-oriented project for comparing algorithm families on the **1D Bin Pac
 ├── 2_specific_heuristics/
 ├── 3_trajectory_based_metaheuristics/
 ├── 4_population_based_metaheuristics/
+├── 5_hybrid_ml_metaheuristics/
 ├── datasets/
 └── results/
 ```
@@ -21,6 +22,7 @@ A research-oriented project for comparing algorithm families on the **1D Bin Pac
 2. **Specific heuristics** (`2_specific_heuristics/`): fast constructive/improvement rules.
 3. **Trajectory-based metaheuristics** (`3_trajectory_based_metaheuristics/`): single-solution neighborhood search.
 4. **Population-based metaheuristics** (`4_population_based_metaheuristics/`): GA/ACO-style population search.
+5. **Hybrid ML + metaheuristics** (`5_hybrid_ml_metaheuristics/`): ALNS with Thompson Sampling and optional learned repair.
 
 ---
 
@@ -39,6 +41,7 @@ python benchmark.py --solver 1_exact_methods/solver.py --dataset falkenauer-t --
 python benchmark.py --solver 2_specific_heuristics/solver.py --dataset scholl-2 --method "best fit"
 python benchmark.py --solver 3_trajectory_based_metaheuristics/solver.py --dataset scholl-2 --method "tabu search lns"
 python benchmark.py --solver 4_population_based_metaheuristics/solver.py --dataset falkenauer-u --method "genetic algorithm memetic"
+python benchmark.py --solver 5_hybrid_ml_metaheuristics/solver.py --dataset falkenauer-u --method "hybrid alns"
 ```
 
 ### CLI options
