@@ -7,6 +7,7 @@ import time
 from dataclasses import dataclass
 from math import ceil
 from pathlib import Path
+from typing import Any
 
 from solver import BinPackingSolver
 
@@ -116,8 +117,8 @@ def display_path(path: Path) -> str:
 def run_aco(
     instance: Instance,
     seed: int,
-    params: dict[str, object],
-) -> dict[str, object]:
+    params: dict[str, Any],
+) -> dict[str, Any]:
     random.seed(seed)
 
     start = time.perf_counter()
@@ -144,11 +145,11 @@ def mean(values: list[float]) -> float:
     return sum(values) / len(values)
 
 
-def summarize_runs(rows: list[dict[str, object]]) -> dict[str, object]:
+def summarize_runs(rows: list[dict[str, Any]]) -> dict[str, Any]:
     if not rows:
         raise ValueError("Cannot summarize an empty run list.")
 
-    by_dataset: dict[str, list[dict[str, object]]] = {}
+    by_dataset: dict[str, list[dict[str, Any]]] = {}
     for row in rows:
         by_dataset.setdefault(str(row["dataset"]), []).append(row)
 
@@ -173,7 +174,7 @@ def summarize_runs(rows: list[dict[str, object]]) -> dict[str, object]:
     }
 
 
-def summary_key(summary: dict[str, object]) -> tuple[float, float, int, float]:
+def summary_key(summary: dict[str, Any]) -> tuple[float, float, int, float]:
     return (
         float(summary["avg_gap"]),
         float(summary["worst_dataset_avg_gap"]),
@@ -183,18 +184,18 @@ def summary_key(summary: dict[str, object]) -> tuple[float, float, int, float]:
 
 
 def evaluate_params(
-    params: dict[str, object],
+    params: dict[str, Any],
     instances: list[Instance],
     seeds: list[int],
-) -> tuple[dict[str, object], list[dict[str, object]]]:
-    rows: list[dict[str, object]] = []
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    rows: list[dict[str, Any]] = []
     for instance in instances:
         for seed in seeds:
             rows.append(run_aco(instance, seed, params))
     return summarize_runs(rows), rows
 
 
-def format_summary(summary: dict[str, object]) -> str:
+def format_summary(summary: dict[str, Any]) -> str:
     return (
         f"avg_gap={float(summary['avg_gap']):.3f}, "
         f"worst_dataset_gap={float(summary['worst_dataset_avg_gap']):.3f}, "
@@ -209,9 +210,9 @@ def log_row(
     label: str,
     round_index: int,
     parameter: str,
-    value: object,
-    params: dict[str, object],
-    summary: dict[str, object],
+    value: Any,
+    params: dict[str, Any],
+    summary: dict[str, Any],
 ) -> None:
     row = {
         "label": label,
@@ -227,13 +228,13 @@ def log_row(
 def tune_one_by_one(
     *,
     label: str,
-    base_params: dict[str, object],
-    grid: dict[str, list[object]],
+    base_params: dict[str, Any],
+    grid: dict[str, list[Any]],
     instances: list[Instance],
     seeds: list[int],
     rounds: int,
     writer: csv.DictWriter,
-) -> tuple[dict[str, object], dict[str, object], list[dict[str, object]]]:
+) -> tuple[dict[str, Any], dict[str, Any], list[dict[str, Any]]]:
     best_params = dict(base_params)
     best_summary, best_rows = evaluate_params(best_params, instances, seeds)
 
@@ -254,7 +255,7 @@ def tune_one_by_one(
         print(f"\nround {round_index}/{rounds}")
         for parameter, values in grid.items():
             candidates: list[
-                tuple[dict[str, object], dict[str, object], list[dict[str, object]]]
+                tuple[dict[str, Any], dict[str, Any], list[dict[str, Any]]]
             ] = []
 
             print(f"  tuning {parameter}")
@@ -290,8 +291,8 @@ def group_by_dataset(instances: list[Instance]) -> dict[str, list[Instance]]:
     return grouped
 
 
-def print_dataset_summaries(rows: list[dict[str, object]]) -> None:
-    by_dataset: dict[str, list[dict[str, object]]] = {}
+def print_dataset_summaries(rows: list[dict[str, Any]]) -> None:
+    by_dataset: dict[str, list[dict[str, Any]]] = {}
     for row in rows:
         by_dataset.setdefault(str(row["dataset"]), []).append(row)
 
@@ -301,7 +302,7 @@ def print_dataset_summaries(rows: list[dict[str, object]]) -> None:
         print(f"- {dataset}: {format_summary(summary)}")
 
 
-def selected_grid(parameters: list[str] | None) -> dict[str, list[object]]:
+def selected_grid(parameters: list[str] | None) -> dict[str, list[Any]]:
     if parameters is None:
         return ACO_GRID
     return {parameter: ACO_GRID[parameter] for parameter in parameters}
@@ -314,7 +315,7 @@ class TuningOptions:
     max_per_size: int
     seeds: list[int]
     rounds: int
-    grid: dict[str, list[object]]
+    grid: dict[str, list[Any]]
 
 
 @dataclass(frozen=True, slots=True)
