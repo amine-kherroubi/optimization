@@ -20,7 +20,7 @@ import numpy as np
 from matplotlib.colors import Normalize
 
 _PROJECT_ROOT: Path = Path(__file__).parent
-_BENCHMARKS_ROOT: Path = _PROJECT_ROOT / "benchmarks"
+_BENCHMARKS_ROOT: Path = _PROJECT_ROOT / "datasets"
 _RESULTS_ROOT: Path = _PROJECT_ROOT / "results"
 
 

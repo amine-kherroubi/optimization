@@ -11,7 +11,7 @@ A research-oriented project for comparing algorithm families on the **1D Bin Pac
 ├── 2_specific_heuristics/
 ├── 3_trajectory_based_metaheuristics/
 ├── 4_population_based_metaheuristics/
-├── benchmarks/
+├── datasets/
 └── results/
 ```
 
@@ -57,11 +57,11 @@ python benchmark.py --solver 4_population_based_metaheuristics/solver.py --datas
 
 ## Datasets
 
-- `falkenauer-t` → `benchmarks/Falkenauer/Falkenauer_T/`
-- `falkenauer-u` → `benchmarks/Falkenauer/Falkenauer U/`
-- `scholl-1` → `benchmarks/Scholl/Scholl_1/`
-- `scholl-2` → `benchmarks/Scholl/Scholl_2/`
-- `scholl-3` → `benchmarks/Scholl/Scholl_3/`
+- `falkenauer-t` → `datasets/Falkenauer/Falkenauer_T/`
+- `falkenauer-u` → `datasets/Falkenauer/Falkenauer U/`
+- `scholl-1` → `datasets/Scholl/Scholl_1/`
+- `scholl-2` → `datasets/Scholl/Scholl_2/`
+- `scholl-3` → `datasets/Scholl/Scholl_3/`
 
 Standard instance format:
 
