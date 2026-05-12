@@ -156,7 +156,7 @@ class BinPackingSolver:
             bandit.update(arm, 1 if (accepted and improved) else 0)
             temperature *= alpha_cool
 
-        self._final_solution = self._to_external_solution(best)
+        self._final_solution = self._to_presentable_solution(best)
 
     def get_solution(self) -> BinPackingSolution:
         if self._final_solution is None:
@@ -322,7 +322,7 @@ class BinPackingSolver:
         normalized = method.strip().lower().replace("_", " ").replace("-", " ")
         return " ".join(normalized.split())
 
-    def _to_external_solution(self, sol: _WorkingSolution) -> BinPackingSolution:
+    def _to_presentable_solution(self, sol: _WorkingSolution) -> BinPackingSolution:
         return BinPackingSolution(
             total_bins_used=len(sol.bins),
             bin_assignments={i: list(items) for i, items in enumerate(sol.bins)},
