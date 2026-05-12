@@ -26,13 +26,13 @@ pip install numpy scikit-learn
 ## Train the repair model
 
 ```bash
-python 5_hybrid_ml_metaheuristics/alns_ml/train_repair_model.py \
+python 5_hybrid_ml_metaheuristics/hybrid_alns/train_repair_model.py \
   --instances 5000 \
   --n-min 50 \
   --n-max 200 \
   --max-negatives 5 \
   --seed 0 \
-  --output 5_hybrid_ml_metaheuristics/alns_ml/repair_model.pkl
+  --output 5_hybrid_ml_metaheuristics/hybrid_alns/repair_model.pkl
 ```
 
 What this does exactly:
@@ -46,13 +46,13 @@ What this does exactly:
 
 ```bash
 python benchmark.py \
-  --solver 5_hybrid_ml_metaheuristics/alns_ml/solver.py \
+  --solver 5_hybrid_ml_metaheuristics/hybrid_alns/solver.py \
   --dataset falkenauer-u \
   --method "hybrid alns" \
-  --method-args "model_path=5_hybrid_ml_metaheuristics/alns_ml/repair_model.pkl,max_iterations=5000"
+  --method-args "model_path=5_hybrid_ml_metaheuristics/hybrid_alns/repair_model.pkl,max_iterations=5000"
 ```
 
-## Important behavior details (no hidden branches)
+## Important behavior details
 
 - `model_path` is mandatory in `solve(...)`; missing model path raises `ValueError`.
 - If no existing bin is feasible for an item during repair, the solver opens a new bin.
