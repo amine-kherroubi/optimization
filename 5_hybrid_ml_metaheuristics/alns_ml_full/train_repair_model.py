@@ -75,7 +75,17 @@ def extract_training_examples(
             replay_loads.append(item_size)
             continue
 
-        X.append(_make_features(item, best_bin, replay_bins, replay_loads, sizes_list, size_rank, remaining_ratio))
+        X.append(
+            _make_features(
+                item,
+                best_bin,
+                replay_bins,
+                replay_loads,
+                sizes_list,
+                size_rank,
+                remaining_ratio,
+            )
+        )
         y.append(1)
 
         # Negatives are all alternative feasible bins, optionally capped to keep
@@ -84,7 +94,17 @@ def extract_training_examples(
         if len(negatives) > max_negatives:
             negatives = list(rng.choice(negatives, size=max_negatives, replace=False))
         for j in negatives:
-            X.append(_make_features(item, j, replay_bins, replay_loads, sizes_list, size_rank, remaining_ratio))
+            X.append(
+                _make_features(
+                    item,
+                    j,
+                    replay_bins,
+                    replay_loads,
+                    sizes_list,
+                    size_rank,
+                    remaining_ratio,
+                )
+            )
             y.append(0)
 
         replay_bins[best_bin].append(item)
@@ -149,26 +169,34 @@ def build_dataset(
         if i and i % 500 == 0:
             print(f"Generated {i}/{instances} instances...")
         sizes = generate_instance(rng, n_min=n_min, n_max=n_max)
-        x_inst, y_inst = extract_training_examples(sizes, max_negatives=max_negatives, rng=rng)
+        x_inst, y_inst = extract_training_examples(
+            sizes, max_negatives=max_negatives, rng=rng
+        )
         all_x.extend(x_inst)
         all_y.extend(y_inst)
 
     X = np.asarray(all_x, dtype=np.float32)
     y = np.asarray(all_y, dtype=np.int32)
-    summary = DatasetSummary(rows=int(X.shape[0]), cols=int(X.shape[1]), positive_rate=float(y.mean()))
+    summary = DatasetSummary(
+        rows=int(X.shape[0]), cols=int(X.shape[1]), positive_rate=float(y.mean())
+    )
     return X, y, summary
 
 
 def main() -> None:
     # CLI flags are kept explicit so teammates can reproduce data/model artifacts
     # with identical settings when comparing approaches.
-    parser = argparse.ArgumentParser(description="Train repair model for hybrid ALNS bin packing solver")
+    parser = argparse.ArgumentParser(
+        description="Train repair model for hybrid ALNS bin packing solver"
+    )
     parser.add_argument("--instances", type=int, default=5000)
     parser.add_argument("--n-min", type=int, default=50)
     parser.add_argument("--n-max", type=int, default=200)
     parser.add_argument("--max-negatives", type=int, default=5)
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--output", type=str, default="5_hybrid_ml_metaheuristics/repair_model.pkl")
+    parser.add_argument(
+        "--output", type=str, default="5_hybrid_ml_metaheuristics/repair_model.pkl"
+    )
     args = parser.parse_args()
 
     X, y, summary = build_dataset(
@@ -178,7 +206,9 @@ def main() -> None:
         max_negatives=args.max_negatives,
         seed=args.seed,
     )
-    print(f"Dataset: rows={summary.rows}, cols={summary.cols}, pos_rate={summary.positive_rate:.3f}")
+    print(
+        f"Dataset: rows={summary.rows}, cols={summary.cols}, pos_rate={summary.positive_rate:.3f}"
+    )
 
     x_train, x_val, y_train, y_val = train_test_split(
         X, y, test_size=0.2, random_state=42, stratify=y
