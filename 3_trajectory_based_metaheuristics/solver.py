@@ -938,7 +938,7 @@ class BinPackingSolver:
                     "adaptive (sa adaptive), tabu search (ts), reactive tabu search "
                     "(rts), tabu search lns (ts lns, lnts), tabu search diversified "
                     "(ts diversified, hybrid tabu). Genetic algorithm methods were "
-                    "moved to 4_population_based/solver.py."
+                    "moved to 4_population_based_metaheuristics/solver.py."
                 )
 
     @staticmethod

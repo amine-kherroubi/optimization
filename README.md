@@ -1,147 +1,92 @@
-# Optimization — Bin Packing Problem
+# Bin Packing Optimization
 
-## Project structure
+A research-oriented project for comparing algorithm families on the **1D Bin Packing Problem (BPP)**.
 
-```
-optimization/
+## Repository organization
+
+```text
+.
 ├── benchmark.py
-├── 1_exact/
-│   └── solver.py          # Backtracking, Branch & Bound, Dynamic Programming
-├── 2_heuristics/
-│   └── solver.py          # Greedy fits + decreasing variants, relocation, swap
-├── 3_metaheuristics/
-│   └── solver.py          # Simulated annealing + tabu-search variants
-├── 4_population_based/
-│   └── solver.py          # Genetic algorithm variants
-├── results/
-│   ├── 1_exact/           # Graphs from exact runs
-│   ├── 2_heuristics/      # Graphs from heuristic runs
-│   ├── 3_metaheuristics/  # Graphs from metaheuristic runs
-│   └── 4_population_based/ # Graphs from population-based runs
-└── benchmarks/
-    ├── Falkenauer/
-    │   ├── Falkenauer_T/
-    │   └── Falkenauer U/
-    └── Scholl/
-        ├── Scholl_1/
-        ├── Scholl_2/
-        └── Scholl_3/
+├── 1_exact_methods/
+├── 2_specific_heuristics/
+├── 3_trajectory_based_metaheuristics/
+├── 4_population_based_metaheuristics/
+├── benchmarks/
+└── results/
 ```
 
-All commands must be executed from the **project root**.
+### Solver taxonomy
+
+1. **Exact methods** (`1_exact_methods/`): optimal but expensive.
+2. **Specific heuristics** (`2_specific_heuristics/`): fast constructive/improvement rules.
+3. **Trajectory-based metaheuristics** (`3_trajectory_based_metaheuristics/`): single-solution neighborhood search.
+4. **Population-based metaheuristics** (`4_population_based_metaheuristics/`): GA/ACO-style population search.
 
 ---
 
-## Running the benchmark
+## Run benchmarks
 
-```shell
-python benchmark.py --solver <path/to/solver.py> --dataset <dataset> --method <method>
+All commands are expected to be run from the project root.
+
+```bash
+python benchmark.py --solver <solver_path> --dataset <dataset_key> --method <method_name>
 ```
 
-### Examples
+### Example commands
 
-```shell
-# Exact — Branch & Bound on all Falkenauer T instances
-python benchmark.py --solver 1_exact/solver.py --dataset falkenauer-t --method "branch and bound"
-
-# Exact — Backtracking, at most 60 items, 10-second time limit
-python benchmark.py --solver 1_exact/solver.py --dataset scholl-1 --method backtracking --max-items 60 --time-limit 10
-
-# Exact — Bitmask DP, exactly 20 items, skip graphs
-python benchmark.py --solver 1_exact/solver.py --dataset falkenauer-u --method "dynamic programming" --num-items 20 --no-graphs
-
-# Heuristics — Best Fit on all Scholl 2 instances
-python benchmark.py --solver 2_heuristics/solver.py --dataset scholl-2 --method "best fit"
-
-# Heuristics — First Fit, at most 120 items
-python benchmark.py --solver 2_heuristics/solver.py --dataset falkenauer-u --method "first fit" --max-items 120
-
-# Metaheuristics — Tabu Search with LNS on Scholl 2
-python benchmark.py --solver 3_metaheuristics/solver.py --dataset scholl-2 --method "tabu search lns"
-
-# Population-based — Memetic GA on Falkenauer U
-python benchmark.py --solver 4_population_based/solver.py --dataset falkenauer-u --method "genetic algorithm memetic"
+```bash
+python benchmark.py --solver 1_exact_methods/solver.py --dataset falkenauer-t --method "branch and bound"
+python benchmark.py --solver 2_specific_heuristics/solver.py --dataset scholl-2 --method "best fit"
+python benchmark.py --solver 3_trajectory_based_metaheuristics/solver.py --dataset scholl-2 --method "tabu search lns"
+python benchmark.py --solver 4_population_based_metaheuristics/solver.py --dataset falkenauer-u --method "genetic algorithm memetic"
 ```
 
-### Options
+### CLI options
 
-| Flag           | Description                                         | Default      |
-| -------------- | --------------------------------------------------- | ------------ |
-| `--solver`     | Path to the `solver.py` to use                      | *(required)* |
-| `--dataset`    | Dataset key (see table below)                       | *(required)* |
-| `--method`     | Solving method passed to `BinPackingSolver.solve()` | *(required)* |
-| `--num-items`  | Run only instances with **exactly** N items         | —            |
-| `--max-items`  | Run only instances with **at most** N items         | —            |
-| `--time-limit` | Per-instance time limit in seconds                  | —            |
-| `--no-graphs`  | Skip graph generation                               | off          |
+- `--solver` (required): path to a `solver.py`.
+- `--dataset` (required): one of the registered datasets.
+- `--method` (required): method string accepted by the selected solver.
+- `--num-items`: keep only instances with exactly `N` items.
+- `--max-items`: keep only instances with at most `N` items.
+- `--time-limit`: per-instance timeout in seconds.
+- `--no-graphs`: disable plot generation.
 
-`--num-items` and `--max-items` are mutually exclusive.
-
-### Available methods
-
-| Solver         | Methods                                                                                                                                                              |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `1_exact`      | `branch and bound`, `backtracking`, `dynamic programming`                                                                                                            |
-| `2_heuristics` | `next fit`, `first fit`, `best fit`, `worst fit`, `next fit decreasing`, `first fit decreasing`, `best fit decreasing`, `worst fit decreasing`, `relocation`, `swap` |
-| `3_metaheuristics` | `simulated annealing`, `simulated annealing reheating`, `simulated annealing adaptive`, `tabu search`, `reactive tabu search`, `tabu search lns`, `tabu search diversified` |
-| `4_population_based` | `genetic algorithm`, `genetic algorithm memetic`, `genetic algorithm island` |
-
-Shorthand aliases are accepted for many methods:
-- Greedy fits: `nf`, `ff`, `bf`, `wf`, `nfd`, `ffd`, `bfd`, `wfd`.
-- Metaheuristics: `sa`, `sa reheating`, `sa adaptive`, `ts`, `rts`, `ts lns`, `lnts`, `ts diversified`, `hybrid tabu`.
-- Population-based: `ga`, `ga memetic`, `ga island`.
-
-> `dynamic programming` is limited to instances with n <= 20 items.
+> `--num-items` and `--max-items` are mutually exclusive.
 
 ---
 
 ## Datasets
 
-| Key            | Label        | Directory                             |
-| -------------- | ------------ | ------------------------------------- |
-| `falkenauer-t` | Falkenauer T | `benchmarks/Falkenauer/Falkenauer_T/` |
-| `falkenauer-u` | Falkenauer U | `benchmarks/Falkenauer/Falkenauer U/` |
-| `scholl-1`     | Scholl 1     | `benchmarks/Scholl/Scholl_1/`         |
-| `scholl-2`     | Scholl 2     | `benchmarks/Scholl/Scholl_2/`         |
-| `scholl-3`     | Scholl 3     | `benchmarks/Scholl/Scholl_3/`         |
+- `falkenauer-t` → `benchmarks/Falkenauer/Falkenauer_T/`
+- `falkenauer-u` → `benchmarks/Falkenauer/Falkenauer U/`
+- `scholl-1` → `benchmarks/Scholl/Scholl_1/`
+- `scholl-2` → `benchmarks/Scholl/Scholl_2/`
+- `scholl-3` → `benchmarks/Scholl/Scholl_3/`
 
-**Standard file format** (one instance per `.txt` file):
-```
-<number of items>
-<bin capacity>
-<item size 1>
-<item size 2>
+Standard instance format:
+
+```text
+<number_of_items>
+<bin_capacity>
+<item_size_1>
+<item_size_2>
 ...
 ```
 
-### Adding a new dataset
-
-Add a `DatasetConfig` entry near the top of `benchmark.py`:
-
-```python
-register_dataset(DatasetConfig(
-    key="my-dataset",
-    label="My Dataset",
-    directory=Path("benchmarks/MyDataset"),
-    parser=parse_standard,  # or a custom Callable[[Path, str], BenchmarkInstance]
-))
-```
-
-Supply a custom `parser` if the file format differs from the standard format. Its signature must be `(filepath: Path, dataset_key: str) -> BenchmarkInstance`.
-
 ---
 
-## Output
+## Results
 
-Results are printed as a table: `Instance`, `Items`, `Capacity`, `LB`, `Bins`, `Gap` (bins - LB), `Time (s)`, `Method`, `State` (`Done` / `T.O.`).
+Benchmark outputs are written under:
 
-A summary block follows with aggregate statistics. Instances that raise an error are skipped with a warning; the rest of the run continues normally.
+```text
+results/<solver_folder>/
+```
 
-Unless `--no-graphs` is set, four PNG graphs are written to `results/<solver-folder>/`:
+Typical outputs include runtime plots, bins-vs-lower-bound plots, and fill-rate summaries.
 
-| File                              | Description                                                         |
-| --------------------------------- | ------------------------------------------------------------------- |
-| `fig1_solve_times_<dataset>.png`  | Solve time per instance, slowest in red                             |
-| `fig2_bins_vs_lb_<dataset>.png`   | Bins used vs lower bound, gap in red                                |
-| `fig3_fill_rate_<dataset>.png`    | Average bin fill rate per instance (red → yellow → green)           |
-| `fig4_time_by_size_<dataset>.png` | Solve time distribution by instance size (omitted if all same size) |
+For population-based tuning workflows:
+
+- `results/4_population_based_metaheuristics/aco_tuning/`
+- `results/4_population_based_metaheuristics/ga_tuning/`
+- `results/4_population_based_metaheuristics/population_comparison.csv`

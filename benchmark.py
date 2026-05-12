@@ -793,7 +793,7 @@ if __name__ == "__main__":
         "--solver",
         required=True,
         metavar="PATH",
-        help="Path to the solver.py to benchmark (e.g. 1_exact/solver.py).",
+        help="Path to the solver.py to benchmark (e.g. 1_exact_methods/solver.py).",
     )
     arg_parser.add_argument(
         "--dataset",
