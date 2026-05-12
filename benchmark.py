@@ -18,6 +18,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import Normalize
+import matplotlib.cm as cm
 
 _PROJECT_ROOT: Path = Path(__file__).parent
 _BENCHMARKS_ROOT: Path = _PROJECT_ROOT / "datasets"
@@ -185,8 +186,10 @@ def _solver_worker(
     try:
         abs_path = Path(__file__).parent / solver_path
         spec = importlib.util.spec_from_file_location("solver", abs_path)
+        assert spec is not None
         solver_mod = importlib.util.module_from_spec(spec)
         sys.modules[spec.name] = solver_mod
+        assert spec.loader is not None
         spec.loader.exec_module(solver_mod)
         BinPackingSolver = solver_mod.BinPackingSolver
 
@@ -391,8 +394,10 @@ class Benchmark:
         if self._time_limit is None:
             abs_path = self._solver_path
             spec = importlib.util.spec_from_file_location("solver", abs_path)
+            assert spec is not None
             solver_mod = importlib.util.module_from_spec(spec)
             sys.modules[spec.name] = solver_mod
+            assert spec.loader is not None
             spec.loader.exec_module(solver_mod)
             BinPackingSolver = solver_mod.BinPackingSolver
 
@@ -692,7 +697,7 @@ class Benchmark:
         for i, rate in enumerate(fill_rates):
             ax.text(i, rate + 0.4, f"{rate:.1f}%", ha="center", va="bottom", fontsize=7)
 
-        sm = matplotlib.cm.ScalarMappable(cmap=cmap, norm=norm)
+        sm = cm.ScalarMappable(cmap=cmap, norm=norm)
         plt.colorbar(sm, ax=ax, label="Fill rate (%)", pad=0.02)
 
         ax.set_xticks(range(len(self._completed)))
