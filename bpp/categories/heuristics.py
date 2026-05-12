@@ -15,5 +15,14 @@ HEURISTICS_STRATEGY = CategoryAdapter(
         "swap",
     ),
     "2_specific_heuristics/solver.py",
-    {"nf": "next fit", "ff": "first fit", "bf": "best fit", "wf": "worst fit", "nfd": "next fit decreasing", "ffd": "first fit decreasing", "bfd": "best fit decreasing", "wfd": "worst fit decreasing"},
+    {
+        "nf": "next fit",
+        "ff": "first fit",
+        "bf": "best fit",
+        "wf": "worst fit",
+        "nfd": "next fit decreasing",
+        "ffd": "first fit decreasing",
+        "bfd": "best fit decreasing",
+        "wfd": "worst fit decreasing",
+    },
 )
