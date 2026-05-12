@@ -200,9 +200,7 @@ def main() -> None:
     parser.add_argument("--n-max", type=int, default=200)
     parser.add_argument("--max-negatives", type=int, default=5)
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument(
-        "--output", type=str, default="5_hybrid_ml_metaheuristics/repair_model.pkl"
-    )
+    parser.add_argument("--output", type=str, default="repair_model.pkl")
     args = parser.parse_args()
 
     X, y, summary = build_dataset(
@@ -220,7 +218,7 @@ def main() -> None:
         X, y, test_size=0.2, random_state=42, stratify=y
     )
 
-    model = LogisticRegression(C=1.0, max_iter=1000, solver="lbfgs", n_jobs=-1)
+    model = LogisticRegression(C=1.0, max_iter=1000, solver="lbfgs")
     model.fit(x_train, y_train)
     val_acc = accuracy_score(y_val, model.predict(x_val))
     print(f"Validation accuracy: {val_acc:.4f}")
