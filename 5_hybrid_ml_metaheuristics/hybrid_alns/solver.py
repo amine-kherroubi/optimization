@@ -91,12 +91,8 @@ class BinPackingSolver:
         self._model = None
         self._rng = np.random.default_rng(42)
 
-    def solve(self, method: str, **params) -> None:
-        normalized = self._normalize_method(method)
-        if normalized not in {"hybrid alns", "alns hybrid", "alns"}:
-            raise ValueError(
-                "Unsupported method. Available methods: hybrid alns, alns hybrid, alns."
-            )
+    def solve(self, method: str | None = None, **params) -> None:
+        _ = method
 
         model_path = params.get("model_path")
         if not model_path:
@@ -317,10 +313,6 @@ class BinPackingSolver:
             (item_size / remaining_capacity) if remaining_capacity > 1e-9 else 1.0,
         ]
 
-    @staticmethod
-    def _normalize_method(method: str) -> str:
-        normalized = method.strip().lower().replace("_", " ").replace("-", " ")
-        return " ".join(normalized.split())
 
     def _to_presentable_solution(self, sol: _WorkingSolution) -> BinPackingSolution:
         return BinPackingSolution(
