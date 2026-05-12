@@ -13,7 +13,7 @@ from solver import BinPackingSolver
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 BENCHMARKS_ROOT = PROJECT_ROOT / "benchmarks"
-RESULTS_DIR = PROJECT_ROOT / "results" / "4_population_based" / "ga_tuning"
+RESULTS_DIR = PROJECT_ROOT / "results" / "4_population_based_metaheuristics" / "ga_tuning"
 
 GA_ROUNDS = 1
 
