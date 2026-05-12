@@ -10,6 +10,7 @@ decisions. The resulting pickle can be passed to BinPackingSolver.solve via
 import argparse
 import pickle
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 from sklearn.linear_model import LogisticRegression
@@ -161,6 +162,13 @@ def build_dataset(
     The synthetic distribution is intentionally simple (uniform sizes in [0.1, 0.9])
     so data generation remains fast while still exposing non-trivial packing choices.
     """
+    if instances <= 0:
+        raise ValueError("instances must be > 0")
+    if n_min <= 0 or n_max <= 0 or n_min > n_max:
+        raise ValueError("n_min and n_max must be positive with n_min <= n_max")
+    if max_negatives < 0:
+        raise ValueError("max_negatives must be >= 0")
+
     rng = np.random.default_rng(seed)
     all_x: list[list[float]] = []
     all_y: list[int] = []
@@ -219,9 +227,11 @@ def main() -> None:
     val_acc = accuracy_score(y_val, model.predict(x_val))
     print(f"Validation accuracy: {val_acc:.4f}")
 
-    with open(args.output, "wb") as f:
+    output_path = Path(args.output)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("wb") as f:
         pickle.dump(model, f)
-    print(f"Saved model to: {args.output}")
+    print(f"Saved model to: {output_path}")
 
 
 if __name__ == "__main__":
