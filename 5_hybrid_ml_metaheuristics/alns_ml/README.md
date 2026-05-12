@@ -1,4 +1,4 @@
-# ALNS + ML (Full Pipeline)
+# ALNS + ML
 
 This subfolder contains one **complete** implementation path for 1D bin packing:
 
