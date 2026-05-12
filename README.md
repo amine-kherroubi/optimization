@@ -93,3 +93,21 @@ For population-based tuning workflows:
 - `results/4_population_based_metaheuristics/aco_tuning/`
 - `results/4_population_based_metaheuristics/ga_tuning/`
 - `results/4_population_based_metaheuristics/population_comparison.csv`
+
+
+## Unified API (refactored)
+
+The project now exposes a single `solve(...)` entrypoint through the `bpp` package.
+
+```python
+from bpp import solve
+
+solution = solve(
+    item_sizes=[4, 8, 1, 4, 2, 1],
+    bin_capacity=10,
+    category="specific_heuristics",
+    method="first fit decreasing",
+)
+```
+
+A minimal `main.py` is provided and only delegates to the high-level API.
