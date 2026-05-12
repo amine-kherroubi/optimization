@@ -35,7 +35,9 @@ class BinPackingSolver:
             enumerate(self._item_sizes), key=lambda pair: (-pair[1], pair[0])
         )
 
-    def solve(self, method: str, **params) -> None:
+    def solve(self, method: str | None = "genetic algorithm", **params) -> None:
+        if method is None:
+            method = "genetic algorithm"
         normalized_method = self._normalize_method(method)
 
         match normalized_method:

@@ -901,7 +901,9 @@ class BinPackingSolver:
             "sa adaptive": "adaptive",
         }
 
-    def solve(self, method: str) -> None:
+    def solve(self, method: str | None = "simulated annealing") -> None:
+        if method is None:
+            method = "simulated annealing"
         normalized_method = self._normalize_method(method)
 
         sa_variant = self._sa_method_registry.get(normalized_method)

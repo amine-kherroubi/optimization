@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import inspect
 import multiprocessing as mp
 import queue
 import sys
@@ -10,7 +11,7 @@ import time
 from dataclasses import dataclass
 from math import ceil
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
 import matplotlib
 
@@ -172,7 +173,8 @@ register_dataset(
 def _solver_worker(
     sizes: list[int],
     bin_capacity: int,
-    method: str,
+    method: str | None,
+    method_args: dict[str, Any],
     solver_path: str,
     out_queue: mp.Queue[tuple[int | None, float | None, str | None]],
 ) -> None:
@@ -195,12 +197,50 @@ def _solver_worker(
 
         start: float = time.perf_counter()
         solver = BinPackingSolver(sizes, bin_capacity)
-        solver.solve(method)
+        _invoke_solver_safely(solver, method, method_args)
         elapsed: float = time.perf_counter() - start
         solution = solver.get_solution()
         out_queue.put((solution.total_bins_used, elapsed, None))
     except Exception as exc:
         out_queue.put((None, None, f"{type(exc).__name__}: {exc}"))
+
+
+def _invoke_solver_safely(
+    solver: Any,
+    method: str | None,
+    method_args: dict[str, Any] | None = None,
+) -> None:
+    method_args = dict(method_args or {})
+    solve_sig = inspect.signature(solver.solve)
+    accepts_kwargs = any(
+        param.kind == inspect.Parameter.VAR_KEYWORD
+        for param in solve_sig.parameters.values()
+    )
+    accepts_method_param = "method" in solve_sig.parameters
+
+    if method is not None and not accepts_method_param:
+        print(
+            "\033[93m[warning]\033[0m Method was provided, but this solver does not "
+            "accept a 'method' parameter in solve(); it will be ignored."
+        )
+
+    if method_args and not accepts_kwargs:
+        unsupported_args = sorted(
+            k for k in method_args.keys() if k not in solve_sig.parameters
+        )
+        if unsupported_args:
+            print(
+                "\033[93m[warning]\033[0m Ignoring unsupported --method-args for "
+                f"this solver: {', '.join(unsupported_args)}"
+            )
+            method_args = {
+                k: v for k, v in method_args.items() if k in solve_sig.parameters
+            }
+
+    call_kwargs = dict(method_args)
+    if accepts_method_param:
+        call_kwargs["method"] = method
+    solver.solve(**call_kwargs)
 
 
 class _StdinWatcher(threading.Thread):
@@ -251,7 +291,8 @@ class Benchmark:
 
     def run(
         self,
-        method: str,
+        method: str | None,
+        method_args: dict[str, Any] | None = None,
         num_items: int | None = None,
         max_items: int | None = None,
         generate_graphs: bool = True,
@@ -299,7 +340,7 @@ class Benchmark:
                     print("\n\033[93m[Benchmark stopped by user]\033[0m")
                     break
                 try:
-                    result = self._solve(instance, method, stop_flag)
+                    result = self._solve(instance, method, method_args, stop_flag)
                 except Exception as exc:
                     print(f"\033[91m[!] Skipping '{instance.name}': {exc}\033[0m")
                     continue
@@ -325,9 +366,14 @@ class Benchmark:
         if generate_graphs and self._results:
             self._generate_graphs()
 
-    def run_instance(self, filepath: str | Path, method: str) -> BenchmarkResult:
+    def run_instance(
+        self,
+        filepath: str | Path,
+        method: str | None = None,
+        method_args: dict[str, Any] | None = None,
+    ) -> BenchmarkResult:
         instance = self._dataset.parser(Path(filepath), self._dataset.key)
-        result = self._solve(instance, method)
+        result = self._solve(instance, method, method_args)
         self._results.append(result)
         return result
 
@@ -384,12 +430,14 @@ class Benchmark:
     def _solve(
         self,
         instance: BenchmarkInstance,
-        method: str,
+        method: str | None,
+        method_args: dict[str, Any] | None = None,
         stop_flag: threading.Event | None = None,
     ) -> BenchmarkResult:
         total_weight = sum(instance.sizes)
         lower_bound = ceil(total_weight / instance.bin_capacity)
         solver_method = "branch and bound" if method == "b&b" else method
+        method_label = method if method is not None else "<default>"
 
         if self._time_limit is None:
             abs_path = self._solver_path
@@ -403,7 +451,7 @@ class Benchmark:
 
             start = time.perf_counter()
             solver = BinPackingSolver(instance.sizes, instance.bin_capacity)
-            solver.solve(solver_method)
+            _invoke_solver_safely(solver, solver_method, method_args)
             elapsed = time.perf_counter() - start
             solution = solver.get_solution()
             return BenchmarkResult(
@@ -415,7 +463,7 @@ class Benchmark:
                 lower_bound=lower_bound,
                 total_weight=total_weight,
                 elapsed_time=elapsed,
-                method=method,
+                method=method_label,
                 timed_out=False,
             )
 
@@ -426,6 +474,7 @@ class Benchmark:
                 instance.sizes,
                 instance.bin_capacity,
                 solver_method,
+                dict(method_args or {}),
                 str(self._solver_path),
                 out_queue,
             ),
@@ -471,7 +520,7 @@ class Benchmark:
             lower_bound=lower_bound,
             total_weight=total_weight,
             elapsed_time=elapsed,
-            method=method,
+            method=method_label,
             timed_out=timed_out,
         )
 
@@ -809,9 +858,18 @@ if __name__ == "__main__":
     )
     arg_parser.add_argument(
         "--method",
-        required=True,
+        default=None,
         metavar="METHOD",
-        help="Solving method passed to BinPackingSolver.solve().",
+        help="Optional solving method passed to BinPackingSolver.solve(method=...).",
+    )
+    arg_parser.add_argument(
+        "--method-args",
+        default=None,
+        metavar="K=V,...",
+        help=(
+            "Optional comma-separated key/value params passed to solve(), "
+            "for example: model_path=foo.pkl,max_iterations=5000"
+        ),
     )
 
     size_group = arg_parser.add_mutually_exclusive_group()
@@ -846,6 +904,40 @@ if __name__ == "__main__":
 
     args = arg_parser.parse_args()
 
+    def _parse_method_args(raw_args: str | None) -> dict[str, Any]:
+        if raw_args is None or not raw_args.strip():
+            return {}
+        parsed: dict[str, Any] = {}
+        for chunk in raw_args.split(","):
+            piece = chunk.strip()
+            if not piece:
+                continue
+            if "=" not in piece:
+                raise ValueError(
+                    f"Invalid --method-args entry '{piece}'. Expected key=value."
+                )
+            key, value = piece.split("=", 1)
+            key = key.strip()
+            if not key:
+                raise ValueError("Method-arg keys cannot be empty.")
+            value = value.strip()
+            lowered = value.lower()
+            if lowered == "true":
+                parsed[key] = True
+            elif lowered == "false":
+                parsed[key] = False
+            else:
+                try:
+                    parsed[key] = int(value)
+                except ValueError:
+                    try:
+                        parsed[key] = float(value)
+                    except ValueError:
+                        parsed[key] = value
+        return parsed
+
+    method_args = _parse_method_args(args.method_args)
+
     solver_path = (_PROJECT_ROOT / args.solver).resolve()
     if not solver_path.is_file():
         arg_parser.error(f"Solver file not found: {solver_path}")
@@ -858,6 +950,7 @@ if __name__ == "__main__":
     try:
         bench.run(
             method=args.method,
+            method_args=method_args,
             num_items=args.num_items,
             max_items=args.max_items,
             generate_graphs=not args.no_graphs,

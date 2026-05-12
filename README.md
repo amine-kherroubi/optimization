@@ -31,7 +31,7 @@ A research-oriented project for comparing algorithm families on the **1D Bin Pac
 All commands are expected to be run from the project root.
 
 ```bash
-python benchmark.py --solver <solver_path> --dataset <dataset_key> --method <method_name>
+python benchmark.py --solver <solver_path> --dataset <dataset_key> [--method <method_name>] [--method-args "k=v,..."]
 ```
 
 ### Example commands
@@ -41,20 +41,28 @@ python benchmark.py --solver 1_exact_methods/solver.py --dataset falkenauer-t --
 python benchmark.py --solver 2_specific_heuristics/solver.py --dataset scholl-2 --method "best fit"
 python benchmark.py --solver 3_trajectory_based_metaheuristics/solver.py --dataset scholl-2 --method "tabu search lns"
 python benchmark.py --solver 4_population_based_metaheuristics/solver.py --dataset falkenauer-u --method "genetic algorithm memetic"
-python benchmark.py --solver 5_hybrid_ml_metaheuristics/solver.py --dataset falkenauer-u --method "hybrid alns"
+python benchmark.py --solver 5_hybrid_ml_metaheuristics/hybrid_alns/solver.py --dataset falkenauer-u --method-args "model_path=5_hybrid_ml_metaheuristics/hybrid_alns/repair_model.pkl,max_iterations=5000"
 ```
 
 ### CLI options
 
 - `--solver` (required): path to a `solver.py`.
 - `--dataset` (required): one of the registered datasets.
-- `--method` (required): method string accepted by the selected solver.
+- `--method` (optional): method string accepted by the selected solver. If omitted, solver defaults are used.
+- `--method-args` (optional): comma-separated `key=value` arguments forwarded to `solve(...)` (e.g., model paths, iteration counts).
 - `--num-items`: keep only instances with exactly `N` items.
 - `--max-items`: keep only instances with at most `N` items.
 - `--time-limit`: per-instance timeout in seconds.
 - `--no-graphs`: disable plot generation.
 
 > `--num-items` and `--max-items` are mutually exclusive.
+
+### Method routing behavior
+
+- Benchmark now introspects each solver's `solve(...)` signature.
+- If `--method` is provided but a solver does not accept a `method` parameter, benchmark prints a warning and ignores it.
+- `--method-args` are type-coerced (`true/false`, `int`, `float`, then fallback to `str`) and passed through.
+- If a solver does not accept `**kwargs`, unsupported `--method-args` are ignored with a warning.
 
 ---
 
