@@ -10,10 +10,11 @@ from pathlib import Path
 
 from solver import BinPackingSolver
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 BENCHMARKS_ROOT = PROJECT_ROOT / "benchmarks"
-RESULTS_DIR = PROJECT_ROOT / "results" / "4_population_based_metaheuristics" / "ga_tuning"
+RESULTS_DIR = (
+    PROJECT_ROOT / "results" / "4_population_based_metaheuristics" / "ga_tuning"
+)
 
 GA_ROUNDS = 1
 
@@ -512,9 +513,7 @@ def main() -> int:
     )
 
     if args.single:
-        GaTuner(options).run_job(
-            TuningJob(args.label, args.datasets, args.output)
-        )
+        GaTuner(options).run_job(TuningJob(args.label, args.datasets, args.output))
     else:
         GaTuningSuite(options, args.output_dir).run()
 
