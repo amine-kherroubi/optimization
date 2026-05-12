@@ -82,7 +82,9 @@ class BinPackingSolver:
     def solve(self, method: str, **params) -> None:
         normalized = self._normalize_method(method)
         if normalized not in {"hybrid alns", "alns hybrid", "alns"}:
-            raise ValueError("Unsupported method. Available methods: hybrid alns, alns hybrid, alns.")
+            raise ValueError(
+                "Unsupported method. Available methods: hybrid alns, alns hybrid, alns."
+            )
 
         model_path = params.get("model_path")
         if model_path:
@@ -121,7 +123,9 @@ class BinPackingSolver:
                     self._repair_learned(candidate, displaced)
 
             delta = candidate.cost() - current.cost()
-            accepted = delta <= 0 or self._rng.random() < math.exp(-delta / max(temperature, 1e-12))
+            accepted = delta <= 0 or self._rng.random() < math.exp(
+                -delta / max(temperature, 1e-12)
+            )
             if accepted:
                 current = candidate
 
@@ -142,7 +146,9 @@ class BinPackingSolver:
 
     def _build_ffd_start_solution(self) -> _WorkingSolution:
         sol = _WorkingSolution(self._item_sizes, self._bin_capacity)
-        order = sorted(range(len(self._item_sizes)), key=lambda i: (-self._item_sizes[i], i))
+        order = sorted(
+            range(len(self._item_sizes)), key=lambda i: (-self._item_sizes[i], i)
+        )
         for item in order:
             size = self._item_sizes[item]
             placed = False
@@ -172,7 +178,10 @@ class BinPackingSolver:
             return []
         k_bins = int(self._rng.integers(1, max(2, len(sol.bins) // 5 + 1)))
         k_bins = min(k_bins, len(sol.bins) - 1)
-        order = sorted(range(len(sol.bins)), key=lambda j: sol.bin_loads[j] + float(self._rng.uniform(0.0, 1e-6)))
+        order = sorted(
+            range(len(sol.bins)),
+            key=lambda j: sol.bin_loads[j] + float(self._rng.uniform(0.0, 1e-6)),
+        )
         return self._remove_bins(sol, order[:k_bins])
 
     def _destroy_related(self, sol: _WorkingSolution, k_items: int) -> list[int]:
@@ -231,18 +240,34 @@ class BinPackingSolver:
                     continue
                 bin_items = sol.bins[j]
                 slack_after = capacity_left - size
-                feats.append([
-                    size / self._bin_capacity,
-                    (size / self._bin_capacity) ** 2,
-                    rank[item] / max(1, n),
-                    remaining / max(1, n),
-                    load / self._bin_capacity,
-                    capacity_left / self._bin_capacity,
-                    slack_after / self._bin_capacity,
-                    len(bin_items) / max(1, n),
-                    (max(self._item_sizes[k] for k in bin_items) / self._bin_capacity) if bin_items else 0.0,
-                    (min(self._item_sizes[k] for k in bin_items) / self._bin_capacity) if bin_items else 0.0,
-                ])
+                feats.append(
+                    [
+                        size / self._bin_capacity,
+                        (size / self._bin_capacity) ** 2,
+                        rank[item] / max(1, n),
+                        remaining / max(1, n),
+                        load / self._bin_capacity,
+                        capacity_left / self._bin_capacity,
+                        slack_after / self._bin_capacity,
+                        len(bin_items) / max(1, n),
+                        (
+                            (
+                                max(self._item_sizes[k] for k in bin_items)
+                                / self._bin_capacity
+                            )
+                            if bin_items
+                            else 0.0
+                        ),
+                        (
+                            (
+                                min(self._item_sizes[k] for k in bin_items)
+                                / self._bin_capacity
+                            )
+                            if bin_items
+                            else 0.0
+                        ),
+                    ]
+                )
                 idxs.append(j)
 
             if not feats:
@@ -251,7 +276,9 @@ class BinPackingSolver:
                 sol.item_to_bin[item] = len(sol.bins) - 1
                 continue
 
-            scores = self._model.predict_proba(np.asarray(feats, dtype=np.float64))[:, 1]
+            scores = self._model.predict_proba(np.asarray(feats, dtype=np.float64))[
+                :, 1
+            ]
             best_j = idxs[int(np.argmax(scores))]
             sol.bins[best_j].append(item)
             sol.bin_loads[best_j] += size
