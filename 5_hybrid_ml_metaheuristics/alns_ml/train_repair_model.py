@@ -192,8 +192,6 @@ def build_dataset(
 
 
 def main() -> None:
-    # CLI flags are kept explicit so teammates can reproduce data/model artifacts
-    # with identical settings when comparing approaches.
     parser = argparse.ArgumentParser(
         description="Train repair model for hybrid ALNS bin packing solver"
     )

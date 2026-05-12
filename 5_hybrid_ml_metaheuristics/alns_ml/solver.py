@@ -165,7 +165,9 @@ class BinPackingSolver:
 
     def _build_ffd_start_solution(self) -> _WorkingSolution:
         sol = _WorkingSolution(self._item_sizes, self._bin_capacity)
-        order = sorted(range(len(self._item_sizes)), key=lambda i: (-self._item_sizes[i], i))
+        order = sorted(
+            range(len(self._item_sizes)), key=lambda i: (-self._item_sizes[i], i)
+        )
         for item in order:
             size = self._item_sizes[item]
             for j, load in enumerate(sol.bin_loads):
@@ -272,7 +274,9 @@ class BinPackingSolver:
                 sol.item_to_bin[item] = len(sol.bins) - 1
                 continue
 
-            scores = self._model.predict_proba(np.asarray(feats, dtype=np.float64))[:, 1]
+            scores = self._model.predict_proba(np.asarray(feats, dtype=np.float64))[
+                :, 1
+            ]
             best_j = idxs[int(np.argmax(scores))]
             sol.bins[best_j].append(item)
             sol.bin_loads[best_j] += size
