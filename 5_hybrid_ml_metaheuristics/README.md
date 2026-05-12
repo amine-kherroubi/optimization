@@ -32,10 +32,38 @@ python benchmark.py \
 
 Optional parameters are passed through benchmark method args (if supported by your runner):
 
-- `max_iterations` (default: `2500`)
+- `max_iterations` (default: `5000`)
 - `initial_temperature` (default: `1/log(2)`)
-- `alpha_cool` (default: `0.999`)
+- `alpha_cool` (default: `0.9995`)
 - `model_path` (optional pickle model with `predict_proba`)
+
+### Train and use the learned repair model
+
+Train once offline:
+
+```bash
+python 5_hybrid_ml_metaheuristics/train_repair_model.py \
+  --instances 5000 \
+  --output 5_hybrid_ml_metaheuristics/repair_model.pkl
+```
+
+Then run the solver with that model:
+
+```bash
+python benchmark.py \
+  --solver 5_hybrid_ml_metaheuristics/solver.py \
+  --dataset falkenauer-u \
+  --method "hybrid alns" \
+  --method-args "model_path=5_hybrid_ml_metaheuristics/repair_model.pkl,max_iterations=5000"
+```
+
+If `model_path` is omitted, the solver automatically falls back to BFD repair.
+
+### Why this approach is theoretically sound
+
+- **ALNS + Simulated Annealing** gives a standard large-neighborhood exploration/exploitation loop.
+- **Thompson Sampling (Beta-Bernoulli)** is a principled online method for destroy-operator selection under uncertain rewards.
+- **Offline imitation learning from BFD** keeps repair behavior stable and interpretable while allowing richer contextual scoring than pure hand-coded best-fit tie-breaking.
 
 ## Notes on performance and stability
 
