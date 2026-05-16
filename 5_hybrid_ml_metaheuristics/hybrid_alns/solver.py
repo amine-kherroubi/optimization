@@ -20,6 +20,10 @@ import numpy as np
 # _load_model raises if the pickled bundle reports a different version.
 _EXPECTED_FEATURE_VERSION = 2
 
+# Must stay in sync with N_FEATURES in train_repair_model.py and the length
+# of the list returned by _make_repair_features.
+_EXPECTED_N_FEATURES = 11
+
 
 @dataclass(slots=True)
 class BinPackingSolution:
@@ -102,7 +106,9 @@ class BinPackingSolver:
         self._final_solution: BinPackingSolution | None = None
         self._model: Any = None
         self._scaler: Any = None
-        self._rng = np.random.default_rng(42)
+        self._rng = np.random.default_rng(
+            42
+        )  # fixed seed: runs are deterministic per instance
 
     def solve(self, method: str | None = None, **params) -> None:
         _ = method
@@ -205,6 +211,9 @@ class BinPackingSolver:
                 break
             selected.append(j)
             removed_count += len(sol.bins[j])
+        # Defensive fallback: unreachable in practice because the len(sol.bins) <= 1
+        # guard above ensures at least 2 bins exist, so the first loop iteration
+        # always appends before either break condition can fire.
         if not selected:
             selected = [int(bin_order[0])]
         return self._remove_bins(sol, selected)
@@ -226,6 +235,7 @@ class BinPackingSolver:
                 break
             selected.append(j)
             removed_count += len(sol.bins[j])
+        # Defensive fallback: same reasoning as _destroy_random — unreachable in practice.
         if not selected:
             selected = [order[0]]
         return self._remove_bins(sol, selected)
@@ -432,6 +442,14 @@ class BinPackingSolver:
             raise ValueError(
                 f"Model feature_version={version} does not match solver's "
                 f"expected version={_EXPECTED_FEATURE_VERSION}. "
+                "Re-train with the current train_repair_model.py."
+            )
+
+        n_features = bundle["n_features"]
+        if n_features != _EXPECTED_N_FEATURES:
+            raise ValueError(
+                f"Model n_features={n_features} does not match solver's "
+                f"expected n_features={_EXPECTED_N_FEATURES}. "
                 "Re-train with the current train_repair_model.py."
             )
 

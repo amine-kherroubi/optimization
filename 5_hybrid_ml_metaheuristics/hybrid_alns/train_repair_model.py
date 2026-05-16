@@ -30,10 +30,24 @@ from __future__ import annotations
 
 import argparse
 import pickle
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
+
+try:
+    from tqdm import tqdm
+except ImportError:  # pragma: no cover
+
+    def tqdm(iterable, **kwargs):  # type: ignore[misc]
+        """Minimal no-op fallback when tqdm is not installed."""
+        desc = kwargs.get("desc", "")
+        if desc:
+            print(f"{desc}...")
+        return iterable
+
+
 from sklearn.linear_model import LogisticRegressionCV
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import train_test_split
@@ -78,7 +92,10 @@ def generate_instance(rng: np.random.Generator, n_min: int, n_max: int) -> np.nd
 _F_ITEM_SIZE = 0  # item size (normalized by capacity = 1.0 here)
 _F_ITEM_SIZE_SQ = 1  # item size squared (captures non-linear fill effects)
 _F_SIZE_RANK = 2  # rank of item by size, as a fraction of total items
-_F_REMAINING = 3  # items left to place (including current) / total items
+_F_REMAINING = 3  # displaced items left to place (including current) / n_total
+                  # For fresh traces n_displaced == n_total, so this equals
+                  # (n_total - step) / n_total; for repair traces only the
+                  # evicted subset is counted in the numerator.
 _F_BIN_LOAD = 4  # current bin load
 _F_BIN_REM = 5  # remaining bin capacity
 _F_SLACK_AFTER = 6  # remaining capacity after placing this item
@@ -401,9 +418,9 @@ def build_dataset(
     all_x: list[list[float]] = []
     all_y: list[int] = []
 
-    for i in range(instances):
-        if i and i % 500 == 0:
-            print(f"  Generated {i}/{instances} instances...")
+    for _ in tqdm(
+        range(instances), desc="Generating instances", unit="inst", dynamic_ncols=True
+    ):
         sizes = generate_instance(rng, n_min=n_min, n_max=n_max)
 
         x_fresh, y_fresh = extract_training_examples(
@@ -488,10 +505,11 @@ def main() -> None:
         seed=args.seed,
     )
 
-    # The positive rate is always >= 1/(1+max_negatives) in valid data, because
-    # steps where only one existing bin is feasible contribute 1 positive and
-    # 0 negatives, pulling the rate above the theoretical minimum. We therefore
-    # only flag rates that are implausibly extreme in either direction.
+    # The positive rate is always >= 1/(1+max_negatives) by construction: even
+    # in the worst case where every step contributes exactly max_negatives
+    # negatives, the ratio is 1/(1+max_negatives). Steps with fewer negatives
+    # (including 0) can only raise it. Any observed rate below this value
+    # indicates a bug in the extraction logic.
     expected_lower_bound = 1.0 / (1.0 + args.max_negatives)
     print(
         f"Dataset: rows={summary.rows}, cols={summary.cols}, "
@@ -503,7 +521,7 @@ def main() -> None:
             f"Positive rate {summary.positive_rate:.3f} is implausibly high — "
             "negative sampling may be broken. Check extraction logic."
         )
-    if summary.positive_rate < expected_lower_bound - 0.02:
+    if summary.positive_rate < expected_lower_bound:
         raise RuntimeError(
             f"Positive rate {summary.positive_rate:.3f} is below the theoretical "
             f"lower bound {expected_lower_bound:.3f}. Check extraction logic."
@@ -534,7 +552,15 @@ def main() -> None:
     # We optimise for ROC-AUC rather than accuracy because the solver uses
     # predict_proba scores to rank candidate bins — calibrated ranking quality
     # matters more than hard-decision accuracy at the 0.5 threshold.
-    print("Training model (Pipeline + LogisticRegressionCV, 5-fold, AUC scoring)...")
+    n_cs = 4
+    n_folds = 5
+    n_l1_ratios = 1  # only (0,) — pure L2
+    total_fits = n_cs * n_folds * n_l1_ratios
+    print(
+        f"Training model  (Pipeline · LogisticRegressionCV · saga · L2 · "
+        f"{n_folds}-fold CV · {n_cs} C values = {total_fits} fits)..."
+    )
+    t_train_start = time.perf_counter()
     pipe = Pipeline(
         [
             ("scaler", StandardScaler()),
@@ -544,7 +570,10 @@ def main() -> None:
                     Cs=[0.01, 0.1, 1.0, 10.0],
                     cv=5,
                     solver="saga",
-                    penalty="l2",
+                    # penalty="l2" was deprecated in sklearn 1.8 (removed in 1.10).
+                    # Use l1_ratios=(0,) instead: elasticnet with l1_ratio=0 is
+                    # mathematically identical to pure L2 regularisation.
+                    l1_ratios=(0,),
                     class_weight="balanced",
                     max_iter=2000,
                     scoring="roc_auc",
@@ -555,6 +584,8 @@ def main() -> None:
         ]
     )
     pipe.fit(x_trainval, y_trainval)
+    t_train_elapsed = time.perf_counter() - t_train_start
+    print(f"Training complete in {t_train_elapsed:.1f}s")
 
     # ------------------------------------------------------------------
     # Evaluation on held-out test set
@@ -562,7 +593,9 @@ def main() -> None:
 
     test_proba = pipe.predict_proba(x_test)[:, 1]
     test_auc = roc_auc_score(y_test, test_proba)
-    best_c = float(pipe.named_steps["clf"].C_[0])
+    # C_ has shape (n_classes,) = (1,) for binary problems; use flat[0] to get
+    # a scalar safely across all sklearn and NumPy 2.x versions.
+    best_c = float(pipe.named_steps["clf"].C_.flat[0])
     print(f"Test ROC-AUC: {test_auc:.4f}  (selected C={best_c:.4g})")
 
     # A well-trained model on this task should achieve AUC > 0.75; lower values
