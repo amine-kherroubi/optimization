@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """Hybrid ALNS solver for 1D Bin Packing.
 
 This module provides a single, deterministic implementation path:
@@ -8,12 +6,19 @@ This module provides a single, deterministic implementation path:
 - mandatory learned repair model for reconstruction
 """
 
+from __future__ import annotations
+
 import math
 import pickle
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import numpy as np
+
+# Must stay in sync with the FEATURE_VERSION constant in train_repair_model.py.
+# _load_model raises if the pickled bundle reports a different version.
+_EXPECTED_FEATURE_VERSION = 2
 
 
 @dataclass(slots=True)
@@ -76,7 +81,14 @@ class ThompsonSamplingBandit:
 class BinPackingSolver:
     """Single-path hybrid ALNS solver: Thompson bandit + learned repair."""
 
-    __slots__ = ("_item_sizes", "_bin_capacity", "_final_solution", "_model", "_rng")
+    __slots__ = (
+        "_item_sizes",
+        "_bin_capacity",
+        "_final_solution",
+        "_model",
+        "_scaler",
+        "_rng",
+    )
 
     def __init__(self, item_sizes: list[int], bin_capacity: int):
         if bin_capacity <= 0:
@@ -88,7 +100,8 @@ class BinPackingSolver:
         self._item_sizes = list(item_sizes)
         self._bin_capacity = int(bin_capacity)
         self._final_solution: BinPackingSolution | None = None
-        self._model = None
+        self._model: Any = None
+        self._scaler: Any = None
         self._rng = np.random.default_rng(42)
 
     def solve(self, method: str | None = None, **params) -> None:
@@ -100,7 +113,7 @@ class BinPackingSolver:
                 "model_path is required for this approach. "
                 "Train it first with train_repair_model.py."
             )
-        self._model = self._load_model(str(model_path))
+        self._model, self._scaler = self._load_model(str(model_path))
 
         max_iterations = int(params.get("max_iterations", 5_000))
         if max_iterations <= 0:
@@ -128,9 +141,9 @@ class BinPackingSolver:
             k_items = int(self._rng.integers(k_min, k_max + 1))
 
             if arm == 0:
-                displaced = self._destroy_random(candidate)
+                displaced = self._destroy_random(candidate, k_items)
             elif arm == 1:
-                displaced = self._destroy_worst(candidate)
+                displaced = self._destroy_worst(candidate, k_items)
             else:
                 displaced = self._destroy_related(candidate, k_items)
 
@@ -178,24 +191,44 @@ class BinPackingSolver:
                 sol.item_to_bin[item] = len(sol.bins) - 1
         return sol
 
-    def _destroy_random(self, sol: _WorkingSolution) -> list[int]:
+    def _destroy_random(self, sol: _WorkingSolution, k_items: int) -> list[int]:
         if len(sol.bins) <= 1:
             return []
-        k_bins = int(self._rng.integers(1, max(2, len(sol.bins) // 5 + 1)))
-        k_bins = min(k_bins, len(sol.bins) - 1)
-        indices = self._rng.choice(len(sol.bins), size=k_bins, replace=False)
-        return self._remove_bins(sol, sorted(int(i) for i in indices))
+        # Select bins in random order until cumulative displaced items reach k_items.
+        bin_order = self._rng.permutation(len(sol.bins)).tolist()
+        selected: list[int] = []
+        removed_count = 0
+        for j in bin_order:
+            if removed_count >= k_items:
+                break
+            if len(selected) >= len(sol.bins) - 1:
+                break
+            selected.append(j)
+            removed_count += len(sol.bins[j])
+        if not selected:
+            selected = [int(bin_order[0])]
+        return self._remove_bins(sol, selected)
 
-    def _destroy_worst(self, sol: _WorkingSolution) -> list[int]:
+    def _destroy_worst(self, sol: _WorkingSolution, k_items: int) -> list[int]:
         if len(sol.bins) <= 1:
             return []
-        k_bins = int(self._rng.integers(1, max(2, len(sol.bins) // 5 + 1)))
-        k_bins = min(k_bins, len(sol.bins) - 1)
+        # Greedily pick least-loaded bins until cumulative displaced items reach k_items.
         order = sorted(
             range(len(sol.bins)),
             key=lambda j: sol.bin_loads[j] + float(self._rng.uniform(0.0, 1e-6)),
         )
-        return self._remove_bins(sol, order[:k_bins])
+        selected: list[int] = []
+        removed_count = 0
+        for j in order:
+            if removed_count >= k_items:
+                break
+            if len(selected) >= len(sol.bins) - 1:
+                break
+            selected.append(j)
+            removed_count += len(sol.bins[j])
+        if not selected:
+            selected = [order[0]]
+        return self._remove_bins(sol, selected)
 
     def _destroy_related(self, sol: _WorkingSolution, k_items: int) -> list[int]:
         all_items = [item for b in sol.bins for item in b]
@@ -204,7 +237,14 @@ class BinPackingSolver:
         seed = int(self._rng.choice(all_items))
         candidates = [i for i in all_items if i != seed]
         candidates.sort(key=lambda i: abs(self._item_sizes[i] - self._item_sizes[seed]))
-        to_remove = [seed] + candidates[: max(0, k_items - 1)]
+        # Cap displacement so at least one item (and therefore one bin) stays
+        # placed, matching the ≥1-bin-preserved guarantee enforced by
+        # _destroy_random and _destroy_worst. Without this cap, k_items ≥
+        # len(all_items) would evict every item from every bin, reducing the
+        # warm-started solution to an empty state and forcing a restart from
+        # scratch on every related-destroy call — defeating the purpose of ALNS.
+        k_effective = min(k_items, len(all_items) - 1)
+        to_remove = [seed] + candidates[: max(0, k_effective - 1)]
 
         for item in to_remove:
             j = sol.item_to_bin[item]
@@ -238,9 +278,14 @@ class BinPackingSolver:
         global_order = sorted(range(n), key=lambda i: -self._item_sizes[i])
         rank = {item: idx for idx, item in enumerate(global_order)}
 
+        # remaining_ratio = (items_in_batch_still_to_place) / n_total.
+        # This matches the convention in extract_repair_examples:
+        #   (n_displaced - step) / n_total
+        # Fresh BFD traces in training set n_displaced = n_total (full
+        # destruction), so their ratio of 1.0 at step 0 is the special case
+        # of this formula when all items are displaced — not a mismatch.
         remaining = len(displaced)
         for item in sorted(displaced, key=lambda i: -self._item_sizes[i]):
-            remaining -= 1
             size = self._item_sizes[item]
             feats: list[list[float]] = []
             idxs: list[int] = []
@@ -268,16 +313,25 @@ class BinPackingSolver:
                 sol.bins.append([item])
                 sol.bin_loads.append(size)
                 sol.item_to_bin[item] = len(sol.bins) - 1
+                remaining -= 1
                 continue
 
             assert self._model is not None
-            scores = self._model.predict_proba(np.asarray(feats, dtype=np.float64))[
-                :, 1
-            ]
+            feats_arr = np.asarray(feats, dtype=np.float64)
+
+            # Apply the same scaling that was fit during training. The scaler
+            # is stored in the model bundle and must be applied before
+            # predict_proba to keep the inference distribution consistent with
+            # the training distribution.
+            if self._scaler is not None:
+                feats_arr = self._scaler.transform(feats_arr)
+
+            scores = self._model.predict_proba(feats_arr)[:, 1]
             best_j = idxs[int(np.argmax(scores))]
             sol.bins[best_j].append(item)
             sol.bin_loads[best_j] += size
             sol.item_to_bin[item] = best_j
+            remaining -= 1
 
     @staticmethod
     def _make_repair_features(
@@ -292,26 +346,44 @@ class BinPackingSolver:
         size_rank: dict[int, int],
         remaining_ratio: float,
     ) -> list[float]:
-        """Feature contract for learned repair (must match training script)."""
+        """Compute the 11-dimensional feature vector for a (item, bin) candidate pair.
+
+        Feature contract — must stay identical to train_repair_model._make_features.
+        All values are normalized by capacity so that the integer domain used at
+        inference matches the float domain (capacity = 1.0) used during training.
+
+        Index  Feature
+        -----  -------
+          0    item_size / C               — normalized item size
+          1    (item_size / C)^2           — squared size (non-linear fill effect)
+          2    rank(item) / n              — size rank as fraction of all items
+          3    remaining_ratio             — scheduling progress signal
+          4    bin_load / C                — current bin utilization
+          5    remaining_capacity / C      — residual bin capacity
+          6    slack_after / C             — post-placement residual
+          7    |B_j| / n                  — bin occupancy count, normalized
+          8    max(s_k, k in B_j) / C     — largest item in bin
+          9    min(s_k, k in B_j) / C     — smallest item in bin
+         10    item_size / remaining_cap   — fill ratio (tightness of fit)
+        """
         remaining_capacity = capacity - bin_load
         slack_after = remaining_capacity - item_size
         largest = max((sizes[k] for k in bin_items), default=0.0)
         smallest = min((sizes[k] for k in bin_items), default=0.0)
         return [
-            item_size / capacity,
-            (item_size / capacity) ** 2,
-            item_size / capacity,
-            size_rank.get(item, 0) / max(1, n_total),
-            remaining_ratio,
-            bin_load / capacity,
-            remaining_capacity / capacity,
-            slack_after / capacity,
-            slack_after / capacity,
-            bin_load / capacity,
-            len(bin_items) / max(1, n_total),
-            largest / capacity,
-            smallest / capacity,
-            (item_size / remaining_capacity) if remaining_capacity > 1e-9 else 1.0,
+            item_size / capacity,  # 0
+            (item_size / capacity) ** 2,  # 1
+            size_rank.get(item, 0) / max(1, n_total),  # 2
+            remaining_ratio,  # 3
+            bin_load / capacity,  # 4
+            remaining_capacity / capacity,  # 5
+            slack_after / capacity,  # 6
+            len(bin_items) / max(1, n_total),  # 7
+            largest / capacity,  # 8
+            smallest / capacity,  # 9
+            (
+                (item_size / remaining_capacity) if remaining_capacity > 1e-9 else 1.0
+            ),  # 10
         ]
 
     def _to_presentable_solution(self, sol: _WorkingSolution) -> BinPackingSolution:
@@ -322,12 +394,49 @@ class BinPackingSolver:
         )
 
     @staticmethod
-    def _load_model(model_path: str):
+    def _load_model(model_path: str) -> tuple[Any, Any]:
+        """Load and validate the model bundle produced by train_repair_model.py.
+
+        The bundle is a dict containing at minimum:
+          - "model":           fitted sklearn estimator with predict_proba
+          - "scaler":          fitted StandardScaler (applied before predict_proba)
+          - "feature_version": int, must match _EXPECTED_FEATURE_VERSION
+          - "n_features":      int, sanity-checked against _make_repair_features output
+
+        Returns (model, scaler). Raises if the file is missing, malformed, or
+        was produced by an incompatible version of the training script.
+        """
         path = Path(model_path)
         if not path.exists():
             raise FileNotFoundError(f"Model file not found: {model_path}")
+
         with path.open("rb") as handle:
-            model = pickle.load(handle)
+            bundle = pickle.load(handle)
+
+        if not isinstance(bundle, dict):
+            raise TypeError(
+                f"Expected a model bundle dict, got {type(bundle).__name__}. "
+                "Re-train with the current train_repair_model.py."
+            )
+
+        required_keys = {"model", "scaler", "feature_version", "n_features"}
+        missing = required_keys - bundle.keys()
+        if missing:
+            raise KeyError(
+                f"Model bundle is missing keys: {missing}. "
+                "Re-train with the current train_repair_model.py."
+            )
+
+        version = bundle["feature_version"]
+        if version != _EXPECTED_FEATURE_VERSION:
+            raise ValueError(
+                f"Model feature_version={version} does not match solver's "
+                f"expected version={_EXPECTED_FEATURE_VERSION}. "
+                "Re-train with the current train_repair_model.py."
+            )
+
+        model = bundle["model"]
         if not hasattr(model, "predict_proba"):
             raise TypeError("Loaded model must expose predict_proba(features).")
-        return model
+
+        return model, bundle["scaler"]
