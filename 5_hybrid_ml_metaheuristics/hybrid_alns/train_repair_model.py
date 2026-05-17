@@ -48,11 +48,12 @@ except ImportError:  # pragma: no cover
         return iterable
 
 
-from sklearn.linear_model import LogisticRegressionCV
+from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
+from sklearn.utils.class_weight import compute_sample_weight
 
 import sys
 from pathlib import Path
@@ -519,49 +520,39 @@ def main() -> None:
     # Model training
     # ------------------------------------------------------------------
 
-    # Wrapping StandardScaler and LogisticRegressionCV in a Pipeline ensures
-    # the scaler is re-fit within each CV fold rather than once on all of
-    # x_trainval, preventing data leakage into the validation folds.
+    # GradientBoostingClassifier captures non-linear feature interactions
+    # (e.g. item_size × remaining_capacity) that Logistic Regression cannot.
+    # The solver uses predict_proba scores to rank candidate bins, so ranking
+    # quality (AUC) matters more than hard-decision accuracy.
     #
-    # saga supports class_weight and scales well to large datasets (stochastic
-    # updates). class_weight='balanced' compensates for the positive-to-negative
-    # imbalance without requiring manual weight tuning.
+    # GBC does not support class_weight natively; we use compute_sample_weight
+    # to achieve the same "balanced" effect: each sample is weighted inversely
+    # proportional to its class frequency.
     #
-    # We optimise for ROC-AUC rather than accuracy because the solver uses
-    # predict_proba scores to rank candidate bins — calibrated ranking quality
-    # matters more than hard-decision accuracy at the 0.5 threshold.
-    n_cs = 4
-    n_folds = 5
-    n_l1_ratios = 1  # only (0,) — pure L2
-    total_fits = n_cs * n_folds * n_l1_ratios
+    # StandardScaler is kept in the Pipeline for consistency with the saved
+    # bundle (the solver always applies the scaler before predict_proba).
     print(
-        f"Training model  (Pipeline · LogisticRegressionCV · saga · L2 · "
-        f"{n_folds}-fold CV · {n_cs} C values = {total_fits} fits)..."
+        "Training model  (Pipeline · GradientBoostingClassifier · "
+        "n_estimators=300 · max_depth=4 · lr=0.05)..."
     )
     t_train_start = time.perf_counter()
+    sample_weights = compute_sample_weight("balanced", y_trainval)
     pipe = Pipeline(
         [
             ("scaler", StandardScaler()),
             (
                 "clf",
-                LogisticRegressionCV(
-                    Cs=[0.01, 0.1, 1.0, 10.0],
-                    cv=5,
-                    solver="saga",
-                    # penalty="l2" was deprecated in sklearn 1.8 (removed in 1.10).
-                    # Use l1_ratios=(0,) instead: elasticnet with l1_ratio=0 is
-                    # mathematically identical to pure L2 regularisation.
-                    l1_ratios=(0,),
-                    class_weight="balanced",
-                    max_iter=2000,
-                    scoring="roc_auc",
-                    n_jobs=-1,
+                GradientBoostingClassifier(
+                    n_estimators=300,
+                    max_depth=4,
+                    learning_rate=0.05,
+                    subsample=0.8,
                     random_state=42,
                 ),
             ),
         ]
     )
-    pipe.fit(x_trainval, y_trainval)
+    pipe.fit(x_trainval, y_trainval, clf__sample_weight=sample_weights)
     t_train_elapsed = time.perf_counter() - t_train_start
     print(f"Training complete in {t_train_elapsed:.1f}s")
 
@@ -572,11 +563,10 @@ def main() -> None:
     test_proba = pipe.predict_proba(x_test)[:, 1]
     test_auc = roc_auc_score(y_test, test_proba)
     # C_ has shape (n_classes,) = (1,) for binary problems; use flat[0] to get
-    # a scalar safely across all sklearn and NumPy 2.x versions.
-    best_c = float(pipe.named_steps["clf"].C_.flat[0])
-    print(f"Test ROC-AUC: {test_auc:.4f}  (selected C={best_c:.4g})")
+    n_estimators = pipe.named_steps["clf"].n_estimators_
+    print(f"Test ROC-AUC: {test_auc:.4f}  (n_estimators={n_estimators})")
 
-    # A well-trained model on this task should achieve AUC > 0.75; lower values
+    # A well-trained GBM on this task should achieve AUC > 0.80; lower values
     # suggest the feature contract has drifted or data generation is broken.
     if test_auc < 0.70:
         print(
