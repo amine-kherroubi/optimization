@@ -80,13 +80,30 @@ class DatasetSummary:
 def generate_instance(rng: np.random.Generator, n_min: int, n_max: int) -> np.ndarray:
     """Return one synthetic normalized 1-D BPP instance.
 
-    Sizes are drawn uniformly from [0.1, 0.9] so the bin capacity is implicitly
-    1.0 throughout the training pipeline. Features produced here are therefore
-    already in the same [0, 1] scale as those the solver computes by dividing
-    integer sizes by integer capacity.
+    Three distributions are mixed so the model generalises beyond the uniform
+    case. All sizes are clipped to (0.05, 0.95) to stay well within the
+    implicit capacity of 1.0.
+
+    Distribution probabilities (chosen to balance coverage):
+      40% — Uniform[0.1, 0.9]  — classic benchmark distribution
+      40% — Bimodal             — many small + many large items
+      20% — Gaussian N(0.5,0.2) — items clustered around the midpoint
     """
     n = int(rng.integers(n_min, n_max + 1))
-    return rng.uniform(0.1, 0.9, size=n)
+    dist = rng.integers(0, 5)  # 0-1 → uniform, 2-3 → bimodal, 4 → gaussian
+
+    if dist < 2:
+        sizes = rng.uniform(0.1, 0.9, size=n)
+    elif dist < 4:
+        half = n // 2
+        small = rng.uniform(0.05, 0.35, size=half)
+        large = rng.uniform(0.60, 0.95, size=n - half)
+        sizes = np.concatenate([small, large])
+        rng.shuffle(sizes)
+    else:
+        sizes = rng.normal(0.5, 0.2, size=n)
+
+    return np.clip(sizes, 0.05, 0.95)
 
 
 # ---------------------------------------------------------------------------
