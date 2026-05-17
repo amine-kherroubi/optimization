@@ -11,6 +11,7 @@ from __future__ import annotations
 import math
 import pickle
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -132,6 +133,11 @@ class BinPackingSolver:
         if not 0.0 < alpha_cool <= 1.0:
             raise ValueError("alpha_cool must be in (0, 1].")
 
+        raw_tl = params.get("time_limit_seconds")
+        deadline: float | None = (
+            time.perf_counter() + float(raw_tl) if raw_tl is not None else None
+        )
+
         start = self._build_ffd_start_solution()
         best = start.copy()
         current = start.copy()
@@ -143,6 +149,8 @@ class BinPackingSolver:
 
         temperature = t0
         for _ in range(max_iterations):
+            if deadline is not None and time.perf_counter() >= deadline:
+                break
             arm = bandit.select_arm(self._rng)
             candidate = current.copy()
             k_items = int(self._rng.integers(k_min, k_max + 1))
