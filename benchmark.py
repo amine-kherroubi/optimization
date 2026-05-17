@@ -21,7 +21,7 @@ import numpy as np
 from matplotlib.colors import Normalize
 import matplotlib.cm as cm
 
-_PROJECT_ROOT: Path = Path(__file__).parent
+_PROJECT_ROOT: Path = Path(__file__).resolve().parent
 _BENCHMARKS_ROOT: Path = _PROJECT_ROOT / "datasets"
 _RESULTS_ROOT: Path = _PROJECT_ROOT / "results"
 
@@ -946,7 +946,9 @@ if __name__ == "__main__":
     if not solver_path.is_file():
         arg_parser.error(f"Solver file not found: {solver_path}")
 
-    graphs_dir = (_RESULTS_ROOT / solver_path.parent.name).resolve()
+    graphs_dir = (
+        _RESULTS_ROOT / solver_path.relative_to(_PROJECT_ROOT).parent
+    ).resolve()
 
     dataset_cfg = DATASET_REGISTRY[args.dataset]
     bench = Benchmark(dataset_cfg, solver_path, graphs_dir, time_limit=args.time_limit)
