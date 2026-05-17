@@ -97,7 +97,7 @@ class BinPackingSolver:
         "_rng",
     )
 
-    def __init__(self, item_sizes: list[int], bin_capacity: int):
+    def __init__(self, item_sizes: list[int], bin_capacity: int, seed: int | None = 42):
         if bin_capacity <= 0:
             raise ValueError("bin_capacity must be a positive integer.")
         if any(size <= 0 for size in item_sizes):
@@ -109,9 +109,7 @@ class BinPackingSolver:
         self._final_solution: BinPackingSolution | None = None
         self._model: Any = None
         self._scaler: Any = None
-        self._rng = np.random.default_rng(
-            42
-        )  # fixed seed: runs are deterministic per instance
+        self._rng = np.random.default_rng(seed)
 
     def solve(self, method: str | None = None, **params) -> None:
         _ = method
