@@ -148,12 +148,19 @@ class BinPackingSolver:
         bandit = ThompsonSamplingBandit(n_arms=3)
 
         temperature = t0
-        for _ in range(max_iterations):
+        iterations_since_improvement = 0
+        for iteration in range(max_iterations):
             if deadline is not None and time.perf_counter() >= deadline:
                 break
             arm = bandit.select_arm(self._rng)
             candidate = current.copy()
-            k_items = int(self._rng.integers(k_min, k_max + 1))
+
+            # Adaptive k: grow the destruction radius when stagnating.
+            # stagnation_ratio goes from 0 → 1 as iterations_since_improvement
+            # increases, linearly expanding k toward k_max.
+            stagnation_ratio = min(1.0, iterations_since_improvement / max(1, max_iterations))
+            k_adaptive_max = k_min + int(stagnation_ratio * (k_max - k_min))
+            k_items = int(self._rng.integers(k_min, max(k_min + 1, k_adaptive_max + 1)))
 
             if arm == 0:
                 displaced = self._destroy_random(candidate, k_items)
@@ -176,6 +183,9 @@ class BinPackingSolver:
             if current.cost() < best.cost():
                 best = current.copy()
                 improved = True
+                iterations_since_improvement = 0
+            else:
+                iterations_since_improvement += 1
 
             # 3-level reward: new best (1.0) > accepted (0.5) > rejected (0.0).
             # Thompson Sampling expects binary feedback, so we convert the
