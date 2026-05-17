@@ -93,9 +93,9 @@ _F_ITEM_SIZE = 0  # item size (normalized by capacity = 1.0 here)
 _F_ITEM_SIZE_SQ = 1  # item size squared (captures non-linear fill effects)
 _F_SIZE_RANK = 2  # rank of item by size, as a fraction of total items
 _F_REMAINING = 3  # displaced items left to place (including current) / n_total
-                  # For fresh traces n_displaced == n_total, so this equals
-                  # (n_total - step) / n_total; for repair traces only the
-                  # evicted subset is counted in the numerator.
+# For fresh traces n_displaced == n_total, so this equals
+# (n_total - step) / n_total; for repair traces only the
+# evicted subset is counted in the numerator.
 _F_BIN_LOAD = 4  # current bin load
 _F_BIN_REM = 5  # remaining bin capacity
 _F_SLACK_AFTER = 6  # remaining capacity after placing this item
