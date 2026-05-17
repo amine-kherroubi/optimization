@@ -10,19 +10,22 @@ from __future__ import annotations
 
 import math
 import pickle
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 
-# Must stay in sync with the FEATURE_VERSION constant in train_repair_model.py.
-# _load_model raises if the pickled bundle reports a different version.
-_EXPECTED_FEATURE_VERSION = 2
+# Ensure features.py (sibling module) is importable regardless of how this
+# file is loaded (direct script, importlib from benchmark.py, notebook, etc.).
+_here = str(Path(__file__).parent)
+if _here not in sys.path:
+    sys.path.insert(0, _here)
 
-# Must stay in sync with N_FEATURES in train_repair_model.py and the length
-# of the list returned by _make_repair_features.
-_EXPECTED_N_FEATURES = 11
+from features import FEATURE_VERSION as _EXPECTED_FEATURE_VERSION  # noqa: E402
+from features import N_FEATURES as _EXPECTED_N_FEATURES  # noqa: E402
+from features import make_features as _make_features  # noqa: E402
 
 
 @dataclass(slots=True)
@@ -305,7 +308,7 @@ class BinPackingSolver:
                 if capacity_left + 1e-9 < size:
                     continue
                 feats.append(
-                    self._make_repair_features(
+                    _make_features(
                         item=item,
                         item_size=float(size),
                         bin_items=sol.bins[j],
@@ -342,59 +345,6 @@ class BinPackingSolver:
             sol.bin_loads[best_j] += size
             sol.item_to_bin[item] = best_j
             remaining -= 1
-
-    @staticmethod
-    def _make_repair_features(
-        *,
-        item: int,
-        item_size: float,
-        bin_items: list[int],
-        bin_load: float,
-        capacity: float,
-        sizes: list[float],
-        n_total: int,
-        size_rank: dict[int, int],
-        remaining_ratio: float,
-    ) -> list[float]:
-        """Compute the 11-dimensional feature vector for a (item, bin) candidate pair.
-
-        Feature contract — must stay identical to train_repair_model._make_features.
-        All values are normalized by capacity so that the integer domain used at
-        inference matches the float domain (capacity = 1.0) used during training.
-
-        Index  Feature
-        -----  -------
-          0    item_size / C               — normalized item size
-          1    (item_size / C)^2           — squared size (non-linear fill effect)
-          2    rank(item) / n              — size rank as fraction of all items
-          3    remaining_ratio             — scheduling progress signal
-          4    bin_load / C                — current bin utilization
-          5    remaining_capacity / C      — residual bin capacity
-          6    slack_after / C             — post-placement residual
-          7    |B_j| / n                  — bin occupancy count, normalized
-          8    max(s_k, k in B_j) / C     — largest item in bin
-          9    min(s_k, k in B_j) / C     — smallest item in bin
-         10    item_size / remaining_cap   — fill ratio (tightness of fit)
-        """
-        remaining_capacity = capacity - bin_load
-        slack_after = remaining_capacity - item_size
-        largest = max((sizes[k] for k in bin_items), default=0.0)
-        smallest = min((sizes[k] for k in bin_items), default=0.0)
-        return [
-            item_size / capacity,  # 0
-            (item_size / capacity) ** 2,  # 1
-            size_rank.get(item, 0) / max(1, n_total),  # 2
-            remaining_ratio,  # 3
-            bin_load / capacity,  # 4
-            remaining_capacity / capacity,  # 5
-            slack_after / capacity,  # 6
-            len(bin_items) / max(1, n_total),  # 7
-            largest / capacity,  # 8
-            smallest / capacity,  # 9
-            (
-                (item_size / remaining_capacity) if remaining_capacity > 1e-9 else 1.0
-            ),  # 10
-        ]
 
     def _to_presentable_solution(self, sol: _WorkingSolution) -> BinPackingSolution:
         return BinPackingSolution(

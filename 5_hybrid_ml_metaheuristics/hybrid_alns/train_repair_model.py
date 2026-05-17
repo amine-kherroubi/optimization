@@ -54,9 +54,14 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-# Increment this whenever _make_features changes so the solver can detect
-# a stale model file at load time.
-FEATURE_VERSION = 2
+import sys
+from pathlib import Path
+
+_here = str(Path(__file__).parent)
+if _here not in sys.path:
+    sys.path.insert(0, _here)
+
+from features import FEATURE_VERSION, N_FEATURES, make_features as _make_features  # noqa: E402
 
 
 @dataclass(slots=True)
@@ -71,6 +76,7 @@ class DatasetSummary:
 # ---------------------------------------------------------------------------
 
 
+
 def generate_instance(rng: np.random.Generator, n_min: int, n_max: int) -> np.ndarray:
     """Return one synthetic normalized 1-D BPP instance.
 
@@ -81,70 +87,6 @@ def generate_instance(rng: np.random.Generator, n_min: int, n_max: int) -> np.nd
     """
     n = int(rng.integers(n_min, n_max + 1))
     return rng.uniform(0.1, 0.9, size=n)
-
-
-# ---------------------------------------------------------------------------
-# Feature engineering
-# ---------------------------------------------------------------------------
-
-# Feature index constants — keep in sync with solver._make_repair_features.
-# Naming them makes coefficient analysis and debugging straightforward.
-_F_ITEM_SIZE = 0  # item size (normalized by capacity = 1.0 here)
-_F_ITEM_SIZE_SQ = 1  # item size squared (captures non-linear fill effects)
-_F_SIZE_RANK = 2  # rank of item by size, as a fraction of total items
-_F_REMAINING = 3  # displaced items left to place (including current) / n_total
-# For fresh traces n_displaced == n_total, so this equals
-# (n_total - step) / n_total; for repair traces only the
-# evicted subset is counted in the numerator.
-_F_BIN_LOAD = 4  # current bin load
-_F_BIN_REM = 5  # remaining bin capacity
-_F_SLACK_AFTER = 6  # remaining capacity after placing this item
-_F_BIN_COUNT = 7  # number of items already in the bin (as a fraction)
-_F_BIN_LARGEST = 8  # size of the largest item currently in the bin
-_F_BIN_SMALLEST = 9  # size of the smallest item currently in the bin
-_F_FILL_RATIO = 10  # item_size / remaining_capacity (tightness of fit)
-
-N_FEATURES = 11
-
-
-def _make_features(
-    item: int,
-    bin_idx: int,
-    bins: list[list[int]],
-    bin_loads: list[float],
-    sizes: list[float],
-    size_rank: dict[int, int],
-    remaining_ratio: float,
-) -> list[float]:
-    """Compute features for the (item, bin) candidate pair.
-
-    This contract must be kept identical to solver._make_repair_features.
-    The training environment uses an implicit capacity of 1.0, so all load and
-    size values are already normalized. The solver divides explicitly by its
-    integer capacity to reach the same scale.
-    """
-    n_total = len(sizes)
-    s = sizes[item]
-    load = float(bin_loads[bin_idx])
-    rem = 1.0 - load  # remaining capacity (capacity = 1.0 here)
-    slack_after = rem - s
-    members = bins[bin_idx]
-    largest = max((sizes[k] for k in members), default=0.0)
-    smallest = min((sizes[k] for k in members), default=0.0)
-
-    feat = [0.0] * N_FEATURES
-    feat[_F_ITEM_SIZE] = s
-    feat[_F_ITEM_SIZE_SQ] = s * s
-    feat[_F_SIZE_RANK] = size_rank[item] / max(1, n_total)
-    feat[_F_REMAINING] = remaining_ratio
-    feat[_F_BIN_LOAD] = load
-    feat[_F_BIN_REM] = rem
-    feat[_F_SLACK_AFTER] = slack_after
-    feat[_F_BIN_COUNT] = len(members) / max(1, n_total)
-    feat[_F_BIN_LARGEST] = largest
-    feat[_F_BIN_SMALLEST] = smallest
-    feat[_F_FILL_RATIO] = (s / rem) if rem > 1e-9 else 1.0
-    return feat
 
 
 # ---------------------------------------------------------------------------
@@ -207,13 +149,15 @@ def extract_training_examples(
 
         X.append(
             _make_features(
-                item,
-                best_bin,
-                replay_bins,
-                replay_loads,
-                sizes_list,
-                size_rank,
-                remaining_ratio,
+                item=item,
+                item_size=sizes_list[item],
+                bin_items=replay_bins[best_bin],
+                bin_load=replay_loads[best_bin],
+                capacity=1.0,
+                sizes=sizes_list,
+                n_total=n_total,
+                size_rank=size_rank,
+                remaining_ratio=remaining_ratio,
             )
         )
         y.append(1)
@@ -227,13 +171,15 @@ def extract_training_examples(
         for j in negatives:
             X.append(
                 _make_features(
-                    item,
-                    j,
-                    replay_bins,
-                    replay_loads,
-                    sizes_list,
-                    size_rank,
-                    remaining_ratio,
+                    item=item,
+                    item_size=sizes_list[item],
+                    bin_items=replay_bins[j],
+                    bin_load=replay_loads[j],
+                    capacity=1.0,
+                    sizes=sizes_list,
+                    n_total=n_total,
+                    size_rank=size_rank,
+                    remaining_ratio=remaining_ratio,
                 )
             )
             y.append(0)
@@ -352,13 +298,15 @@ def extract_repair_examples(
 
         X.append(
             _make_features(
-                item,
-                best_bin,
-                bins,
-                bin_loads,
-                sizes_list,
-                size_rank,
-                remaining_ratio,
+                item=item,
+                item_size=sizes_list[item],
+                bin_items=bins[best_bin],
+                bin_load=bin_loads[best_bin],
+                capacity=1.0,
+                sizes=sizes_list,
+                n_total=n_total,
+                size_rank=size_rank,
+                remaining_ratio=remaining_ratio,
             )
         )
         y.append(1)
@@ -369,13 +317,15 @@ def extract_repair_examples(
         for j in negatives:
             X.append(
                 _make_features(
-                    item,
-                    j,
-                    bins,
-                    bin_loads,
-                    sizes_list,
-                    size_rank,
-                    remaining_ratio,
+                    item=item,
+                    item_size=sizes_list[item],
+                    bin_items=bins[j],
+                    bin_load=bin_loads[j],
+                    capacity=1.0,
+                    sizes=sizes_list,
+                    n_total=n_total,
+                    size_rank=size_rank,
+                    remaining_ratio=remaining_ratio,
                 )
             )
             y.append(0)
