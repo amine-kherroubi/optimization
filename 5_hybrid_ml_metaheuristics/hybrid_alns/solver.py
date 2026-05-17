@@ -8,10 +8,12 @@ This module provides a single, deterministic implementation path:
 
 from __future__ import annotations
 
+import heapq
 import math
 import pickle
 import sys
 import time
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -113,7 +115,11 @@ class BinPackingSolver:
         self._rng = np.random.default_rng(seed)
 
     def solve(self, method: str | None = None, **params) -> None:
-        _ = method
+        if method is not None:
+            warnings.warn(
+                f"method={method!r} is ignored; BinPackingSolver runs a single ALNS pipeline.",
+                stacklevel=2,
+            )
 
         model_path = params.get("model_path")
         if not model_path:
@@ -171,6 +177,7 @@ class BinPackingSolver:
 
             if displaced:
                 self._repair_learned(candidate, displaced)
+                self._consolidate(candidate)
 
             delta = candidate.cost() - current.cost()
             accepted = delta <= 0 or self._rng.random() < math.exp(
@@ -208,18 +215,25 @@ class BinPackingSolver:
         order = sorted(
             range(len(self._item_sizes)), key=lambda i: (-self._item_sizes[i], i)
         )
+        # Max-heap (simulated with negatives) on remaining capacity so each item
+        # finds the tightest-fitting bin in O(log b) instead of O(b).
+        # Heap entries: (-remaining_capacity, bin_index).
+        heap: list[tuple[float, int]] = []
         for item in order:
             size = self._item_sizes[item]
-            for j, load in enumerate(sol.bin_loads):
-                if load + size <= self._bin_capacity:
-                    sol.bins[j].append(item)
-                    sol.bin_loads[j] += size
-                    sol.item_to_bin[item] = j
-                    break
+            if heap and -heap[0][0] >= size:
+                neg_rem, j = heapq.heappop(heap)
+                sol.bins[j].append(item)
+                sol.bin_loads[j] += size
+                sol.item_to_bin[item] = j
+                new_rem = -neg_rem - size
+                heapq.heappush(heap, (-new_rem, j))
             else:
+                j = len(sol.bins)
                 sol.bins.append([item])
                 sol.bin_loads.append(size)
-                sol.item_to_bin[item] = len(sol.bins) - 1
+                sol.item_to_bin[item] = j
+                heapq.heappush(heap, (-(self._bin_capacity - size), j))
         return sol
 
     def _destroy_random(self, sol: _WorkingSolution, k_items: int) -> list[int]:
@@ -285,7 +299,11 @@ class BinPackingSolver:
             j = sol.item_to_bin[item]
             if j == -1:
                 continue
-            sol.bins[j].remove(item)
+            # swap-with-last then pop: O(1) instead of O(len(bin)) for list.remove()
+            lst = sol.bins[j]
+            idx = lst.index(item)
+            lst[idx] = lst[-1]
+            lst.pop()
             sol.bin_loads[j] -= self._item_sizes[item]
             sol.item_to_bin[item] = -1
 
@@ -367,6 +385,48 @@ class BinPackingSolver:
             sol.bin_loads[best_j] += size
             sol.item_to_bin[item] = best_j
             remaining -= 1
+
+    def _consolidate(self, sol: _WorkingSolution) -> None:
+        """Post-repair local search: merge under-loaded bins into others.
+
+        Iterates bins from least-loaded to most-loaded. For each item in a
+        lightly-loaded bin, tries to move it to another bin that has room.
+        Empty bins are pruned at the end. A single rebuild_item_to_bin() call
+        is deferred until after all moves to avoid redundant O(n) scans.
+        """
+        changed = False
+        for _ in range(len(sol.bins)):
+            order = sorted(range(len(sol.bins)), key=lambda j: sol.bin_loads[j])
+            moved_any = False
+            for src in order:
+                if not sol.bins[src]:
+                    continue
+                for item in list(sol.bins[src]):
+                    size = self._item_sizes[item]
+                    for dst, dst_load in enumerate(sol.bin_loads):
+                        if dst == src:
+                            continue
+                        if dst_load + size <= self._bin_capacity:
+                            # Move item from src to dst
+                            lst = sol.bins[src]
+                            idx = lst.index(item)
+                            lst[idx] = lst[-1]
+                            lst.pop()
+                            sol.bin_loads[src] -= size
+                            sol.bins[dst].append(item)
+                            sol.bin_loads[dst] += size
+                            changed = True
+                            moved_any = True
+                            break
+            if not moved_any:
+                break
+
+        if changed:
+            empty = [j for j, b in enumerate(sol.bins) if not b]
+            for j in reversed(empty):
+                sol.bins.pop(j)
+                sol.bin_loads.pop(j)
+            sol.rebuild_item_to_bin()
 
     def _to_presentable_solution(self, sol: _WorkingSolution) -> BinPackingSolution:
         return BinPackingSolution(
