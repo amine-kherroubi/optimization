@@ -468,6 +468,17 @@ def main() -> None:
         default="repair_model.pkl",
         help="Output path for the saved model bundle",
     )
+    parser.add_argument(
+        "--augment-with",
+        type=str,
+        default=None,
+        metavar="PKL",
+        help=(
+            "Path to a .pkl produced by collect_alns_states.py. "
+            "Its (X, y) rows are appended to the BFD dataset before training, "
+            "reducing covariate shift between training and ALNS inference states."
+        ),
+    )
     args = parser.parse_args()
 
     # ------------------------------------------------------------------
@@ -483,6 +494,23 @@ def main() -> None:
         destroy_fraction=args.destroy_fraction,
         seed=args.seed,
     )
+
+    if args.augment_with:
+        aug_path = Path(args.augment_with)
+        if not aug_path.exists():
+            raise FileNotFoundError(f"Augmentation file not found: {aug_path}")
+        with aug_path.open("rb") as f:
+            aug = pickle.load(f)
+        if aug.get("feature_version") != FEATURE_VERSION:
+            raise ValueError(
+                f"Augmentation file feature_version={aug.get('feature_version')} "
+                f"does not match current FEATURE_VERSION={FEATURE_VERSION}."
+            )
+        X_aug = aug["X"].astype(np.float32)
+        y_aug = aug["y"].astype(np.int32)
+        X = np.concatenate([X, X_aug], axis=0)
+        y = np.concatenate([y, y_aug], axis=0)
+        print(f"Augmented with {len(X_aug)} ALNS states from {aug_path} → total rows: {len(X)}")
 
     # The positive rate is always >= 1/(1+max_negatives) by construction: even
     # in the worst case where every step contributes exactly max_negatives
