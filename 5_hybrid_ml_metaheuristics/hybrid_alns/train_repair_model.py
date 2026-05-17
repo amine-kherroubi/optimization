@@ -354,6 +354,11 @@ def build_dataset(
     Each synthetic instance contributes two batches of rows: one from a fresh
     BFD trace and one from a post-destruction repair trace (see module docstring
     for rationale). The two batches are pooled before splitting.
+
+    destroy_fraction is used as the *centre* of a uniform range [0.05, 0.40]
+    sampled independently per instance. This covers the full spectrum of ALNS
+    repair states (from mild to heavy destruction) rather than always training
+    on a single fixed fraction.
     """
     if instances <= 0:
         raise ValueError("instances must be > 0")
@@ -373,6 +378,12 @@ def build_dataset(
     ):
         sizes = generate_instance(rng, n_min=n_min, n_max=n_max)
 
+        # Sample a fresh destroy_fraction each instance so the model sees
+        # repair states across the full range [0.05, 0.40], not just one fixed
+        # fraction. The CLI --destroy-fraction argument is ignored here; it
+        # remains available for scripted sweeps via extract_repair_examples.
+        instance_destroy_fraction = float(rng.uniform(0.05, 0.40))
+
         x_fresh, y_fresh = extract_training_examples(
             sizes, max_negatives=max_negatives, rng=rng
         )
@@ -380,7 +391,7 @@ def build_dataset(
             sizes,
             max_negatives=max_negatives,
             rng=rng,
-            destroy_fraction=destroy_fraction,
+            destroy_fraction=instance_destroy_fraction,
         )
         all_x.extend(x_fresh)
         all_y.extend(y_fresh)
