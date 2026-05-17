@@ -177,7 +177,13 @@ class BinPackingSolver:
                 best = current.copy()
                 improved = True
 
-            bandit.update(arm, 1 if (accepted and improved) else 0)
+            # 3-level reward: new best (1.0) > accepted (0.5) > rejected (0.0).
+            # Thompson Sampling expects binary feedback, so we convert the
+            # continuous reward probabilistically: update with 1 if a uniform
+            # draw falls below the reward, 0 otherwise. This preserves the
+            # expected value while keeping the Beta posterior well-calibrated.
+            reward = 1.0 if improved else (0.5 if accepted else 0.0)
+            bandit.update(arm, 1 if self._rng.random() < reward else 0)
             temperature *= alpha_cool
 
         self._final_solution = self._to_presentable_solution(best)
