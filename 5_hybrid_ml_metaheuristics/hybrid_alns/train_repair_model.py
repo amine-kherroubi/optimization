@@ -48,15 +48,21 @@ except ImportError:  # pragma: no cover
         return iterable
 
 
-from sklearn.linear_model import LogisticRegressionCV
+from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
+from sklearn.utils.class_weight import compute_sample_weight
 
-# Increment this whenever _make_features changes so the solver can detect
-# a stale model file at load time.
-FEATURE_VERSION = 2
+import sys
+from pathlib import Path
+
+_here = str(Path(__file__).parent)
+if _here not in sys.path:
+    sys.path.insert(0, _here)
+
+from features import FEATURE_VERSION, N_FEATURES, make_features as _make_features  # noqa: E402
 
 
 @dataclass(slots=True)
@@ -71,80 +77,34 @@ class DatasetSummary:
 # ---------------------------------------------------------------------------
 
 
+
 def generate_instance(rng: np.random.Generator, n_min: int, n_max: int) -> np.ndarray:
     """Return one synthetic normalized 1-D BPP instance.
 
-    Sizes are drawn uniformly from [0.1, 0.9] so the bin capacity is implicitly
-    1.0 throughout the training pipeline. Features produced here are therefore
-    already in the same [0, 1] scale as those the solver computes by dividing
-    integer sizes by integer capacity.
+    Three distributions are mixed so the model generalises beyond the uniform
+    case. All sizes are clipped to (0.05, 0.95) to stay well within the
+    implicit capacity of 1.0.
+
+    Distribution probabilities (chosen to balance coverage):
+      40% — Uniform[0.1, 0.9]  — classic benchmark distribution
+      40% — Bimodal             — many small + many large items
+      20% — Gaussian N(0.5,0.2) — items clustered around the midpoint
     """
     n = int(rng.integers(n_min, n_max + 1))
-    return rng.uniform(0.1, 0.9, size=n)
+    dist = rng.integers(0, 5)  # 0-1 → uniform, 2-3 → bimodal, 4 → gaussian
 
+    if dist < 2:
+        sizes = rng.uniform(0.1, 0.9, size=n)
+    elif dist < 4:
+        half = n // 2
+        small = rng.uniform(0.05, 0.35, size=half)
+        large = rng.uniform(0.60, 0.95, size=n - half)
+        sizes = np.concatenate([small, large])
+        rng.shuffle(sizes)
+    else:
+        sizes = rng.normal(0.5, 0.2, size=n)
 
-# ---------------------------------------------------------------------------
-# Feature engineering
-# ---------------------------------------------------------------------------
-
-# Feature index constants — keep in sync with solver._make_repair_features.
-# Naming them makes coefficient analysis and debugging straightforward.
-_F_ITEM_SIZE = 0  # item size (normalized by capacity = 1.0 here)
-_F_ITEM_SIZE_SQ = 1  # item size squared (captures non-linear fill effects)
-_F_SIZE_RANK = 2  # rank of item by size, as a fraction of total items
-_F_REMAINING = 3  # displaced items left to place (including current) / n_total
-# For fresh traces n_displaced == n_total, so this equals
-# (n_total - step) / n_total; for repair traces only the
-# evicted subset is counted in the numerator.
-_F_BIN_LOAD = 4  # current bin load
-_F_BIN_REM = 5  # remaining bin capacity
-_F_SLACK_AFTER = 6  # remaining capacity after placing this item
-_F_BIN_COUNT = 7  # number of items already in the bin (as a fraction)
-_F_BIN_LARGEST = 8  # size of the largest item currently in the bin
-_F_BIN_SMALLEST = 9  # size of the smallest item currently in the bin
-_F_FILL_RATIO = 10  # item_size / remaining_capacity (tightness of fit)
-
-N_FEATURES = 11
-
-
-def _make_features(
-    item: int,
-    bin_idx: int,
-    bins: list[list[int]],
-    bin_loads: list[float],
-    sizes: list[float],
-    size_rank: dict[int, int],
-    remaining_ratio: float,
-) -> list[float]:
-    """Compute features for the (item, bin) candidate pair.
-
-    This contract must be kept identical to solver._make_repair_features.
-    The training environment uses an implicit capacity of 1.0, so all load and
-    size values are already normalized. The solver divides explicitly by its
-    integer capacity to reach the same scale.
-    """
-    n_total = len(sizes)
-    s = sizes[item]
-    load = float(bin_loads[bin_idx])
-    rem = 1.0 - load  # remaining capacity (capacity = 1.0 here)
-    slack_after = rem - s
-    members = bins[bin_idx]
-    largest = max((sizes[k] for k in members), default=0.0)
-    smallest = min((sizes[k] for k in members), default=0.0)
-
-    feat = [0.0] * N_FEATURES
-    feat[_F_ITEM_SIZE] = s
-    feat[_F_ITEM_SIZE_SQ] = s * s
-    feat[_F_SIZE_RANK] = size_rank[item] / max(1, n_total)
-    feat[_F_REMAINING] = remaining_ratio
-    feat[_F_BIN_LOAD] = load
-    feat[_F_BIN_REM] = rem
-    feat[_F_SLACK_AFTER] = slack_after
-    feat[_F_BIN_COUNT] = len(members) / max(1, n_total)
-    feat[_F_BIN_LARGEST] = largest
-    feat[_F_BIN_SMALLEST] = smallest
-    feat[_F_FILL_RATIO] = (s / rem) if rem > 1e-9 else 1.0
-    return feat
+    return np.clip(sizes, 0.05, 0.95)
 
 
 # ---------------------------------------------------------------------------
@@ -207,13 +167,15 @@ def extract_training_examples(
 
         X.append(
             _make_features(
-                item,
-                best_bin,
-                replay_bins,
-                replay_loads,
-                sizes_list,
-                size_rank,
-                remaining_ratio,
+                item=item,
+                item_size=sizes_list[item],
+                bin_items=replay_bins[best_bin],
+                bin_load=replay_loads[best_bin],
+                capacity=1.0,
+                sizes=sizes_list,
+                n_total=n_total,
+                size_rank=size_rank,
+                remaining_ratio=remaining_ratio,
             )
         )
         y.append(1)
@@ -227,13 +189,15 @@ def extract_training_examples(
         for j in negatives:
             X.append(
                 _make_features(
-                    item,
-                    j,
-                    replay_bins,
-                    replay_loads,
-                    sizes_list,
-                    size_rank,
-                    remaining_ratio,
+                    item=item,
+                    item_size=sizes_list[item],
+                    bin_items=replay_bins[j],
+                    bin_load=replay_loads[j],
+                    capacity=1.0,
+                    sizes=sizes_list,
+                    n_total=n_total,
+                    size_rank=size_rank,
+                    remaining_ratio=remaining_ratio,
                 )
             )
             y.append(0)
@@ -352,13 +316,15 @@ def extract_repair_examples(
 
         X.append(
             _make_features(
-                item,
-                best_bin,
-                bins,
-                bin_loads,
-                sizes_list,
-                size_rank,
-                remaining_ratio,
+                item=item,
+                item_size=sizes_list[item],
+                bin_items=bins[best_bin],
+                bin_load=bin_loads[best_bin],
+                capacity=1.0,
+                sizes=sizes_list,
+                n_total=n_total,
+                size_rank=size_rank,
+                remaining_ratio=remaining_ratio,
             )
         )
         y.append(1)
@@ -369,13 +335,15 @@ def extract_repair_examples(
         for j in negatives:
             X.append(
                 _make_features(
-                    item,
-                    j,
-                    bins,
-                    bin_loads,
-                    sizes_list,
-                    size_rank,
-                    remaining_ratio,
+                    item=item,
+                    item_size=sizes_list[item],
+                    bin_items=bins[j],
+                    bin_load=bin_loads[j],
+                    capacity=1.0,
+                    sizes=sizes_list,
+                    n_total=n_total,
+                    size_rank=size_rank,
+                    remaining_ratio=remaining_ratio,
                 )
             )
             y.append(0)
@@ -404,6 +372,11 @@ def build_dataset(
     Each synthetic instance contributes two batches of rows: one from a fresh
     BFD trace and one from a post-destruction repair trace (see module docstring
     for rationale). The two batches are pooled before splitting.
+
+    destroy_fraction is used as the *centre* of a uniform range [0.05, 0.40]
+    sampled independently per instance. This covers the full spectrum of ALNS
+    repair states (from mild to heavy destruction) rather than always training
+    on a single fixed fraction.
     """
     if instances <= 0:
         raise ValueError("instances must be > 0")
@@ -423,6 +396,12 @@ def build_dataset(
     ):
         sizes = generate_instance(rng, n_min=n_min, n_max=n_max)
 
+        # Sample a fresh destroy_fraction each instance so the model sees
+        # repair states across the full range [0.05, 0.40], not just one fixed
+        # fraction. The CLI --destroy-fraction argument is ignored here; it
+        # remains available for scripted sweeps via extract_repair_examples.
+        instance_destroy_fraction = float(rng.uniform(0.05, 0.40))
+
         x_fresh, y_fresh = extract_training_examples(
             sizes, max_negatives=max_negatives, rng=rng
         )
@@ -430,7 +409,7 @@ def build_dataset(
             sizes,
             max_negatives=max_negatives,
             rng=rng,
-            destroy_fraction=destroy_fraction,
+            destroy_fraction=instance_destroy_fraction,
         )
         all_x.extend(x_fresh)
         all_y.extend(y_fresh)
@@ -489,6 +468,17 @@ def main() -> None:
         default="repair_model.pkl",
         help="Output path for the saved model bundle",
     )
+    parser.add_argument(
+        "--augment-with",
+        type=str,
+        default=None,
+        metavar="PKL",
+        help=(
+            "Path to a .pkl produced by collect_alns_states.py. "
+            "Its (X, y) rows are appended to the BFD dataset before training, "
+            "reducing covariate shift between training and ALNS inference states."
+        ),
+    )
     args = parser.parse_args()
 
     # ------------------------------------------------------------------
@@ -504,6 +494,23 @@ def main() -> None:
         destroy_fraction=args.destroy_fraction,
         seed=args.seed,
     )
+
+    if args.augment_with:
+        aug_path = Path(args.augment_with)
+        if not aug_path.exists():
+            raise FileNotFoundError(f"Augmentation file not found: {aug_path}")
+        with aug_path.open("rb") as f:
+            aug = pickle.load(f)
+        if aug.get("feature_version") != FEATURE_VERSION:
+            raise ValueError(
+                f"Augmentation file feature_version={aug.get('feature_version')} "
+                f"does not match current FEATURE_VERSION={FEATURE_VERSION}."
+            )
+        X_aug = aug["X"].astype(np.float32)
+        y_aug = aug["y"].astype(np.int32)
+        X = np.concatenate([X, X_aug], axis=0)
+        y = np.concatenate([y, y_aug], axis=0)
+        print(f"Augmented with {len(X_aug)} ALNS states from {aug_path} → total rows: {len(X)}")
 
     # The positive rate is always >= 1/(1+max_negatives) by construction: even
     # in the worst case where every step contributes exactly max_negatives
@@ -541,49 +548,39 @@ def main() -> None:
     # Model training
     # ------------------------------------------------------------------
 
-    # Wrapping StandardScaler and LogisticRegressionCV in a Pipeline ensures
-    # the scaler is re-fit within each CV fold rather than once on all of
-    # x_trainval, preventing data leakage into the validation folds.
+    # GradientBoostingClassifier captures non-linear feature interactions
+    # (e.g. item_size × remaining_capacity) that Logistic Regression cannot.
+    # The solver uses predict_proba scores to rank candidate bins, so ranking
+    # quality (AUC) matters more than hard-decision accuracy.
     #
-    # saga supports class_weight and scales well to large datasets (stochastic
-    # updates). class_weight='balanced' compensates for the positive-to-negative
-    # imbalance without requiring manual weight tuning.
+    # GBC does not support class_weight natively; we use compute_sample_weight
+    # to achieve the same "balanced" effect: each sample is weighted inversely
+    # proportional to its class frequency.
     #
-    # We optimise for ROC-AUC rather than accuracy because the solver uses
-    # predict_proba scores to rank candidate bins — calibrated ranking quality
-    # matters more than hard-decision accuracy at the 0.5 threshold.
-    n_cs = 4
-    n_folds = 5
-    n_l1_ratios = 1  # only (0,) — pure L2
-    total_fits = n_cs * n_folds * n_l1_ratios
+    # StandardScaler is kept in the Pipeline for consistency with the saved
+    # bundle (the solver always applies the scaler before predict_proba).
     print(
-        f"Training model  (Pipeline · LogisticRegressionCV · saga · L2 · "
-        f"{n_folds}-fold CV · {n_cs} C values = {total_fits} fits)..."
+        "Training model  (Pipeline · GradientBoostingClassifier · "
+        "n_estimators=300 · max_depth=4 · lr=0.05)..."
     )
     t_train_start = time.perf_counter()
+    sample_weights = compute_sample_weight("balanced", y_trainval)
     pipe = Pipeline(
         [
             ("scaler", StandardScaler()),
             (
                 "clf",
-                LogisticRegressionCV(
-                    Cs=[0.01, 0.1, 1.0, 10.0],
-                    cv=5,
-                    solver="saga",
-                    # penalty="l2" was deprecated in sklearn 1.8 (removed in 1.10).
-                    # Use l1_ratios=(0,) instead: elasticnet with l1_ratio=0 is
-                    # mathematically identical to pure L2 regularisation.
-                    l1_ratios=(0,),
-                    class_weight="balanced",
-                    max_iter=2000,
-                    scoring="roc_auc",
-                    n_jobs=-1,
+                GradientBoostingClassifier(
+                    n_estimators=300,
+                    max_depth=4,
+                    learning_rate=0.05,
+                    subsample=0.8,
                     random_state=42,
                 ),
             ),
         ]
     )
-    pipe.fit(x_trainval, y_trainval)
+    pipe.fit(x_trainval, y_trainval, clf__sample_weight=sample_weights)
     t_train_elapsed = time.perf_counter() - t_train_start
     print(f"Training complete in {t_train_elapsed:.1f}s")
 
@@ -594,11 +591,10 @@ def main() -> None:
     test_proba = pipe.predict_proba(x_test)[:, 1]
     test_auc = roc_auc_score(y_test, test_proba)
     # C_ has shape (n_classes,) = (1,) for binary problems; use flat[0] to get
-    # a scalar safely across all sklearn and NumPy 2.x versions.
-    best_c = float(pipe.named_steps["clf"].C_.flat[0])
-    print(f"Test ROC-AUC: {test_auc:.4f}  (selected C={best_c:.4g})")
+    n_estimators = pipe.named_steps["clf"].n_estimators_
+    print(f"Test ROC-AUC: {test_auc:.4f}  (n_estimators={n_estimators})")
 
-    # A well-trained model on this task should achieve AUC > 0.75; lower values
+    # A well-trained GBM on this task should achieve AUC > 0.80; lower values
     # suggest the feature contract has drifted or data generation is broken.
     if test_auc < 0.70:
         print(

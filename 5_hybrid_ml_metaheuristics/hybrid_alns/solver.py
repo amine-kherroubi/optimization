@@ -8,21 +8,27 @@ This module provides a single, deterministic implementation path:
 
 from __future__ import annotations
 
+import heapq
 import math
 import pickle
+import sys
+import time
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 
-# Must stay in sync with the FEATURE_VERSION constant in train_repair_model.py.
-# _load_model raises if the pickled bundle reports a different version.
-_EXPECTED_FEATURE_VERSION = 2
+# Ensure features.py (sibling module) is importable regardless of how this
+# file is loaded (direct script, importlib from benchmark.py, notebook, etc.).
+_here = str(Path(__file__).parent)
+if _here not in sys.path:
+    sys.path.insert(0, _here)
 
-# Must stay in sync with N_FEATURES in train_repair_model.py and the length
-# of the list returned by _make_repair_features.
-_EXPECTED_N_FEATURES = 11
+from features import FEATURE_VERSION as _EXPECTED_FEATURE_VERSION  # noqa: E402
+from features import N_FEATURES as _EXPECTED_N_FEATURES  # noqa: E402
+from features import make_features as _make_features  # noqa: E402
 
 
 @dataclass(slots=True)
@@ -94,7 +100,7 @@ class BinPackingSolver:
         "_rng",
     )
 
-    def __init__(self, item_sizes: list[int], bin_capacity: int):
+    def __init__(self, item_sizes: list[int], bin_capacity: int, seed: int | None = 42):
         if bin_capacity <= 0:
             raise ValueError("bin_capacity must be a positive integer.")
         if any(size <= 0 for size in item_sizes):
@@ -106,12 +112,14 @@ class BinPackingSolver:
         self._final_solution: BinPackingSolution | None = None
         self._model: Any = None
         self._scaler: Any = None
-        self._rng = np.random.default_rng(
-            42
-        )  # fixed seed: runs are deterministic per instance
+        self._rng = np.random.default_rng(seed)
 
     def solve(self, method: str | None = None, **params) -> None:
-        _ = method
+        if method is not None:
+            warnings.warn(
+                f"method={method!r} is ignored; BinPackingSolver runs a single ALNS pipeline.",
+                stacklevel=2,
+            )
 
         model_path = params.get("model_path")
         if not model_path:
@@ -131,6 +139,11 @@ class BinPackingSolver:
         if not 0.0 < alpha_cool <= 1.0:
             raise ValueError("alpha_cool must be in (0, 1].")
 
+        raw_tl = params.get("time_limit_seconds")
+        deadline: float | None = (
+            time.perf_counter() + float(raw_tl) if raw_tl is not None else None
+        )
+
         start = self._build_ffd_start_solution()
         best = start.copy()
         current = start.copy()
@@ -141,10 +154,19 @@ class BinPackingSolver:
         bandit = ThompsonSamplingBandit(n_arms=3)
 
         temperature = t0
-        for _ in range(max_iterations):
+        iterations_since_improvement = 0
+        for iteration in range(max_iterations):
+            if deadline is not None and time.perf_counter() >= deadline:
+                break
             arm = bandit.select_arm(self._rng)
             candidate = current.copy()
-            k_items = int(self._rng.integers(k_min, k_max + 1))
+
+            # Adaptive k: grow the destruction radius when stagnating.
+            # stagnation_ratio goes from 0 → 1 as iterations_since_improvement
+            # increases, linearly expanding k toward k_max.
+            stagnation_ratio = min(1.0, iterations_since_improvement / max(1, max_iterations))
+            k_adaptive_max = k_min + int(stagnation_ratio * (k_max - k_min))
+            k_items = int(self._rng.integers(k_min, max(k_min + 1, k_adaptive_max + 1)))
 
             if arm == 0:
                 displaced = self._destroy_random(candidate, k_items)
@@ -155,6 +177,7 @@ class BinPackingSolver:
 
             if displaced:
                 self._repair_learned(candidate, displaced)
+                self._consolidate(candidate)
 
             delta = candidate.cost() - current.cost()
             accepted = delta <= 0 or self._rng.random() < math.exp(
@@ -167,8 +190,17 @@ class BinPackingSolver:
             if current.cost() < best.cost():
                 best = current.copy()
                 improved = True
+                iterations_since_improvement = 0
+            else:
+                iterations_since_improvement += 1
 
-            bandit.update(arm, 1 if (accepted and improved) else 0)
+            # 3-level reward: new best (1.0) > accepted (0.5) > rejected (0.0).
+            # Thompson Sampling expects binary feedback, so we convert the
+            # continuous reward probabilistically: update with 1 if a uniform
+            # draw falls below the reward, 0 otherwise. This preserves the
+            # expected value while keeping the Beta posterior well-calibrated.
+            reward = 1.0 if improved else (0.5 if accepted else 0.0)
+            bandit.update(arm, 1 if self._rng.random() < reward else 0)
             temperature *= alpha_cool
 
         self._final_solution = self._to_presentable_solution(best)
@@ -183,18 +215,25 @@ class BinPackingSolver:
         order = sorted(
             range(len(self._item_sizes)), key=lambda i: (-self._item_sizes[i], i)
         )
+        # Max-heap (simulated with negatives) on remaining capacity so each item
+        # finds the tightest-fitting bin in O(log b) instead of O(b).
+        # Heap entries: (-remaining_capacity, bin_index).
+        heap: list[tuple[float, int]] = []
         for item in order:
             size = self._item_sizes[item]
-            for j, load in enumerate(sol.bin_loads):
-                if load + size <= self._bin_capacity:
-                    sol.bins[j].append(item)
-                    sol.bin_loads[j] += size
-                    sol.item_to_bin[item] = j
-                    break
+            if heap and -heap[0][0] >= size:
+                neg_rem, j = heapq.heappop(heap)
+                sol.bins[j].append(item)
+                sol.bin_loads[j] += size
+                sol.item_to_bin[item] = j
+                new_rem = -neg_rem - size
+                heapq.heappush(heap, (-new_rem, j))
             else:
+                j = len(sol.bins)
                 sol.bins.append([item])
                 sol.bin_loads.append(size)
-                sol.item_to_bin[item] = len(sol.bins) - 1
+                sol.item_to_bin[item] = j
+                heapq.heappush(heap, (-(self._bin_capacity - size), j))
         return sol
 
     def _destroy_random(self, sol: _WorkingSolution, k_items: int) -> list[int]:
@@ -260,7 +299,11 @@ class BinPackingSolver:
             j = sol.item_to_bin[item]
             if j == -1:
                 continue
-            sol.bins[j].remove(item)
+            # swap-with-last then pop: O(1) instead of O(len(bin)) for list.remove()
+            lst = sol.bins[j]
+            idx = lst.index(item)
+            lst[idx] = lst[-1]
+            lst.pop()
             sol.bin_loads[j] -= self._item_sizes[item]
             sol.item_to_bin[item] = -1
 
@@ -305,7 +348,7 @@ class BinPackingSolver:
                 if capacity_left + 1e-9 < size:
                     continue
                 feats.append(
-                    self._make_repair_features(
+                    _make_features(
                         item=item,
                         item_size=float(size),
                         bin_items=sol.bins[j],
@@ -343,58 +386,47 @@ class BinPackingSolver:
             sol.item_to_bin[item] = best_j
             remaining -= 1
 
-    @staticmethod
-    def _make_repair_features(
-        *,
-        item: int,
-        item_size: float,
-        bin_items: list[int],
-        bin_load: float,
-        capacity: float,
-        sizes: list[float],
-        n_total: int,
-        size_rank: dict[int, int],
-        remaining_ratio: float,
-    ) -> list[float]:
-        """Compute the 11-dimensional feature vector for a (item, bin) candidate pair.
+    def _consolidate(self, sol: _WorkingSolution) -> None:
+        """Post-repair local search: merge under-loaded bins into others.
 
-        Feature contract — must stay identical to train_repair_model._make_features.
-        All values are normalized by capacity so that the integer domain used at
-        inference matches the float domain (capacity = 1.0) used during training.
-
-        Index  Feature
-        -----  -------
-          0    item_size / C               — normalized item size
-          1    (item_size / C)^2           — squared size (non-linear fill effect)
-          2    rank(item) / n              — size rank as fraction of all items
-          3    remaining_ratio             — scheduling progress signal
-          4    bin_load / C                — current bin utilization
-          5    remaining_capacity / C      — residual bin capacity
-          6    slack_after / C             — post-placement residual
-          7    |B_j| / n                  — bin occupancy count, normalized
-          8    max(s_k, k in B_j) / C     — largest item in bin
-          9    min(s_k, k in B_j) / C     — smallest item in bin
-         10    item_size / remaining_cap   — fill ratio (tightness of fit)
+        Iterates bins from least-loaded to most-loaded. For each item in a
+        lightly-loaded bin, tries to move it to another bin that has room.
+        Empty bins are pruned at the end. A single rebuild_item_to_bin() call
+        is deferred until after all moves to avoid redundant O(n) scans.
         """
-        remaining_capacity = capacity - bin_load
-        slack_after = remaining_capacity - item_size
-        largest = max((sizes[k] for k in bin_items), default=0.0)
-        smallest = min((sizes[k] for k in bin_items), default=0.0)
-        return [
-            item_size / capacity,  # 0
-            (item_size / capacity) ** 2,  # 1
-            size_rank.get(item, 0) / max(1, n_total),  # 2
-            remaining_ratio,  # 3
-            bin_load / capacity,  # 4
-            remaining_capacity / capacity,  # 5
-            slack_after / capacity,  # 6
-            len(bin_items) / max(1, n_total),  # 7
-            largest / capacity,  # 8
-            smallest / capacity,  # 9
-            (
-                (item_size / remaining_capacity) if remaining_capacity > 1e-9 else 1.0
-            ),  # 10
-        ]
+        changed = False
+        for _ in range(len(sol.bins)):
+            order = sorted(range(len(sol.bins)), key=lambda j: sol.bin_loads[j])
+            moved_any = False
+            for src in order:
+                if not sol.bins[src]:
+                    continue
+                for item in list(sol.bins[src]):
+                    size = self._item_sizes[item]
+                    for dst, dst_load in enumerate(sol.bin_loads):
+                        if dst == src:
+                            continue
+                        if dst_load + size <= self._bin_capacity:
+                            # Move item from src to dst
+                            lst = sol.bins[src]
+                            idx = lst.index(item)
+                            lst[idx] = lst[-1]
+                            lst.pop()
+                            sol.bin_loads[src] -= size
+                            sol.bins[dst].append(item)
+                            sol.bin_loads[dst] += size
+                            changed = True
+                            moved_any = True
+                            break
+            if not moved_any:
+                break
+
+        if changed:
+            empty = [j for j, b in enumerate(sol.bins) if not b]
+            for j in reversed(empty):
+                sol.bins.pop(j)
+                sol.bin_loads.pop(j)
+            sol.rebuild_item_to_bin()
 
     def _to_presentable_solution(self, sol: _WorkingSolution) -> BinPackingSolution:
         return BinPackingSolution(
