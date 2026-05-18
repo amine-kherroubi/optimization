@@ -32,8 +32,8 @@ from __future__ import annotations
 
 import argparse
 import pickle
-from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -44,7 +44,6 @@ if _here not in sys.path:
     sys.path.insert(0, _here)
 
 from features import make_features, N_FEATURES, FEATURE_VERSION  # noqa: E402
-
 
 # ---------------------------------------------------------------------------
 # BFD oracle — labels a repair state with the best-fit decision
@@ -123,7 +122,9 @@ def _generate_instance(rng: np.random.Generator, n_min: int, n_max: int) -> np.n
         sizes = rng.uniform(0.1, 0.9, size=n)
     elif dist < 4:
         half = n // 2
-        sizes = np.concatenate([rng.uniform(0.05, 0.35, half), rng.uniform(0.60, 0.95, n - half)])
+        sizes = np.concatenate(
+            [rng.uniform(0.05, 0.35, half), rng.uniform(0.60, 0.95, n - half)]
+        )
         rng.shuffle(sizes)
     else:
         sizes = rng.normal(0.5, 0.2, size=n)
@@ -137,8 +138,8 @@ def _generate_instance(rng: np.random.Generator, n_min: int, n_max: int) -> np.n
 
 def _run_alns_and_capture(
     sizes: np.ndarray,
-    model: object,
-    scaler: object,
+    model: Any,
+    scaler: Any,
     max_iterations: int,
     max_negatives: int,
     rng: np.random.Generator,
@@ -246,6 +247,7 @@ def _run_alns_and_capture(
                 item_to_bin[item] = len(bins) - 1
             else:
                 import numpy as _np
+
                 feats_arr = _np.asarray(feats, dtype=_np.float64)
                 if scaler is not None:
                     feats_arr = scaler.transform(feats_arr)
@@ -271,11 +273,15 @@ def main() -> None:
         description="Collect real ALNS repair states for training augmentation"
     )
     parser.add_argument("--model-path", required=True, help="Existing repair_model.pkl")
-    parser.add_argument("--instances", type=int, default=500, help="Synthetic instances to run")
+    parser.add_argument(
+        "--instances", type=int, default=500, help="Synthetic instances to run"
+    )
     parser.add_argument("--n-min", type=int, default=50)
     parser.add_argument("--n-max", type=int, default=200)
     parser.add_argument("--max-negatives", type=int, default=5)
-    parser.add_argument("--iterations", type=int, default=200, help="ALNS iterations per instance")
+    parser.add_argument(
+        "--iterations", type=int, default=200, help="ALNS iterations per instance"
+    )
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--output", default="alns_states.pkl")
     args = parser.parse_args()

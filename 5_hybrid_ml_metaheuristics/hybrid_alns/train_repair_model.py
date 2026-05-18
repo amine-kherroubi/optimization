@@ -62,7 +62,11 @@ _here = str(Path(__file__).parent)
 if _here not in sys.path:
     sys.path.insert(0, _here)
 
-from features import FEATURE_VERSION, N_FEATURES, make_features as _make_features  # noqa: E402
+from features import (
+    FEATURE_VERSION,
+    N_FEATURES,
+    make_features as _make_features,
+)  # noqa: E402
 
 
 @dataclass(slots=True)
@@ -75,7 +79,6 @@ class DatasetSummary:
 # ---------------------------------------------------------------------------
 # Instance generation
 # ---------------------------------------------------------------------------
-
 
 
 def generate_instance(rng: np.random.Generator, n_min: int, n_max: int) -> np.ndarray:
@@ -510,7 +513,9 @@ def main() -> None:
         y_aug = aug["y"].astype(np.int32)
         X = np.concatenate([X, X_aug], axis=0)
         y = np.concatenate([y, y_aug], axis=0)
-        print(f"Augmented with {len(X_aug)} ALNS states from {aug_path} → total rows: {len(X)}")
+        print(
+            f"Augmented with {len(X_aug)} ALNS states from {aug_path} → total rows: {len(X)}"
+        )
 
     # The positive rate is always >= 1/(1+max_negatives) by construction: even
     # in the worst case where every step contributes exactly max_negatives

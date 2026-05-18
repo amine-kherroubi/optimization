@@ -164,7 +164,9 @@ class BinPackingSolver:
             # Adaptive k: grow the destruction radius when stagnating.
             # stagnation_ratio goes from 0 → 1 as iterations_since_improvement
             # increases, linearly expanding k toward k_max.
-            stagnation_ratio = min(1.0, iterations_since_improvement / max(1, max_iterations))
+            stagnation_ratio = min(
+                1.0, iterations_since_improvement / max(1, max_iterations)
+            )
             k_adaptive_max = k_min + int(stagnation_ratio * (k_max - k_min))
             k_items = int(self._rng.integers(k_min, max(k_min + 1, k_adaptive_max + 1)))
 
