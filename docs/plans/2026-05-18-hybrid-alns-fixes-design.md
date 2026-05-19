@@ -1,8 +1,8 @@
 # Design — Corrections hybrid_alns (13 problèmes)
 
-**Date** : 2026-05-18  
-**Projet** : `5_hybrid_ml_metaheuristics/hybrid_alns`  
-**Objectif** : corriger les 13 problèmes identifiés dans `REVIEW_DEBUTANT.md`, dans un ordre qui respecte les dépendances entre corrections.  
+**Date** : 2026-05-18
+**Projet** : `5_hybrid_ml_metaheuristics/hybrid_alns`
+**Objectif** : corriger les 13 problèmes identifiés dans `REVIEW_DEBUTANT.md`, dans un ordre qui respecte les dépendances entre corrections.
 **Approche** : par couche — fondations d'abord, quick wins en dernier.
 
 ---
@@ -20,7 +20,7 @@ Le solveur hybride ALNS combine :
 
 ## Couche 1 — Fondations
 
-**Problèmes** : P2, P13  
+**Problèmes** : P2, P13
 **Fichiers** : `features.py` (nouveau), `solver.py`, `train_repair_model.py`
 
 ### P2 — Créer `features.py` partagé
@@ -67,7 +67,7 @@ def make_features(
 
 ## Couche 2 — Cœur ALNS
 
-**Problèmes** : P1, P4, P5  
+**Problèmes** : P1, P4, P5
 **Fichiers** : `solver.py`
 
 ### P5 — Time limit
@@ -113,7 +113,7 @@ Au début : k reste petit (intensification). Après stagnation prolongée : k mo
 
 ## Couche 3 — Pipeline ML
 
-**Problèmes** : P9, P8, P3  
+**Problèmes** : P9, P8, P3
 **Fichiers** : `train_repair_model.py`
 
 ### P9 — destroy_fraction variable
@@ -154,7 +154,7 @@ Au début : k reste petit (intensification). Après stagnation prolongée : k mo
 
 ## Couche 4 — Biais d'imitation
 
-**Problèmes** : P6  
+**Problèmes** : P6
 **Fichiers** : `train_repair_model.py`, nouveau `collect_alns_states.py`
 
 ### P6 — Collecte d'états ALNS réels
@@ -179,7 +179,7 @@ Au début : k reste petit (intensification). Après stagnation prolongée : k mo
 
 ## Couche 5 — Quick wins
 
-**Problèmes** : P11, P7, P12, P10  
+**Problèmes** : P11, P7, P12, P10
 **Fichiers** : `solver.py`
 
 ### P11 — Warning si `method` non-None

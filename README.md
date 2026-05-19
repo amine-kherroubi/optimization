@@ -4,7 +4,7 @@
 ![Platform](https://img.shields.io/badge/Platform-Linux-FCC624?style=flat&logo=linux&logoColor=black)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-A research-oriented project for comparing algorithm families on the **1D Bin Packing Problem (BPP)**.
+A research-oriented project for evaluating algorithm families on the **1D Bin Packing Problem (BPP)**.
 
 ## Repository organization
 
@@ -22,17 +22,17 @@ A research-oriented project for comparing algorithm families on the **1D Bin Pac
 
 ### Solver taxonomy
 
-1. **Exact methods** (`1_exact_methods/`): optimal but expensive.
-2. **Specific heuristics** (`2_specific_heuristics/`): fast constructive/improvement rules.
-3. **Trajectory-based metaheuristics** (`3_trajectory_based_metaheuristics/`): single-solution neighborhood search.
-4. **Population-based metaheuristics** (`4_population_based_metaheuristics/`): GA/ACO-style population search.
-5. **Hybrid ML + metaheuristics** (`5_hybrid_ml_metaheuristics/`): ALNS with Thompson Sampling and optional learned repair.
+1. **Exact methods** (`1_exact_methods/`): optimal approaches with high computational cost.
+2. **Specific heuristics** (`2_specific_heuristics/`): constructive and local improvement strategies.
+3. **Trajectory-based metaheuristics** (`3_trajectory_based_metaheuristics/`): single-solution neighborhood search methods.
+4. **Population-based metaheuristics** (`4_population_based_metaheuristics/`): population-driven search methods such as GA and ACO.
+5. **Hybrid ML + metaheuristics** (`5_hybrid_ml_metaheuristics/`): adaptive frameworks combining machine learning and metaheuristic search.
 
 ---
 
 ## Run benchmarks
 
-All commands are expected to be run from the project root.
+All commands are intended to be executed from the project root.
 
 ```bash
 python benchmark.py --solver <solver_path> --dataset <dataset_key> [--method <method_name>] [--method-args "k=v,..."]
@@ -52,10 +52,10 @@ python benchmark.py --solver 5_hybrid_ml_metaheuristics/hybrid_alns/solver.py --
 
 - `--solver` (required): path to a `solver.py`.
 - `--dataset` (required): one of the registered datasets.
-- `--method` (optional): method string accepted by the selected solver. If omitted, solver defaults are used.
-- `--method-args` (optional): comma-separated `key=value` arguments forwarded to `solve(...)` (e.g., model paths, iteration counts).
-- `--num-items`: keep only instances with exactly `N` items.
-- `--max-items`: keep only instances with at most `N` items.
+- `--method` (optional): method identifier accepted by the selected solver.
+- `--method-args` (optional): comma-separated `key=value` arguments forwarded to `solve(...)`.
+- `--num-items`: restrict evaluation to instances with exactly `N` items.
+- `--max-items`: restrict evaluation to instances with at most `N` items.
 - `--time-limit`: per-instance timeout in seconds.
 - `--no-graphs`: disable plot generation.
 
@@ -63,10 +63,10 @@ python benchmark.py --solver 5_hybrid_ml_metaheuristics/hybrid_alns/solver.py --
 
 ### Method routing behavior
 
-- Benchmark now introspects each solver's `solve(...)` signature.
-- If `--method` is provided but a solver does not accept a `method` parameter, benchmark prints a warning and ignores it.
-- `--method-args` are type-coerced (`true/false`, `int`, `float`, then fallback to `str`) and passed through.
-- If a solver does not accept `**kwargs`, unsupported `--method-args` are ignored with a warning.
+- Benchmark execution introspects each solver’s `solve(...)` signature.
+- If `--method` is provided but unsupported by the solver, the benchmark emits a warning and ignores it.
+- `--method-args` values are type-coerced (`bool`, `int`, `float`, then `str`) before dispatch.
+- Unsupported keyword arguments are ignored when the solver does not accept `**kwargs`.
 
 ---
 
@@ -92,15 +92,15 @@ Standard instance format:
 
 ## Results
 
-Benchmark outputs are written under:
+Benchmark outputs are written to:
 
 ```text
 results/<solver_folder>/
 ```
 
-Typical outputs include runtime plots, bins-vs-lower-bound plots, and fill-rate summaries.
+Typical outputs include runtime plots, solution-quality comparisons against lower bounds, and fill-rate statistics.
 
-For population-based tuning workflows:
+Population-based tuning outputs are stored under:
 
 - `results/4_population_based_metaheuristics/aco_tuning/`
 - `results/4_population_based_metaheuristics/ga_tuning/`
