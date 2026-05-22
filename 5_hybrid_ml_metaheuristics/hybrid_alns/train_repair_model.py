@@ -463,7 +463,6 @@ def _generate_examples_for_seed(
     """
     rng = np.random.default_rng(int(seed))
     sizes = generate_instance(rng, n_min=n_min, n_max=n_max)
-    instance_destroy_fraction = float(rng.uniform(0.05, 0.40))
     x_fresh, y_fresh = extract_training_examples(
         sizes, max_negatives=max_negatives, rng=rng
     )
@@ -471,7 +470,7 @@ def _generate_examples_for_seed(
         sizes,
         max_negatives=max_negatives,
         rng=rng,
-        destroy_fraction=instance_destroy_fraction,
+        destroy_fraction=destroy_fraction,
     )
     return x_fresh + x_repair, y_fresh + y_repair
 
@@ -537,12 +536,6 @@ def build_dataset(
         ):
             sizes = generate_instance(rng, n_min=n_min, n_max=n_max)
 
-            # Sample a fresh destroy_fraction each instance so the model sees
-            # repair states across the full range [0.05, 0.40], not just one fixed
-            # fraction. The CLI --destroy-fraction argument is ignored here; it
-            # remains available for scripted sweeps via extract_repair_examples.
-            instance_destroy_fraction = float(rng.uniform(0.05, 0.40))
-
             x_fresh, y_fresh = extract_training_examples(
                 sizes, max_negatives=max_negatives, rng=rng
             )
@@ -550,7 +543,7 @@ def build_dataset(
                 sizes,
                 max_negatives=max_negatives,
                 rng=rng,
-                destroy_fraction=instance_destroy_fraction,
+                destroy_fraction=destroy_fraction,
             )
             all_x.extend(x_fresh)
             all_y.extend(y_fresh)

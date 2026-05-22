@@ -8,7 +8,6 @@ This module provides a single, deterministic implementation path:
 
 from __future__ import annotations
 
-import heapq
 import math
 import pickle
 import sys
@@ -155,6 +154,7 @@ class BinPackingSolver:
         bandit = ThompsonSamplingBandit(n_arms=3)
 
         temperature = t0
+        no_improve_limit = max(250, max_iterations // 20)
         iterations_since_improvement = 0
         for iteration in range(max_iterations):
             if deadline is not None and time.perf_counter() >= deadline:
@@ -204,7 +204,14 @@ class BinPackingSolver:
             # expected value while keeping the Beta posterior well-calibrated.
             reward = 1.0 if improved else (0.5 if accepted else 0.0)
             bandit.update(arm, 1 if self._rng.random() < reward else 0)
+            if iterations_since_improvement > 0 and (
+                iterations_since_improvement % max(50, max_iterations // 40) == 0
+            ):
+                # Soft reheat helps escape local minima during long plateaus.
+                temperature = max(temperature, t0 * 0.35)
             temperature *= alpha_cool
+            if iterations_since_improvement >= no_improve_limit:
+                break
 
         self._final_solution = self._to_presentable_solution(best)
 
@@ -218,25 +225,29 @@ class BinPackingSolver:
         order = sorted(
             range(len(self._item_sizes)), key=lambda i: (-self._item_sizes[i], i)
         )
-        # Max-heap (simulated with negatives) on remaining capacity so each item
-        # finds the tightest-fitting bin in O(log b) instead of O(b).
-        # Heap entries: (-remaining_capacity, bin_index).
-        heap: list[tuple[float, int]] = []
+        # Best-Fit Decreasing (BFD): choose the feasible bin with minimum slack.
+        # This provides a stronger warm start for ALNS than looser fit policies.
         for item in order:
             size = self._item_sizes[item]
-            if heap and -heap[0][0] >= size:
-                neg_rem, j = heapq.heappop(heap)
+            best_j = -1
+            best_slack = self._bin_capacity + 1
+            for j, load in enumerate(sol.bin_loads):
+                slack = self._bin_capacity - load - size
+                if slack < 0:
+                    continue
+                if slack < best_slack:
+                    best_slack = slack
+                    best_j = j
+            if best_j >= 0:
+                j = best_j
                 sol.bins[j].append(item)
                 sol.bin_loads[j] += size
                 sol.item_to_bin[item] = j
-                new_rem = -neg_rem - size
-                heapq.heappush(heap, (-new_rem, j))
             else:
                 j = len(sol.bins)
                 sol.bins.append([item])
                 sol.bin_loads.append(size)
                 sol.item_to_bin[item] = j
-                heapq.heappush(heap, (-(self._bin_capacity - size), j))
         return sol
 
     def _destroy_random(self, sol: _WorkingSolution, k_items: int) -> list[int]:
