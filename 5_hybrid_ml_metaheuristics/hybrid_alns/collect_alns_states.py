@@ -33,10 +33,10 @@ from __future__ import annotations
 import argparse
 import pickle
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence, Mapping, Tuple
 
+import math
 import numpy as np
-
 import sys
 
 _here = str(Path(__file__).parent)
@@ -52,15 +52,15 @@ from features import make_features, N_FEATURES, FEATURE_VERSION  # noqa: E402
 
 def _bfd_label(
     item: int,
-    sizes: list[float],
+    sizes: Sequence[float],
     bins: list[list[int]],
-    bin_loads: list[float],
+    bin_loads: Sequence[float],
     capacity: float,
-    size_rank: dict[int, int],
+    size_rank: Mapping[int, int],
     remaining_ratio: float,
     max_negatives: int,
     rng: np.random.Generator,
-) -> tuple[list[list[float]], list[int]]:
+) -> Tuple[list[list[float]], list[int]]:
     """Label one (item, existing_bins) repair state with BFD.
 
     Returns (X_rows, y_rows) — empty if no feasible bin exists for this item.
@@ -84,15 +84,18 @@ def _bfd_label(
     if best_bin == -1:
         return [], []
 
+    mf = make_features
+    n_total = len(sizes)
+
     def _feat(bin_idx: int) -> list[float]:
-        return make_features(
+        return mf(
             item=item,
             item_size=item_size,
             bin_items=bins[bin_idx],
             bin_load=bin_loads[bin_idx],
             capacity=capacity,
             sizes=sizes,
-            n_total=len(sizes),
+            n_total=n_total,
             size_rank=size_rank,
             remaining_ratio=remaining_ratio,
         )
@@ -143,17 +146,18 @@ def _run_alns_and_capture(
     max_iterations: int,
     max_negatives: int,
     rng: np.random.Generator,
-) -> tuple[list[list[float]], list[int]]:
+) -> Tuple[list[list[float]], list[int]]:
     """Run ALNS on one instance; capture repair states and label with BFD.
 
     This mirrors the solver logic but intercepts each repair call to extract
     (bins_state, displaced_items) before the model makes its placement decisions.
     """
-    import math
-
-    sizes_list = list(float(v) for v in sizes)
+    sizes_list = [float(v) for v in sizes]
     n = len(sizes_list)
     capacity = 1.0
+    denom = max(1, n)
+    mf = make_features
+    eps = 1e-9
 
     # FFD start solution
     order = sorted(range(n), key=lambda i: -sizes_list[i])
@@ -214,7 +218,7 @@ def _run_alns_and_capture(
                 bin_loads=bin_loads,
                 capacity=capacity,
                 size_rank=size_rank,
-                remaining_ratio=remaining / max(1, n),
+                remaining_ratio=remaining / denom,
                 max_negatives=max_negatives,
                 rng=rng,
             )
@@ -225,9 +229,9 @@ def _run_alns_and_capture(
             feats: list[list[float]] = []
             idxs: list[int] = []
             for j, load in enumerate(bin_loads):
-                if capacity - load + 1e-9 >= sizes_list[item]:
+                if capacity - load + eps >= sizes_list[item]:
                     feats.append(
-                        make_features(
+                        mf(
                             item=item,
                             item_size=sizes_list[item],
                             bin_items=bins[j],
@@ -236,7 +240,7 @@ def _run_alns_and_capture(
                             sizes=sizes_list,
                             n_total=n,
                             size_rank=size_rank,
-                            remaining_ratio=remaining / max(1, n),
+                            remaining_ratio=remaining / denom,
                         )
                     )
                     idxs.append(j)
@@ -246,13 +250,11 @@ def _run_alns_and_capture(
                 bin_loads.append(sizes_list[item])
                 item_to_bin[item] = len(bins) - 1
             else:
-                import numpy as _np
-
-                feats_arr = _np.asarray(feats, dtype=_np.float64)
+                feats_arr = np.asarray(feats, dtype=np.float64)
                 if scaler is not None:
                     feats_arr = scaler.transform(feats_arr)
                 scores = model.predict_proba(feats_arr)[:, 1]  # type: ignore[union-attr]
-                best_j = idxs[int(_np.argmax(scores))]
+                best_j = idxs[int(np.argmax(scores))]
                 bins[best_j].append(item)
                 bin_loads[best_j] += sizes_list[item]
                 item_to_bin[item] = best_j

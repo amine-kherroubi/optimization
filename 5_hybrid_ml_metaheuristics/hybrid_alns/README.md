@@ -16,11 +16,12 @@ This folder contains a **single production path** for 1D bin packing:
 - Python 3.10+
 - `numpy`
 - `scikit-learn`
+- `numba` (optional, for accelerated feature engineering)
 
 Install dependencies (example):
 
 ```bash
-pip install numpy scikit-learn
+pip install numpy scikit-learn numba
 ```
 
 ## Train the repair model
@@ -50,6 +51,14 @@ python benchmark.py \
   --dataset falkenauer-u \
   --method-args "model_path=5_hybrid_ml_metaheuristics/hybrid_alns/repair_model.pkl,max_iterations=5000"
 ```
+
+## Feature Engineering and Numba
+
+This folder uses Numba (`@njit`) to accelerate feature vector computation, which is critical given it runs within the inner loops of the ALNS solver and during dataset generation.
+
+- **Automatic Usage**: The solver and training script automatically detect and use the accelerated `numba` versions if the library is installed (`features.make_features_batch_jit`).
+- **Fallbacks**: If `numba` is missing, the code gracefully falls back to pure Python/NumPy implementations (`features.make_features_batch_py`), ensuring functionality in all environments, albeit at slower speeds.
+- **Contract**: The feature schema (`FEATURE_VERSION`) is strictly enforced. Any change to feature logic *must* be reflected in both the Python and Numba implementations to prevent inference errors.
 
 ## Important behavior details
 

@@ -56,12 +56,14 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.utils.class_weight import compute_sample_weight
 
 import sys
-from pathlib import Path
+from concurrent.futures import ProcessPoolExecutor
+from itertools import repeat
 
 _here = str(Path(__file__).parent)
 if _here not in sys.path:
     sys.path.insert(0, _here)
 
+import features
 from features import (
     FEATURE_VERSION,
     N_FEATURES,
@@ -138,6 +140,45 @@ def extract_training_examples(
     sizes_list = [float(v) for v in sizes]
     order = list(np.argsort(-sizes))
     size_rank = {item: rank for rank, item in enumerate(order)}
+    # Prepare arrays for optional numba-jitted path (avoids per-call conversion)
+    sizes_arr = np.array(sizes_list, dtype=np.float64)
+    size_ranks_arr = np.array([size_rank[i] for i in range(n_total)], dtype=np.int64)
+    eps = 1e-9
+
+    # Prefer the numba jitted implementation when available. The wrapper keeps
+    # the same keyword-only signature so call sites need not change.
+    if getattr(features, "njit", None) is not None and hasattr(
+        features, "make_features_jit"
+    ):
+
+        def mf(
+            *,
+            item,
+            item_size,
+            bin_items,
+            bin_load,
+            capacity,
+            sizes,
+            n_total,
+            size_rank,
+            remaining_ratio,
+        ):
+            bin_items_arr = np.array(bin_items, dtype=np.int64)
+            return features.make_features_jit(
+                item,
+                float(item_size),
+                bin_items_arr,
+                bin_items_arr.shape[0],
+                float(bin_load),
+                float(capacity),
+                sizes_arr,
+                n_total,
+                size_ranks_arr,
+                float(remaining_ratio),
+            )
+
+    else:
+        mf = _make_features
 
     replay_bins: list[list[int]] = []
     replay_loads: list[float] = []
@@ -154,7 +195,7 @@ def extract_training_examples(
         best_slack = float("inf")
         for j, load in enumerate(replay_loads):
             rem = 1.0 - load
-            if rem + 1e-9 < item_size:
+            if rem + eps < item_size:
                 continue
             feasible_bins.append(j)
             slack = rem - item_size
@@ -168,19 +209,22 @@ def extract_training_examples(
             replay_loads.append(item_size)
             continue
 
-        X.append(
-            _make_features(
-                item=item,
-                item_size=sizes_list[item],
-                bin_items=replay_bins[best_bin],
-                bin_load=replay_loads[best_bin],
-                capacity=1.0,
-                sizes=sizes_list,
-                n_total=n_total,
-                size_rank=size_rank,
-                remaining_ratio=remaining_ratio,
-            )
+        f = mf(
+            item=item,
+            item_size=sizes_list[item],
+            bin_items=replay_bins[best_bin],
+            bin_load=replay_loads[best_bin],
+            capacity=1.0,
+            sizes=sizes_list,
+            n_total=n_total,
+            size_rank=size_rank,
+            remaining_ratio=remaining_ratio,
         )
+        # Ensure a Python list row is returned (type checkers expect list[list[float]]).
+        if isinstance(f, np.ndarray):
+            X.append(f.tolist())
+        else:
+            X.append(list(f))
         y.append(1)
 
         # Subsample negatives so the positive rate stays bounded regardless of
@@ -190,19 +234,21 @@ def extract_training_examples(
         if len(negatives) > max_negatives:
             negatives = list(rng.choice(negatives, size=max_negatives, replace=False))
         for j in negatives:
-            X.append(
-                _make_features(
-                    item=item,
-                    item_size=sizes_list[item],
-                    bin_items=replay_bins[j],
-                    bin_load=replay_loads[j],
-                    capacity=1.0,
-                    sizes=sizes_list,
-                    n_total=n_total,
-                    size_rank=size_rank,
-                    remaining_ratio=remaining_ratio,
-                )
+            g = mf(
+                item=item,
+                item_size=sizes_list[item],
+                bin_items=replay_bins[j],
+                bin_load=replay_loads[j],
+                capacity=1.0,
+                sizes=sizes_list,
+                n_total=n_total,
+                size_rank=size_rank,
+                remaining_ratio=remaining_ratio,
             )
+            if isinstance(g, np.ndarray):
+                X.append(g.tolist())
+            else:
+                X.append(list(g))
             y.append(0)
 
         replay_bins[best_bin].append(item)
@@ -243,6 +289,10 @@ def extract_repair_examples(
     sizes_list = [float(v) for v in sizes]
     order = list(np.argsort(-sizes))
     size_rank = {item: rank for rank, item in enumerate(order)}
+    # Prepare arrays for optional numba-jitted batch computation
+    sizes_arr = np.array(sizes_list, dtype=np.float64)
+    size_ranks_arr = np.array([size_rank[i] for i in range(n_total)], dtype=np.int64)
+    eps = 1e-9
 
     # --- Phase 1: build a complete BFD solution. ---
     bins: list[list[int]] = []
@@ -253,7 +303,7 @@ def extract_repair_examples(
         best_slack = float("inf")
         for j, load in enumerate(bin_loads):
             rem = 1.0 - load
-            if rem + 1e-9 >= item_size:
+            if rem + eps >= item_size:
                 slack = rem - item_size
                 if slack < best_slack:
                     best_slack = slack
@@ -290,8 +340,14 @@ def extract_repair_examples(
     # Sort by decreasing size, matching the repair order in the solver.
     displaced_sorted = sorted(displaced, key=lambda i: -sizes[i])
     n_displaced = len(displaced_sorted)
-    X: list[list[float]] = []
-    y: list[int] = []
+
+    items_all: list[int] = []
+    item_sizes_all: list[float] = []
+    bin_items_flat: list[int] = []
+    offsets: list[int] = [0]
+    bin_loads_all: list[float] = []
+    remaining_ratio_all: list[float] = []
+    labels: list[int] = []
 
     for step, item in enumerate(displaced_sorted):
         item_size = float(sizes[item])
@@ -304,7 +360,7 @@ def extract_repair_examples(
         best_slack = float("inf")
         for j, load in enumerate(bin_loads):
             rem = 1.0 - load
-            if rem + 1e-9 < item_size:
+            if rem + eps < item_size:
                 continue
             feasible_bins.append(j)
             slack = rem - item_size
@@ -317,49 +373,107 @@ def extract_repair_examples(
             bin_loads.append(item_size)
             continue
 
-        X.append(
-            _make_features(
-                item=item,
-                item_size=sizes_list[item],
-                bin_items=bins[best_bin],
-                bin_load=bin_loads[best_bin],
-                capacity=1.0,
-                sizes=sizes_list,
-                n_total=n_total,
-                size_rank=size_rank,
-                remaining_ratio=remaining_ratio,
-            )
-        )
-        y.append(1)
+        # Positive sample
+        items_all.append(item)
+        item_sizes_all.append(item_size)
+        for k in bins[best_bin]:
+            bin_items_flat.append(k)
+        offsets.append(len(bin_items_flat))
+        bin_loads_all.append(bin_loads[best_bin])
+        remaining_ratio_all.append(remaining_ratio)
+        labels.append(1)
 
         negatives = [j for j in feasible_bins if j != best_bin]
         if len(negatives) > max_negatives:
             negatives = list(rng.choice(negatives, size=max_negatives, replace=False))
         for j in negatives:
-            X.append(
-                _make_features(
-                    item=item,
-                    item_size=sizes_list[item],
-                    bin_items=bins[j],
-                    bin_load=bin_loads[j],
-                    capacity=1.0,
-                    sizes=sizes_list,
-                    n_total=n_total,
-                    size_rank=size_rank,
-                    remaining_ratio=remaining_ratio,
-                )
-            )
-            y.append(0)
+            items_all.append(item)
+            item_sizes_all.append(item_size)
+            for k in bins[j]:
+                bin_items_flat.append(k)
+            offsets.append(len(bin_items_flat))
+            bin_loads_all.append(bin_loads[j])
+            remaining_ratio_all.append(remaining_ratio)
+            labels.append(0)
 
         bins[best_bin].append(item)
         bin_loads[best_bin] += item_size
 
-    return X, y
+    if not items_all:
+        return [], []
+
+    items_arr = np.array(items_all, dtype=np.int64)
+    item_sizes_arr = np.array(item_sizes_all, dtype=np.float64)
+    bin_items_flat_arr = np.array(bin_items_flat, dtype=np.int64)
+    bin_offsets_arr = np.array(offsets, dtype=np.int64)
+    bin_loads_arr = np.array(bin_loads_all, dtype=np.float64)
+    remaining_ratio_arr = np.array(remaining_ratio_all, dtype=np.float64)
+
+    if getattr(features, "njit", None) is not None and hasattr(
+        features, "make_features_batch_jit"
+    ):
+        feats = features.make_features_batch_jit(
+            items_arr,
+            item_sizes_arr,
+            bin_items_flat_arr,
+            bin_offsets_arr,
+            bin_loads_arr,
+            1.0,
+            sizes_arr,
+            n_total,
+            size_ranks_arr,
+            remaining_ratio_arr,
+        )
+    else:
+        feats = features.make_features_batch_py(
+            items_arr,
+            item_sizes_arr,
+            bin_items_flat_arr,
+            bin_offsets_arr,
+            bin_loads_arr,
+            1.0,
+            sizes_arr,
+            n_total,
+            size_ranks_arr,
+            remaining_ratio_arr,
+        )
+
+    # Convert to list-of-lists so the function matches its annotation
+    # `tuple[list[list[float]], list[int]]` and downstream callers that
+    # expect an iterable of rows (list.extend compatible).
+    if hasattr(feats, "tolist"):
+        feats_list = feats.tolist()
+    else:
+        feats_list = [list(row) for row in feats]
+
+    return feats_list, labels
 
 
 # ---------------------------------------------------------------------------
 # Dataset assembly
 # ---------------------------------------------------------------------------
+
+
+def _generate_examples_for_seed(
+    seed: int, n_min: int, n_max: int, max_negatives: int, destroy_fraction: float
+) -> tuple[list[list[float]], list[int]]:
+    """Generate examples for a single instance deterministically from `seed`.
+
+    This helper is used by the optional parallel dataset generation path.
+    """
+    rng = np.random.default_rng(int(seed))
+    sizes = generate_instance(rng, n_min=n_min, n_max=n_max)
+    instance_destroy_fraction = float(rng.uniform(0.05, 0.40))
+    x_fresh, y_fresh = extract_training_examples(
+        sizes, max_negatives=max_negatives, rng=rng
+    )
+    x_repair, y_repair = extract_repair_examples(
+        sizes,
+        max_negatives=max_negatives,
+        rng=rng,
+        destroy_fraction=instance_destroy_fraction,
+    )
+    return x_fresh + x_repair, y_fresh + y_repair
 
 
 def build_dataset(
@@ -369,6 +483,7 @@ def build_dataset(
     max_negatives: int,
     seed: int,
     destroy_fraction: float = 0.20,
+    workers: int = 1,
 ) -> tuple[np.ndarray, np.ndarray, DatasetSummary]:
     """Generate synthetic data and return X, y arrays ready for sklearn.
 
@@ -376,10 +491,9 @@ def build_dataset(
     BFD trace and one from a post-destruction repair trace (see module docstring
     for rationale). The two batches are pooled before splitting.
 
-    destroy_fraction is used as the *centre* of a uniform range [0.05, 0.40]
-    sampled independently per instance. This covers the full spectrum of ALNS
-    repair states (from mild to heavy destruction) rather than always training
-    on a single fixed fraction.
+    If ``workers`` > 1, instances are generated in parallel using
+    ``concurrent.futures.ProcessPoolExecutor``. Deterministic per-instance
+    seeds are derived from the provided ``seed`` to preserve reproducibility.
     """
     if instances <= 0:
         raise ValueError("instances must be > 0")
@@ -394,37 +508,59 @@ def build_dataset(
     all_x: list[list[float]] = []
     all_y: list[int] = []
 
-    for _ in tqdm(
-        range(instances), desc="Generating instances", unit="inst", dynamic_ncols=True
-    ):
-        sizes = generate_instance(rng, n_min=n_min, n_max=n_max)
+    if workers and workers > 1:
+        seeds = rng.integers(0, 2**31 - 1, size=instances).tolist()
+        with ProcessPoolExecutor(max_workers=workers) as exe:
+            map_iter = exe.map(
+                _generate_examples_for_seed,
+                seeds,
+                repeat(n_min),
+                repeat(n_max),
+                repeat(max_negatives),
+                repeat(destroy_fraction),
+            )
+            for x_part, y_part in tqdm(
+                map_iter,
+                total=instances,
+                desc="Generating instances",
+                unit="inst",
+                dynamic_ncols=True,
+            ):
+                all_x.extend(x_part)
+                all_y.extend(y_part)
+    else:
+        for _ in tqdm(
+            range(instances),
+            desc="Generating instances",
+            unit="inst",
+            dynamic_ncols=True,
+        ):
+            sizes = generate_instance(rng, n_min=n_min, n_max=n_max)
 
-        # Sample a fresh destroy_fraction each instance so the model sees
-        # repair states across the full range [0.05, 0.40], not just one fixed
-        # fraction. The CLI --destroy-fraction argument is ignored here; it
-        # remains available for scripted sweeps via extract_repair_examples.
-        instance_destroy_fraction = float(rng.uniform(0.05, 0.40))
+            # Sample a fresh destroy_fraction each instance so the model sees
+            # repair states across the full range [0.05, 0.40], not just one fixed
+            # fraction. The CLI --destroy-fraction argument is ignored here; it
+            # remains available for scripted sweeps via extract_repair_examples.
+            instance_destroy_fraction = float(rng.uniform(0.05, 0.40))
 
-        x_fresh, y_fresh = extract_training_examples(
-            sizes, max_negatives=max_negatives, rng=rng
-        )
-        x_repair, y_repair = extract_repair_examples(
-            sizes,
-            max_negatives=max_negatives,
-            rng=rng,
-            destroy_fraction=instance_destroy_fraction,
-        )
-        all_x.extend(x_fresh)
-        all_y.extend(y_fresh)
-        all_x.extend(x_repair)
-        all_y.extend(y_repair)
+            x_fresh, y_fresh = extract_training_examples(
+                sizes, max_negatives=max_negatives, rng=rng
+            )
+            x_repair, y_repair = extract_repair_examples(
+                sizes,
+                max_negatives=max_negatives,
+                rng=rng,
+                destroy_fraction=instance_destroy_fraction,
+            )
+            all_x.extend(x_fresh)
+            all_y.extend(y_fresh)
+            all_x.extend(x_repair)
+            all_y.extend(y_repair)
 
     X = np.asarray(all_x, dtype=np.float32)
     y = np.asarray(all_y, dtype=np.int32)
     summary = DatasetSummary(
-        rows=int(X.shape[0]),
-        cols=int(X.shape[1]),
-        positive_rate=float(y.mean()),
+        rows=int(X.shape[0]), cols=int(X.shape[1]), positive_rate=float(y.mean())
     )
     return X, y, summary
 
@@ -466,6 +602,12 @@ def main() -> None:
         "--seed", type=int, default=0, help="RNG seed for reproducibility"
     )
     parser.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="Number of worker processes for dataset generation (default: 1)",
+    )
+    parser.add_argument(
         "--output",
         type=str,
         default="repair_model.pkl",
@@ -482,11 +624,49 @@ def main() -> None:
             "reducing covariate shift between training and ALNS inference states."
         ),
     )
+    parser.add_argument(
+        "--prewarm-numba",
+        action="store_true",
+        help="Pre-warm numba JIT for batch feature function before dataset generation",
+    )
     args = parser.parse_args()
 
     # ------------------------------------------------------------------
     # Data generation
     # ------------------------------------------------------------------
+    # Optional numba pre-warm: compile the batch JIT once so the first
+    # heavy call later does not pay the compile cost during data generation.
+    if args.prewarm_numba:
+        if getattr(features, "njit", None) is not None and hasattr(
+            features, "make_features_batch_jit"
+        ):
+            try:
+                print("Pre-warming numba batch feature JIT...")
+                a_items = np.array([0], dtype=np.int64)
+                a_item_sizes = np.array([0.1], dtype=np.float64)
+                a_bin_items_flat = np.array([], dtype=np.int64)
+                a_bin_offsets = np.array([0, 0], dtype=np.int64)
+                a_bin_loads = np.array([0.0], dtype=np.float64)
+                a_sizes = np.array([0.1], dtype=np.float64)
+                a_size_ranks = np.array([0], dtype=np.int64)
+                a_remaining = np.array([1.0], dtype=np.float64)
+                # single-call to trigger compilation
+                features.make_features_batch_jit(
+                    a_items,
+                    a_item_sizes,
+                    a_bin_items_flat,
+                    a_bin_offsets,
+                    a_bin_loads,
+                    1.0,
+                    a_sizes,
+                    1,
+                    a_size_ranks,
+                    a_remaining,
+                )
+            except Exception:
+                # Don't fail the whole script if pre-warm fails; fall back
+                # to on-demand compilation later.
+                print("Numba pre-warm failed; continuing without pre-warm")
 
     print("Generating dataset...")
     X, y, summary = build_dataset(
@@ -496,6 +676,7 @@ def main() -> None:
         max_negatives=args.max_negatives,
         destroy_fraction=args.destroy_fraction,
         seed=args.seed,
+        workers=args.workers,
     )
 
     if args.augment_with:

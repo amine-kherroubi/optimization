@@ -16,7 +16,7 @@ import time
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence, Mapping, Optional, Tuple
 
 import numpy as np
 
@@ -29,6 +29,7 @@ if _here not in sys.path:
 from features import FEATURE_VERSION as _EXPECTED_FEATURE_VERSION  # noqa: E402
 from features import N_FEATURES as _EXPECTED_N_FEATURES  # noqa: E402
 from features import make_features as _make_features  # noqa: E402
+import features as _features  # noqa: E402
 
 
 @dataclass(slots=True)
@@ -37,7 +38,7 @@ class BinPackingSolution:
 
     total_bins_used: int
     bin_assignments: dict[int, list[int]]
-    final_bin_loads: list[int]
+    final_bin_loads: list[float]
 
 
 class _WorkingSolution:
@@ -45,8 +46,8 @@ class _WorkingSolution:
 
     __slots__ = ("sizes", "capacity", "bins", "bin_loads", "item_to_bin")
 
-    def __init__(self, sizes: list[int], capacity: int):
-        self.sizes = sizes
+    def __init__(self, sizes: Sequence[float], capacity: int):
+        self.sizes = list(sizes)
         self.capacity = capacity
         self.bins: list[list[int]] = []
         self.bin_loads: list[int] = []
@@ -332,57 +333,96 @@ class BinPackingSolver:
         sizes_float = [float(v) for v in self._item_sizes]
         global_order = sorted(range(n), key=lambda i: -self._item_sizes[i])
         rank = {item: idx for idx, item in enumerate(global_order)}
+        mf = _make_features
+        model = self._model
+        scaler = self._scaler
+        denom = max(1, n)
+        cap_float = float(self._bin_capacity)
+        eps = 1e-9
 
-        # remaining_ratio = (items_in_batch_still_to_place) / n_total.
-        # This matches the convention in extract_repair_examples:
-        #   (n_displaced - step) / n_total
-        # Fresh BFD traces in training set n_displaced = n_total (full
-        # destruction), so their ratio of 1.0 at step 0 is the special case
-        # of this formula when all items are displaced — not a mismatch.
+        # Precompute arrays used by the batch feature API
+        sizes_arr = np.array(sizes_float, dtype=np.float64)
+        size_ranks_arr = np.array([rank[i] for i in range(n)], dtype=np.int64)
+
+        use_batch = getattr(_features, "njit", None) is not None and hasattr(
+            _features, "make_features_batch_jit"
+        )
+
         remaining = len(displaced)
         for item in sorted(displaced, key=lambda i: -self._item_sizes[i]):
             size = self._item_sizes[item]
-            feats: list[list[float]] = []
+            size_float = float(size)
+
+            items_all: list[int] = []
+            item_sizes_all: list[float] = []
+            bin_items_flat: list[int] = []
+            offsets: list[int] = [0]
+            bin_loads_all: list[float] = []
             idxs: list[int] = []
 
             for j, load in enumerate(sol.bin_loads):
                 capacity_left = self._bin_capacity - load
-                if capacity_left + 1e-9 < size:
+                if capacity_left + eps < size:
                     continue
-                feats.append(
-                    _make_features(
-                        item=item,
-                        item_size=float(size),
-                        bin_items=sol.bins[j],
-                        bin_load=float(load),
-                        capacity=float(self._bin_capacity),
-                        sizes=sizes_float,
-                        n_total=n,
-                        size_rank=rank,
-                        remaining_ratio=remaining / max(1, n),
-                    )
-                )
+                items_all.append(item)
+                item_sizes_all.append(size_float)
+                for k in sol.bins[j]:
+                    bin_items_flat.append(k)
+                offsets.append(len(bin_items_flat))
+                bin_loads_all.append(float(load))
                 idxs.append(j)
 
-            if not feats:
+            if not items_all:
                 sol.bins.append([item])
                 sol.bin_loads.append(size)
                 sol.item_to_bin[item] = len(sol.bins) - 1
                 remaining -= 1
                 continue
 
-            assert self._model is not None
-            feats_arr = np.asarray(feats, dtype=np.float64)
+            assert model is not None
 
-            # Apply the same scaling that was fit during training. The scaler
-            # is stored in the model bundle and must be applied before
-            # predict_proba to keep the inference distribution consistent with
-            # the training distribution.
-            if self._scaler is not None:
-                feats_arr = self._scaler.transform(feats_arr)
+            items_arr = np.array(items_all, dtype=np.int64)
+            item_sizes_arr = np.array(item_sizes_all, dtype=np.float64)
+            bin_items_flat_arr = np.array(bin_items_flat, dtype=np.int64)
+            bin_offsets_arr = np.array(offsets, dtype=np.int64)
+            bin_loads_arr = np.array(bin_loads_all, dtype=np.float64)
+            remaining_ratio_arr = np.full(
+                items_arr.shape[0], remaining / denom, dtype=np.float64
+            )
 
-            scores = self._model.predict_proba(feats_arr)[:, 1]
-            best_j = idxs[int(np.argmax(scores))]
+            if use_batch:
+                feats_arr = _features.make_features_batch_jit(
+                    items_arr,
+                    item_sizes_arr,
+                    bin_items_flat_arr,
+                    bin_offsets_arr,
+                    bin_loads_arr,
+                    cap_float,
+                    sizes_arr,
+                    n,
+                    size_ranks_arr,
+                    remaining_ratio_arr,
+                )
+            else:
+                feats_arr = _features.make_features_batch_py(
+                    items_arr,
+                    item_sizes_arr,
+                    bin_items_flat_arr,
+                    bin_offsets_arr,
+                    bin_loads_arr,
+                    cap_float,
+                    sizes_arr,
+                    n,
+                    size_ranks_arr,
+                    remaining_ratio_arr,
+                )
+
+            if scaler is not None:
+                feats_arr = scaler.transform(feats_arr)
+
+            scores = model.predict_proba(feats_arr)[:, 1]
+            best_idx = int(scores.argmax())
+            best_j = idxs[best_idx]
             sol.bins[best_j].append(item)
             sol.bin_loads[best_j] += size
             sol.item_to_bin[item] = best_j
