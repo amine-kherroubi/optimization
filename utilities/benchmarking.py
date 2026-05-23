@@ -14,7 +14,6 @@ from math import ceil
 from pathlib import Path
 from typing import Any, Callable
 
-
 _PROJECT_ROOT: Path = Path(__file__).resolve().parent
 _BENCHMARKS_ROOT: Path = _PROJECT_ROOT / "datasets"
 
@@ -353,7 +352,6 @@ class Benchmark:
 
         self._print_footer(widths)
 
-
     def run_instance(
         self,
         filepath: str | Path,
@@ -627,7 +625,6 @@ class Benchmark:
             )
 
         print(f"\033[1;36m{chr(0x2550) * widths.total_width}\033[0m\n")
-
 
 
 if __name__ == "__main__":

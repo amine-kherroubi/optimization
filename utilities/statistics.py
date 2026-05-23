@@ -34,8 +34,16 @@ def load_results(csv_path: str | Path) -> list[ResultRow]:
     with path.open("r", encoding="utf-8", newline="") as f:
         reader = csv.DictReader(f)
         required = {
-            "instance_name","dataset_key","num_items","bin_capacity","bins_used",
-            "lower_bound","total_weight","elapsed_time","method","timed_out",
+            "instance_name",
+            "dataset_key",
+            "num_items",
+            "bin_capacity",
+            "bins_used",
+            "lower_bound",
+            "total_weight",
+            "elapsed_time",
+            "method",
+            "timed_out",
         }
         missing = required.difference(reader.fieldnames or [])
         if missing:
@@ -103,14 +111,18 @@ def summarize_by_size(rows: list[ResultRow]) -> list[dict[str, float | int]]:
                 "instances": len(chunk),
                 "completed": len(completed),
                 "timeouts": len(chunk) - len(completed),
-                "avg_time_s": mean(r.elapsed_time for r in completed) if completed else 0.0,
+                "avg_time_s": (
+                    mean(r.elapsed_time for r in completed) if completed else 0.0
+                ),
                 "avg_gap": mean(r.gap for r in completed) if completed else 0.0,
             }
         )
     return results
 
 
-def _print_summary(summary: dict[str, float | int], by_size: list[dict[str, float | int]]) -> None:
+def _print_summary(
+    summary: dict[str, float | int], by_size: list[dict[str, float | int]]
+) -> None:
     print("\n=== Benchmark Summary ===")
     for key, value in summary.items():
         if isinstance(value, float):
@@ -128,7 +140,9 @@ def _print_summary(summary: dict[str, float | int], by_size: list[dict[str, floa
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Compute statistics from benchmark CSV output.")
+    parser = argparse.ArgumentParser(
+        description="Compute statistics from benchmark CSV output."
+    )
     parser.add_argument("csv", help="Path to benchmark CSV file.")
     args = parser.parse_args()
 

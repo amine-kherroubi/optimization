@@ -4,6 +4,7 @@ import argparse
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
@@ -29,7 +30,9 @@ def create_graphs(csv_path: str | Path, out_dir: str | Path) -> list[Path]:
     times = [r.elapsed_time for r in rows]
     ax.bar(range(len(rows)), times, color="#3498db", edgecolor="white", linewidth=0.5)
     ax.set_xticks(range(len(rows)))
-    ax.set_xticklabels([r.instance_name for r in rows], rotation=45, ha="right", fontsize=7)
+    ax.set_xticklabels(
+        [r.instance_name for r in rows], rotation=45, ha="right", fontsize=7
+    )
     ax.set_ylabel("Solve time (s)")
     ax.set_title(f"Solve Time per Instance — {dataset_key}")
     fig.tight_layout()
@@ -46,7 +49,9 @@ def create_graphs(csv_path: str | Path, out_dir: str | Path) -> list[Path]:
     ax.bar(x, lb_vals, label="Lower Bound", color="#2ecc71", edgecolor="white")
     ax.bar(x, gaps, bottom=lb_vals, label="Gap", color="#e74c3c", edgecolor="white")
     ax.set_xticks(list(x))
-    ax.set_xticklabels([r.instance_name for r in rows], rotation=45, ha="right", fontsize=7)
+    ax.set_xticklabels(
+        [r.instance_name for r in rows], rotation=45, ha="right", fontsize=7
+    )
     ax.set_ylabel("Bins")
     ax.set_title(f"Bins Used vs Lower Bound — {dataset_key}")
     ax.legend()
@@ -83,9 +88,15 @@ def create_graphs(csv_path: str | Path, out_dir: str | Path) -> list[Path]:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Create graphs from benchmark CSV output.")
+    parser = argparse.ArgumentParser(
+        description="Create graphs from benchmark CSV output."
+    )
     parser.add_argument("csv", help="Path to benchmark CSV file.")
-    parser.add_argument("--out-dir", default="results/graphs", help="Output directory for generated graphs.")
+    parser.add_argument(
+        "--out-dir",
+        default="results/graphs",
+        help="Output directory for generated graphs.",
+    )
     args = parser.parse_args()
 
     files = create_graphs(args.csv, args.out_dir)
