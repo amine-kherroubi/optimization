@@ -105,6 +105,66 @@ def make_features(
     return feat
 
 
+def make_features_batch_py(
+    items_arr,
+    item_sizes_arr,
+    bin_items_flat,
+    bin_offsets,
+    bin_loads_arr,
+    capacity,
+    sizes_arr,
+    n_total,
+    size_ranks_arr,
+    remaining_ratio_arr,
+):
+    """Batch version of make_features (Python implementation, always available).
+    
+    This runs even if numba is not installed. It processes multiple (item, bin)
+    pairs efficiently.
+    """
+    n = int(items_arr.shape[0])
+    out = np.empty((n, N_FEATURES), dtype=np.float64)
+    for i in range(n):
+        item = int(items_arr[i])
+        item_size = float(item_sizes_arr[i])
+        start = int(bin_offsets[i])
+        end = int(bin_offsets[i + 1])
+        if end > start:
+            first = int(bin_items_flat[start])
+            max_v = sizes_arr[first]
+            min_v = max_v
+            for ii in range(start + 1, end):
+                k = int(bin_items_flat[ii])
+                v = sizes_arr[k]
+                if v > max_v:
+                    max_v = v
+                if v < min_v:
+                    min_v = v
+            largest = max_v
+            smallest = min_v
+        else:
+            largest = 0.0
+            smallest = 0.0
+
+        remaining_capacity = capacity - float(bin_loads_arr[i])
+        slack_after = remaining_capacity - item_size
+        inv_capacity = 1.0 / capacity
+        out[i, _F_ITEM_SIZE] = item_size * inv_capacity
+        out[i, _F_ITEM_SIZE_SQ] = (item_size * inv_capacity) ** 2
+        out[i, _F_SIZE_RANK] = size_ranks_arr[item] / max(1, n_total)
+        out[i, _F_REMAINING] = float(remaining_ratio_arr[i])
+        out[i, _F_BIN_LOAD] = float(bin_loads_arr[i]) * inv_capacity
+        out[i, _F_BIN_REM] = remaining_capacity * inv_capacity
+        out[i, _F_SLACK_AFTER] = slack_after * inv_capacity
+        out[i, _F_BIN_COUNT] = (end - start) / max(1, n_total)
+        out[i, _F_BIN_LARGEST] = largest * inv_capacity
+        out[i, _F_BIN_SMALLEST] = smallest * inv_capacity
+        out[i, _F_FILL_RATIO] = (
+            (item_size / remaining_capacity) if remaining_capacity > 1e-9 else 1.0
+        )
+    return out
+
+
 if njit is not None:
     # numba-friendly implementation operating on raw arrays/ints. We keep the
     # Python version as the default for readability and for environments
@@ -172,60 +232,6 @@ if njit is not None:
         remaining_ratio_arr,
     ):
         n = items_arr.shape[0]
-        out = np.empty((n, N_FEATURES), dtype=np.float64)
-        for i in range(n):
-            item = int(items_arr[i])
-            item_size = float(item_sizes_arr[i])
-            start = int(bin_offsets[i])
-            end = int(bin_offsets[i + 1])
-            if end > start:
-                first = int(bin_items_flat[start])
-                max_v = sizes_arr[first]
-                min_v = max_v
-                for ii in range(start + 1, end):
-                    k = int(bin_items_flat[ii])
-                    v = sizes_arr[k]
-                    if v > max_v:
-                        max_v = v
-                    if v < min_v:
-                        min_v = v
-                largest = max_v
-                smallest = min_v
-            else:
-                largest = 0.0
-                smallest = 0.0
-
-            remaining_capacity = capacity - float(bin_loads_arr[i])
-            slack_after = remaining_capacity - item_size
-            inv_capacity = 1.0 / capacity
-            out[i, _F_ITEM_SIZE] = item_size * inv_capacity
-            out[i, _F_ITEM_SIZE_SQ] = (item_size * inv_capacity) ** 2
-            out[i, _F_SIZE_RANK] = size_ranks_arr[item] / max(1, n_total)
-            out[i, _F_REMAINING] = float(remaining_ratio_arr[i])
-            out[i, _F_BIN_LOAD] = float(bin_loads_arr[i]) * inv_capacity
-            out[i, _F_BIN_REM] = remaining_capacity * inv_capacity
-            out[i, _F_SLACK_AFTER] = slack_after * inv_capacity
-            out[i, _F_BIN_COUNT] = (end - start) / max(1, n_total)
-            out[i, _F_BIN_LARGEST] = largest * inv_capacity
-            out[i, _F_BIN_SMALLEST] = smallest * inv_capacity
-            out[i, _F_FILL_RATIO] = (
-                (item_size / remaining_capacity) if remaining_capacity > 1e-9 else 1.0
-            )
-        return out
-
-    def make_features_batch_py(
-        items_arr,
-        item_sizes_arr,
-        bin_items_flat,
-        bin_offsets,
-        bin_loads_arr,
-        capacity,
-        sizes_arr,
-        n_total,
-        size_ranks_arr,
-        remaining_ratio_arr,
-    ):
-        n = int(items_arr.shape[0])
         out = np.empty((n, N_FEATURES), dtype=np.float64)
         for i in range(n):
             item = int(items_arr[i])
