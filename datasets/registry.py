@@ -67,7 +67,7 @@ register_dataset(
     DatasetConfig(
         key="falkenauer-t",
         label="Falkenauer T",
-        directory=_BENCHMARKS_ROOT / "Falkenauer" / "Falkenauer_T",
+        directory=_BENCHMARKS_ROOT / "Falkenauer_T",
         parser=parse_standard,
     )
 )
@@ -75,7 +75,7 @@ register_dataset(
     DatasetConfig(
         key="falkenauer-u",
         label="Falkenauer U",
-        directory=_BENCHMARKS_ROOT / "Falkenauer" / "Falkenauer_U",
+        directory=_BENCHMARKS_ROOT / "Falkenauer_U",
         parser=parse_standard,
     )
 )
@@ -83,7 +83,7 @@ register_dataset(
     DatasetConfig(
         key="scholl-1",
         label="Scholl 1",
-        directory=_BENCHMARKS_ROOT / "Scholl" / "Scholl_1",
+        directory=_BENCHMARKS_ROOT / "Scholl_1",
         parser=parse_standard,
     )
 )
@@ -91,7 +91,7 @@ register_dataset(
     DatasetConfig(
         key="scholl-2",
         label="Scholl 2",
-        directory=_BENCHMARKS_ROOT / "Scholl" / "Scholl_2",
+        directory=_BENCHMARKS_ROOT / "Scholl_2",
         parser=parse_standard,
     )
 )
@@ -99,7 +99,7 @@ register_dataset(
     DatasetConfig(
         key="scholl-3",
         label="Scholl 3",
-        directory=_BENCHMARKS_ROOT / "Scholl" / "Scholl_3",
+        directory=_BENCHMARKS_ROOT / "Scholl_3",
         parser=parse_standard,
     )
 )
