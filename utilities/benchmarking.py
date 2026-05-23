@@ -12,7 +12,7 @@ import time
 from dataclasses import dataclass, asdict
 from math import ceil
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 _PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent
 
