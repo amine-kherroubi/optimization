@@ -1,107 +1,74 @@
 # Bin Packing Optimization
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat&logo=python&logoColor=white)
-![Platform](https://img.shields.io/badge/Platform-Linux-FCC624?style=flat&logo=linux&logoColor=black)
+![Status](https://img.shields.io/badge/Status-Research%20Project-0A66C2?style=flat)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-A research-oriented project for evaluating algorithm families on the **1D Bin Packing Problem (BPP)**.
+A professional research repository for benchmarking algorithm families on the **1D Bin Packing Problem (BPP)**.
 
-## Repository organization
+## Repository Structure
 
 ```text
 .
-├── benchmark.py
 ├── 1_exact_methods/
 ├── 2_specific_heuristics/
 ├── 3_trajectory_based_metaheuristics/
 ├── 4_population_based_metaheuristics/
 ├── 5_hybrid_ml_metaheuristics/
 ├── datasets/
+├── utilities/
+│   ├── benchmarking.py
+│   ├── graphing.py
+│   └── statistics.py
 └── results/
 ```
 
-### Solver taxonomy
+## Solver Families
 
-1. **Exact methods** (`1_exact_methods/`): optimal approaches with high computational cost.
-2. **Specific heuristics** (`2_specific_heuristics/`): constructive and local improvement strategies.
-3. **Trajectory-based metaheuristics** (`3_trajectory_based_metaheuristics/`): single-solution neighborhood search methods.
-4. **Population-based metaheuristics** (`4_population_based_metaheuristics/`): population-driven search methods such as GA and ACO.
-5. **Hybrid ML + metaheuristics** (`5_hybrid_ml_metaheuristics/`): adaptive frameworks combining machine learning and metaheuristic search.
+1. **Exact methods** (`1_exact_methods/`) for optimal solutions.
+2. **Specific heuristics** (`2_specific_heuristics/`) for fast constructive/improvement baselines.
+3. **Trajectory-based metaheuristics** (`3_trajectory_based_metaheuristics/`) for single-solution neighborhood search.
+4. **Population-based metaheuristics** (`4_population_based_metaheuristics/`) for population-driven search (GA, ACO).
+5. **Hybrid ML + metaheuristics** (`5_hybrid_ml_metaheuristics/`) for adaptive learning-enhanced pipelines.
 
----
+## Benchmarking
 
-## Run benchmarks
-
-All commands are intended to be executed from the project root.
+Run all experiments from the project root using:
 
 ```bash
-python benchmark.py --solver <solver_path> --dataset <dataset_key> [--method <method_name>] [--method-args "k=v,..."]
+python utilities/benchmarking.py --solver <solver_path> --dataset <dataset_key> [--method <method_name>] [--method-args "k=v,..."]
 ```
 
-### Example commands
+### Example Commands
 
 ```bash
-python benchmark.py --solver 1_exact_methods/solver.py --dataset falkenauer-t --method "branch and bound"
-python benchmark.py --solver 2_specific_heuristics/solver.py --dataset scholl-2 --method "best fit"
-python benchmark.py --solver 3_trajectory_based_metaheuristics/solver.py --dataset scholl-2 --method "tabu search lns"
-python benchmark.py --solver 4_population_based_metaheuristics/solver.py --dataset falkenauer-u --method "genetic algorithm memetic"
-python benchmark.py --solver 5_hybrid_ml_metaheuristics/hybrid_alns/solver.py --dataset falkenauer-u --method-args "model_path=5_hybrid_ml_metaheuristics/hybrid_alns/repair_model.pkl,max_iterations=5000"
+python utilities/benchmarking.py --solver 1_exact_methods/solver.py --dataset falkenauer-t --method "branch and bound"
+python utilities/benchmarking.py --solver 2_specific_heuristics/solver.py --dataset scholl-2 --method "best fit"
+python utilities/benchmarking.py --solver 3_trajectory_based_metaheuristics/solver.py --dataset scholl-2 --method "tabu search lns"
+python utilities/benchmarking.py --solver 4_population_based_metaheuristics/solver.py --dataset falkenauer-u --method "genetic algorithm memetic"
+python utilities/benchmarking.py --solver 5_hybrid_ml_metaheuristics/hybrid_alns/solver.py --dataset falkenauer-u --method-args "model_path=5_hybrid_ml_metaheuristics/hybrid_alns/models/repair_model.pkl,max_iterations=5000"
 ```
 
-### CLI options
+### Core CLI Options
 
-- `--solver` (required): path to a `solver.py`.
-- `--dataset` (required): one of the registered datasets.
-- `--method` (optional): method identifier accepted by the selected solver.
-- `--method-args` (optional): comma-separated `key=value` arguments forwarded to `solve(...)`.
-- `--num-items`: restrict evaluation to instances with exactly `N` items.
-- `--max-items`: restrict evaluation to instances with at most `N` items.
-- `--time-limit`: per-instance timeout in seconds.
-- `--no-graphs`: disable plot generation.
-
-> `--num-items` and `--max-items` are mutually exclusive.
-
-### Method routing behavior
-
-- Benchmark execution introspects each solver’s `solve(...)` signature.
-- If `--method` is provided but unsupported by the solver, the benchmark emits a warning and ignores it.
-- `--method-args` values are type-coerced (`bool`, `int`, `float`, then `str`) before dispatch.
-- Unsupported keyword arguments are ignored when the solver does not accept `**kwargs`.
-
----
+- `--solver` (required): path to a solver module.
+- `--dataset` (required): dataset key from the registry.
+- `--method` (optional): method name/alias accepted by the solver.
+- `--method-args` (optional): comma-separated keyword arguments for `solve(...)`.
+- `--num-items` / `--max-items` (optional): instance-size filtering.
+- `--time-limit` (optional): per-instance timeout in seconds.
+- `--no-graphs` (optional): skip graph generation.
 
 ## Datasets
 
-- `falkenauer-t` → `datasets/Falkenauer/Falkenauer_T/`
-- `falkenauer-u` → `datasets/Falkenauer/Falkenauer U/`
-- `scholl-1` → `datasets/Scholl/Scholl_1/`
-- `scholl-2` → `datasets/Scholl/Scholl_2/`
-- `scholl-3` → `datasets/Scholl/Scholl_3/`
+Registered dataset keys include:
 
-Standard instance format:
-
-```text
-<number_of_items>
-<bin_capacity>
-<item_size_1>
-<item_size_2>
-...
-```
-
----
+- `falkenauer-t`
+- `falkenauer-u`
+- `scholl-1`
+- `scholl-2`
+- `scholl-3`
 
 ## Results
 
-Benchmark outputs are written to:
-
-```text
-results/<solver_folder>/
-```
-
-Typical outputs include runtime plots, solution-quality comparisons against lower bounds, and fill-rate statistics.
-
-Population-based tuning outputs are stored under:
-
-- `results/4_population_based_metaheuristics/aco_tuning/`
-- `results/4_population_based_metaheuristics/ga_tuning/`
-- `results/4_population_based_metaheuristics/population_comparison.csv`
+Outputs are written under `results/<solver_folder>/`, including CSV summaries and generated figures.
