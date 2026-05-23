@@ -501,8 +501,10 @@ class BinPackingSolver:
         was produced by an incompatible version of the training script.
         """
         path = Path(model_path)
+        if not path.is_absolute():
+            path = (Path(__file__).resolve().parent / path).resolve()
         if not path.exists():
-            raise FileNotFoundError(f"Model file not found: {model_path}")
+            raise FileNotFoundError(f"Model file not found: {path}")
 
         with path.open("rb") as handle:
             bundle = pickle.load(handle)
