@@ -10,6 +10,7 @@ import sys
 import threading
 import time
 from dataclasses import dataclass, asdict
+from datetime import datetime
 from math import ceil
 from pathlib import Path
 from typing import Any
@@ -20,6 +21,10 @@ if str(_PROJECT_ROOT) not in sys.path:
 
 from datasets.types import Instance, DatasetConfig
 from datasets.registry import DATASET_REGISTRY
+
+# Cache for solver modules loaded by path. Avoids re-importing the solver
+# module from disk for every instance when no per-instance time limit is set.
+_solver_module_cache: dict[str, Any] = {}
 
 
 @dataclass(slots=True)
@@ -333,13 +338,16 @@ class Benchmark:
 
         if self._time_limit is None:
             abs_path = self._solver_path
-            spec = importlib.util.spec_from_file_location("solver", abs_path)
-            assert spec is not None
-            solver_mod = importlib.util.module_from_spec(spec)
-            sys.modules[spec.name] = solver_mod
-            assert spec.loader is not None
-            spec.loader.exec_module(solver_mod)
-            BinPackingSolver = solver_mod.BinPackingSolver
+            solver_key = str(abs_path)
+            if solver_key not in _solver_module_cache:
+                spec = importlib.util.spec_from_file_location("solver", abs_path)
+                assert spec is not None
+                solver_mod = importlib.util.module_from_spec(spec)
+                sys.modules[spec.name] = solver_mod
+                assert spec.loader is not None
+                spec.loader.exec_module(solver_mod)
+                _solver_module_cache[solver_key] = solver_mod
+            BinPackingSolver = _solver_module_cache[solver_key].BinPackingSolver
 
             start = time.perf_counter()
             solver = BinPackingSolver(instance.sizes, instance.bin_capacity)
@@ -594,7 +602,11 @@ if __name__ == "__main__":
         "--csv-out",
         default=None,
         metavar="FILE",
-        help="Path to save benchmark results in CSV format.",
+        help=(
+            "Path to save benchmark results in CSV format. "
+            "Defaults to results/<solver_dir>_<dataset>_<timestamp>.csv "
+            "under the project root."
+        ),
     )
     arg_parser.add_argument(
         "--time-limit",
@@ -655,9 +667,20 @@ if __name__ == "__main__":
             max_items=args.max_items,
         )
 
-        if args.csv_out:
-            results = bench.get_results()
-            with open(args.csv_out, "w", newline="", encoding="utf-8") as f:
+        results = bench.get_results()
+        if results:
+            if args.csv_out:
+                csv_out_path = Path(args.csv_out)
+            else:
+                solver_dir = Path(args.solver).parent.name
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                results_dir = _PROJECT_ROOT / "results"
+                results_dir.mkdir(parents=True, exist_ok=True)
+                csv_out_path = (
+                    results_dir / f"{solver_dir}_{args.dataset}_{timestamp}.csv"
+                )
+
+            with open(csv_out_path, "w", newline="", encoding="utf-8") as f:
                 writer = csv.DictWriter(
                     f,
                     fieldnames=[
@@ -676,6 +699,7 @@ if __name__ == "__main__":
                 writer.writeheader()
                 for r in results:
                     writer.writerow(asdict(r))
+            print(f"\033[1mResults saved to:\033[0m {csv_out_path}")
 
     except KeyboardInterrupt:
         print(
