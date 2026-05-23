@@ -61,9 +61,9 @@ def make_features(
       4    bin_load / C                — current bin utilization
       5    remaining_capacity / C      — residual bin capacity
       6    slack_after / C             — post-placement residual
-      7    |B_j| / n                  — bin occupancy count, normalized
-      8    max(s_k, k in B_j) / C     — largest item in bin
-      9    min(s_k, k in B_j) / C     — smallest item in bin
+      7    |B_j| / n                   — bin occupancy count, normalized
+      8    max(s_k, k in B_j) / C      — largest item in bin
+      9    min(s_k, k in B_j) / C      — smallest item in bin
      10    item_size / remaining_cap   — fill ratio (tightness of fit)
     """
     remaining_capacity = capacity - bin_load
