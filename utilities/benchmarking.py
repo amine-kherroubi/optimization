@@ -16,12 +16,8 @@ from typing import Any, Callable
 
 _PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent
 
-from datasets.registry import (
-    BenchmarkInstance,
-    DatasetConfig,
-    DATASET_REGISTRY,
-    parse_standard,
-)
+from datasets.types import BenchmarkInstance, DatasetConfig
+from datasets.registry import DATASET_REGISTRY
 
 
 @dataclass(slots=True)
