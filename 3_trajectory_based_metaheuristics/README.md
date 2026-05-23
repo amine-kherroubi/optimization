@@ -1,21 +1,23 @@
 # Trajectory-Based Metaheuristics
 
-This module contains single-solution trajectory-based metaheuristics for the 1D Bin Packing Problem.
+## Overview
 
-## Implemented methods
-- `simulated annealing` (`sa`)
-- `simulated annealing reheating` (`sa reheating`)
-- `simulated annealing adaptive` (`sa adaptive`)
-- `tabu search` (`ts`)
-- `reactive tabu search` (`rts`)
-- `tabu search lns` (`ts lns`, `lnts`)
-- `tabu search diversified` (`ts diversified`, `hybrid tabu`)
+This module contains single-solution trajectory-based search strategies.
 
-## Benchmark usage
+## Implemented Methods
+
+- `simulated annealing`
+- `simulated annealing reheating`
+- `simulated annealing adaptive`
+- `tabu search`
+- `reactive tabu search`
+- `tabu search lns`
+- `tabu search diversified`
+
+## Benchmark Usage
+
+Run from repository root:
+
 ```bash
-python benchmark.py --solver 3_trajectory_based_metaheuristics/solver.py --dataset scholl-2 --method "tabu search lns"
+python utilities/benchmarking.py --solver 3_trajectory_based_metaheuristics/solver.py --dataset scholl-2 --method "tabu search lns"
 ```
-
-## Notes
-- These methods explore neighborhoods around a current solution.
-- Population-based methods (GA/ACO) are implemented in `4_population_based_metaheuristics/`.

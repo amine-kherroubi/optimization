@@ -12,30 +12,12 @@ import time
 from dataclasses import dataclass, asdict
 from math import ceil
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
-import matplotlib
+_PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent
 
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-import numpy as np
-from matplotlib.colors import Normalize
-import matplotlib.cm as cm
-
-_PROJECT_ROOT: Path = Path(__file__).resolve().parent
-_BENCHMARKS_ROOT: Path = _PROJECT_ROOT / "datasets"
-_RESULTS_ROOT: Path = _PROJECT_ROOT / "results"
-
-
-@dataclass(slots=True)
-class BenchmarkInstance:
-    """A single problem instance, independent of its source dataset."""
-
-    name: str
-    dataset_key: str
-    num_items: int
-    bin_capacity: int
-    sizes: list[int]
+from datasets.types import Instance, DatasetConfig
+from datasets.registry import DATASET_REGISTRY
 
 
 @dataclass(slots=True)
@@ -82,93 +64,6 @@ class TableWidths:
             + self.state
             + (8 * 3)
         )
-
-
-def parse_standard(filepath: Path, dataset_key: str) -> BenchmarkInstance:
-    """Parses the standard one-instance-per-file format:
-        line 0   — number of items
-        line 1   — bin capacity
-        lines 2+ — item sizes, one per line
-    Used by: Falkenauer T/U, Scholl 1/2/3.
-    """
-    lines = filepath.read_text(encoding="utf-8").splitlines()
-    num_items: int = int(lines[0])
-    bin_capacity: int = int(lines[1])
-    sizes: list[int] = [int(lines[i]) for i in range(2, 2 + num_items)]
-    return BenchmarkInstance(
-        name=filepath.stem,
-        dataset_key=dataset_key,
-        num_items=num_items,
-        bin_capacity=bin_capacity,
-        sizes=sizes,
-    )
-
-
-@dataclass(frozen=True)
-class DatasetConfig:
-    """Immutable descriptor for a benchmark dataset.
-
-    To register a new dataset, create a DatasetConfig and call
-    register_dataset(). No other code in this module needs to change.
-    """
-
-    key: str
-    label: str
-    directory: Path
-    parser: Callable[[Path, str], BenchmarkInstance]
-    glob: str = "*.txt"
-
-
-DATASET_REGISTRY: dict[str, DatasetConfig] = {}
-
-
-def register_dataset(config: DatasetConfig) -> None:
-    """Register a dataset configuration. Raises ValueError on duplicate key."""
-    if config.key in DATASET_REGISTRY:
-        raise ValueError(f"Dataset key '{config.key}' is already registered.")
-    DATASET_REGISTRY[config.key] = config
-
-
-register_dataset(
-    DatasetConfig(
-        key="falkenauer-t",
-        label="Falkenauer T",
-        directory=_BENCHMARKS_ROOT / "Falkenauer" / "Falkenauer_T",
-        parser=parse_standard,
-    )
-)
-register_dataset(
-    DatasetConfig(
-        key="falkenauer-u",
-        label="Falkenauer U",
-        directory=_BENCHMARKS_ROOT / "Falkenauer" / "Falkenauer_U",
-        parser=parse_standard,
-    )
-)
-register_dataset(
-    DatasetConfig(
-        key="scholl-1",
-        label="Scholl 1",
-        directory=_BENCHMARKS_ROOT / "Scholl" / "Scholl_1",
-        parser=parse_standard,
-    )
-)
-register_dataset(
-    DatasetConfig(
-        key="scholl-2",
-        label="Scholl 2",
-        directory=_BENCHMARKS_ROOT / "Scholl" / "Scholl_2",
-        parser=parse_standard,
-    )
-)
-register_dataset(
-    DatasetConfig(
-        key="scholl-3",
-        label="Scholl 3",
-        directory=_BENCHMARKS_ROOT / "Scholl" / "Scholl_3",
-        parser=parse_standard,
-    )
-)
 
 
 def _solver_worker(
@@ -281,12 +176,10 @@ class Benchmark:
         self,
         dataset: DatasetConfig,
         solver_path: Path,
-        graphs_dir: Path,
         time_limit: float | None = None,
     ) -> None:
         self._dataset: DatasetConfig = dataset
         self._solver_path: Path = solver_path
-        self._graphs_dir: Path = graphs_dir
         self._time_limit: float | None = time_limit
         self._results: list[BenchmarkResult] = []
 
@@ -296,7 +189,6 @@ class Benchmark:
         method_args: dict[str, Any] | None = None,
         num_items: int | None = None,
         max_items: int | None = None,
-        generate_graphs: bool = True,
     ) -> None:
         if num_items is not None and max_items is not None:
             raise ValueError("num_items and max_items are mutually exclusive.")
@@ -364,9 +256,6 @@ class Benchmark:
 
         self._print_footer(widths)
 
-        if generate_graphs and self._results:
-            self._generate_graphs()
-
     def run_instance(
         self,
         filepath: str | Path,
@@ -413,8 +302,8 @@ class Benchmark:
         self,
         num_items: int | None,
         max_items: int | None,
-    ) -> list[BenchmarkInstance]:
-        instances: list[BenchmarkInstance] = []
+    ) -> list[Instance]:
+        instances: list[Instance] = []
         for filepath in self._dataset.directory.glob(self._dataset.glob):
             try:
                 inst = self._dataset.parser(filepath, self._dataset.key)
@@ -430,7 +319,7 @@ class Benchmark:
 
     def _solve(
         self,
-        instance: BenchmarkInstance,
+        instance: Instance,
         method: str | None,
         method_args: dict[str, Any] | None = None,
         stop_flag: threading.Event | None = None,
@@ -527,7 +416,7 @@ class Benchmark:
 
     def _calculate_widths(
         self,
-        instances: list[BenchmarkInstance] | None = None,
+        instances: list[Instance] | None = None,
         results: list[BenchmarkResult] | None = None,
     ) -> TableWidths:
         def _max_len(title: str, values: list[str]) -> int:
@@ -641,200 +530,6 @@ class Benchmark:
 
         print(f"\033[1;36m{chr(0x2550) * widths.total_width}\033[0m\n")
 
-    def _generate_graphs(self) -> None:
-        self._graphs_dir.mkdir(parents=True, exist_ok=True)
-        key = self._dataset.key
-        print(f"\n\033[1;36mGenerating graphs...\033[0m")
-        self._plot_solve_times(key)
-        self._plot_bins_vs_lb(key)
-        self._plot_fill_rate(key)
-        self._plot_time_by_size_group(key)
-
-    def _plot_solve_times(self, dataset_key: str) -> None:
-        fig, ax = plt.subplots(figsize=(max(10, len(self._completed) * 0.6), 5))
-
-        times = [r.elapsed_time for r in self._completed]
-        max_t = max(times)
-        colors = ["#e74c3c" if t == max_t else "#3498db" for t in times]
-
-        ax.bar(
-            range(len(self._completed)),
-            times,
-            color=colors,
-            edgecolor="white",
-            linewidth=0.5,
-        )
-        ax.set_xticks(range(len(self._completed)))
-        ax.set_xticklabels(
-            [r.instance_name for r in self._completed],
-            rotation=45,
-            ha="right",
-            fontsize=7,
-        )
-        ax.set_ylabel("Solve time (s)", fontsize=12)
-        ax.set_title(
-            f"Solve Time per Instance  \u2014  {self._dataset.label}",
-            fontsize=13,
-            fontweight="bold",
-            pad=12,
-        )
-        fig.tight_layout()
-
-        path = self._graphs_dir / f"fig1_solve_times_{dataset_key}.png"
-        fig.savefig(path, dpi=150)
-        plt.close(fig)
-        print(f"\033[94mFig 1 \033[90m\u2192\033[0m {path.relative_to(_PROJECT_ROOT)}")
-
-    def _plot_bins_vs_lb(self, dataset_key: str) -> None:
-        fig, ax = plt.subplots(figsize=(max(10, len(self._completed) * 0.6), 5))
-
-        x = range(len(self._completed))
-        lb_vals = [r.lower_bound for r in self._completed]
-        gap_vals = [r.bins_used - r.lower_bound for r in self._completed]
-
-        ax.bar(
-            x,
-            lb_vals,
-            label="Lower Bound",
-            color="#2ecc71",
-            alpha=0.85,
-            edgecolor="white",
-        )
-        ax.bar(
-            x,
-            gap_vals,
-            bottom=lb_vals,
-            label="Gap",
-            color="#e74c3c",
-            alpha=0.85,
-            edgecolor="white",
-        )
-        ax.set_xticks(list(x))
-        ax.set_xticklabels(
-            [r.instance_name for r in self._completed],
-            rotation=45,
-            ha="right",
-            fontsize=7,
-        )
-        ax.set_ylabel("Bins", fontsize=12)
-        ax.set_title(
-            f"Bins Used vs Lower Bound  \u2014  {self._dataset.label}",
-            fontsize=13,
-            fontweight="bold",
-            pad=12,
-        )
-        ax.legend(fontsize=10)
-        fig.tight_layout()
-
-        path = self._graphs_dir / f"fig2_bins_vs_lb_{dataset_key}.png"
-        fig.savefig(path, dpi=150)
-        plt.close(fig)
-        print(f"\033[94mFig 2 \033[90m\u2192\033[0m {path.relative_to(_PROJECT_ROOT)}")
-
-    def _plot_fill_rate(self, dataset_key: str) -> None:
-        fig, ax = plt.subplots(figsize=(max(10, len(self._completed) * 0.6), 5))
-
-        fill_rates = [
-            r.total_weight / (r.bins_used * r.bin_capacity) * 100
-            for r in self._completed
-        ]
-        cmap = matplotlib.colormaps["RdYlGn"]
-        norm = Normalize(min(fill_rates), 100)
-        colors = [cmap(norm(v)) for v in fill_rates]
-
-        ax.bar(range(len(self._completed)), fill_rates, color=colors, edgecolor="white")
-        ax.axhline(100, color="black", linewidth=1.2, linestyle="--", label="100 %")
-        ax.axhline(
-            80, color="orange", linewidth=1.0, linestyle=":", label="Threshold 80 %"
-        )
-
-        for i, rate in enumerate(fill_rates):
-            ax.text(i, rate + 0.4, f"{rate:.1f}%", ha="center", va="bottom", fontsize=7)
-
-        sm = cm.ScalarMappable(cmap=cmap, norm=norm)
-        plt.colorbar(sm, ax=ax, label="Fill rate (%)", pad=0.02)
-
-        ax.set_xticks(range(len(self._completed)))
-        ax.set_xticklabels(
-            [r.instance_name for r in self._completed],
-            rotation=45,
-            ha="right",
-            fontsize=7,
-        )
-        ax.set_ylim(0, 115)
-        ax.set_ylabel("Average bin fill rate (%)", fontsize=12)
-        ax.set_title(
-            f"Solution Quality: Average Bin Fill Rate  \u2014  {self._dataset.label}",
-            fontsize=13,
-            fontweight="bold",
-            pad=12,
-        )
-        ax.legend(fontsize=10)
-        fig.tight_layout()
-
-        path = self._graphs_dir / f"fig3_fill_rate_{dataset_key}.png"
-        fig.savefig(path, dpi=150)
-        plt.close(fig)
-        print(f"\033[94mFig 3 \033[90m\u2192\033[0m {path.relative_to(_PROJECT_ROOT)}")
-
-    def _plot_time_by_size_group(self, dataset_key: str) -> None:
-        size_groups: dict[int, list[float]] = {}
-        for r in self._completed:
-            size_groups.setdefault(r.num_items, []).append(r.elapsed_time)
-
-        if len(size_groups) < 2:
-            return
-
-        fig, ax = plt.subplots(figsize=(8, 5))
-
-        sorted_sizes = sorted(size_groups.keys())
-        group_times = [size_groups[n] for n in sorted_sizes]
-        labels = [str(n) for n in sorted_sizes]
-
-        box = ax.boxplot(
-            group_times,
-            tick_labels=labels,
-            patch_artist=True,
-            medianprops=dict(color="black", linewidth=1.8),
-            whiskerprops=dict(linewidth=1.2),
-            capprops=dict(linewidth=1.2),
-        )
-
-        viridis = matplotlib.colormaps["viridis"]
-        palette = [viridis(v) for v in np.linspace(0.2, 0.85, len(sorted_sizes))]
-        for patch, color in zip(box["boxes"], palette):
-            patch.set_facecolor(color)
-            patch.set_alpha(0.75)
-
-        rng = np.random.default_rng(seed=0)
-        for idx, times in enumerate(group_times):
-            jitter = rng.uniform(-0.12, 0.12, size=len(times))
-            ax.scatter(
-                np.full(len(times), idx + 1) + jitter,
-                times,
-                s=28,
-                zorder=3,
-                edgecolors="white",
-                linewidths=0.4,
-                color=palette[idx],
-            )
-
-        ax.set_yscale("log")
-        ax.set_xlabel("Number of items (n)", fontsize=12)
-        ax.set_ylabel("Solve time (s)  [log scale]", fontsize=12)
-        ax.set_title(
-            f"Solve Time Distribution by Instance Size  \u2014  {self._dataset.label}",
-            fontsize=13,
-            fontweight="bold",
-            pad=12,
-        )
-        fig.tight_layout()
-
-        path = self._graphs_dir / f"fig4_time_by_size_{dataset_key}.png"
-        fig.savefig(path, dpi=150)
-        plt.close(fig)
-        print(f"\033[94mFig 4 \033[90m\u2192\033[0m {path.relative_to(_PROJECT_ROOT)}")
-
 
 if __name__ == "__main__":
     mp.freeze_support()
@@ -894,12 +589,6 @@ if __name__ == "__main__":
     )
 
     arg_parser.add_argument(
-        "--no-graphs",
-        action="store_true",
-        default=False,
-        help="Skip graph generation.",
-    )
-    arg_parser.add_argument(
         "--csv-out",
         default=None,
         metavar="FILE",
@@ -953,12 +642,8 @@ if __name__ == "__main__":
     if not solver_path.is_file():
         arg_parser.error(f"Solver file not found: {solver_path}")
 
-    graphs_dir = (
-        _RESULTS_ROOT / solver_path.relative_to(_PROJECT_ROOT).parent
-    ).resolve()
-
     dataset_cfg = DATASET_REGISTRY[args.dataset]
-    bench = Benchmark(dataset_cfg, solver_path, graphs_dir, time_limit=args.time_limit)
+    bench = Benchmark(dataset_cfg, solver_path, time_limit=args.time_limit)
 
     try:
         bench.run(
@@ -966,7 +651,6 @@ if __name__ == "__main__":
             method_args=method_args,
             num_items=args.num_items,
             max_items=args.max_items,
-            generate_graphs=not args.no_graphs,
         )
 
         if args.csv_out:
