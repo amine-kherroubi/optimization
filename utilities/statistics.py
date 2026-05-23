@@ -5,6 +5,7 @@ import csv
 from dataclasses import dataclass
 from pathlib import Path
 from statistics import mean, median
+from typing import Iterable
 
 
 @dataclass(slots=True)
@@ -35,7 +36,7 @@ def _read_dict_rows(csv_path: str | Path):
         yield from csv.DictReader(f)
 
 
-def _validate_columns(fieldnames: list[str] | None) -> None:
+def _validate_columns(fieldnames: Iterable[str] | None) -> None:
     required = {
         "instance_name",
         "dataset_key",

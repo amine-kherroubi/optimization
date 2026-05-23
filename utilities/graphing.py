@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Sequence
 
 import matplotlib
+from matplotlib.figure import Figure
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -37,7 +38,7 @@ def _figure_width(num_rows: int) -> float:
     return max(10, num_rows * 0.6)
 
 
-def _save_figure(fig: plt.Figure, out_dir: Path, filename: str) -> Path:
+def _save_figure(fig: Figure, out_dir: Path, filename: str) -> Path:
     path = out_dir / filename
     fig.savefig(path, dpi=150)
     plt.close(fig)
@@ -50,7 +51,7 @@ def _plot_bar_by_instance(
     ylabel: str,
     title: str,
     color: str = "#3498db",
-) -> plt.Figure:
+) -> Figure:
     fig, ax = plt.subplots(figsize=(_figure_width(len(labels)), 5))
     ax.bar(range(len(labels)), values, color=color, edgecolor="white", linewidth=0.5)
     ax.set_xticks(range(len(labels)))
@@ -71,7 +72,7 @@ def _plot_stacked_bar_by_instance(
     top_label: str,
     base_color: str = "#2ecc71",
     top_color: str = "#e74c3c",
-) -> plt.Figure:
+) -> Figure:
     fig, ax = plt.subplots(figsize=(_figure_width(len(labels)), 5))
     x = range(len(labels))
     ax.bar(x, base_values, label=base_label, color=base_color, edgecolor="white")
@@ -98,7 +99,7 @@ def _plot_box_with_jitter(
     ylabel: str,
     title: str,
     yscale: str | None = None,
-) -> plt.Figure:
+) -> Figure:
     fig, ax = plt.subplots(figsize=(8, 5))
     categories = sorted(grouped_data)
     data = [grouped_data[c] for c in categories]
@@ -122,7 +123,7 @@ def _plot_scatter(
     xlabel: str,
     ylabel: str,
     title: str,
-) -> plt.Figure:
+) -> Figure:
     fig, ax = plt.subplots(figsize=(8, 5))
     ax.scatter(x_values, y_values, s=90)
     ax.set_xlabel(xlabel)
@@ -138,7 +139,7 @@ def _plot_heatmap(
     y_tick_labels: Sequence[str],
     title: str,
     colorbar_label: str,
-) -> plt.Figure:
+) -> Figure:
     fig, ax = plt.subplots(figsize=(12, max(3, 0.5 * len(y_tick_labels))))
     im = ax.imshow(matrix, aspect="auto")
     ax.set_xticks(range(len(x_tick_labels)))
