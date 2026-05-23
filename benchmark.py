@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import importlib.util
 import inspect
 import multiprocessing as mp
@@ -8,7 +9,7 @@ import queue
 import sys
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from math import ceil
 from pathlib import Path
 from typing import Any, Callable
@@ -899,6 +900,12 @@ if __name__ == "__main__":
         help="Skip graph generation.",
     )
     arg_parser.add_argument(
+        "--csv-out",
+        default=None,
+        metavar="FILE",
+        help="Path to save benchmark results in CSV format.",
+    )
+    arg_parser.add_argument(
         "--time-limit",
         type=float,
         default=None,
@@ -961,6 +968,29 @@ if __name__ == "__main__":
             max_items=args.max_items,
             generate_graphs=not args.no_graphs,
         )
+
+        if args.csv_out:
+            results = bench.get_results()
+            with open(args.csv_out, "w", newline="", encoding="utf-8") as f:
+                writer = csv.DictWriter(
+                    f,
+                    fieldnames=[
+                        "instance_name",
+                        "dataset_key",
+                        "num_items",
+                        "bin_capacity",
+                        "bins_used",
+                        "lower_bound",
+                        "total_weight",
+                        "elapsed_time",
+                        "method",
+                        "timed_out",
+                    ],
+                )
+                writer.writeheader()
+                for r in results:
+                    writer.writerow(asdict(r))
+
     except KeyboardInterrupt:
         print(
             "\n\n\033[91m\033[1m[!] Benchmark abruptly stopped by user "
