@@ -37,7 +37,6 @@ from typing import Any, Sequence, Mapping, Tuple
 
 import math
 import numpy as np
-import sys
 
 try:
     from tqdm import tqdm

@@ -44,10 +44,6 @@ from sklearn.utils.class_weight import compute_sample_weight
 
 import sys
 
-_here = str(Path(__file__).parent)
-if _here not in sys.path:
-    sys.path.insert(0, _here)
-
 import features
 from train_repair_model import (
     build_dataset,
