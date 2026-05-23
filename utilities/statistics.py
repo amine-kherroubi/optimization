@@ -125,7 +125,9 @@ def _split_completed(rows: list[ResultRow]) -> tuple[list[ResultRow], list[Resul
     return completed, timed_out
 
 
-def _base_summary(rows: list[ResultRow], completed: list[ResultRow], timed_out: list[ResultRow]) -> dict[str, float | int]:
+def _base_summary(
+    rows: list[ResultRow], completed: list[ResultRow], timed_out: list[ResultRow]
+) -> dict[str, float | int]:
     return {
         "instances": len(rows),
         "completed": len(completed),

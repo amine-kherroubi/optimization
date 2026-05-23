@@ -75,7 +75,14 @@ def _plot_stacked_bar_by_instance(
     fig, ax = plt.subplots(figsize=(_figure_width(len(labels)), 5))
     x = range(len(labels))
     ax.bar(x, base_values, label=base_label, color=base_color, edgecolor="white")
-    ax.bar(x, top_values, bottom=base_values, label=top_label, color=top_color, edgecolor="white")
+    ax.bar(
+        x,
+        top_values,
+        bottom=base_values,
+        label=top_label,
+        color=top_color,
+        edgecolor="white",
+    )
     ax.set_xticks(list(x))
     ax.set_xticklabels(labels, rotation=45, ha="right", fontsize=7)
     ax.set_ylabel(ylabel)
@@ -154,7 +161,9 @@ def _group_times_by_size(rows) -> dict[int, list[float]]:
 def _build_solve_time_chart(rows, dataset_key: str, out_dir: Path) -> Path:
     labels = _instance_labels(rows)
     times = [r.elapsed_time for r in rows]
-    fig = _plot_bar_by_instance(labels, times, "Solve time (s)", f"Solve Time per Instance — {dataset_key}")
+    fig = _plot_bar_by_instance(
+        labels, times, "Solve time (s)", f"Solve Time per Instance — {dataset_key}"
+    )
     return _save_figure(fig, out_dir, f"fig1_solve_times_{dataset_key}.png")
 
 
@@ -217,7 +226,9 @@ def _create_graphs_monolithic(csv_path: str | Path, out_dir: str | Path) -> list
     times = [r.elapsed_time for r in rows]
     ax.bar(range(len(rows)), times, color="#3498db", edgecolor="white", linewidth=0.5)
     ax.set_xticks(range(len(rows)))
-    ax.set_xticklabels([r.instance_name for r in rows], rotation=45, ha="right", fontsize=7)
+    ax.set_xticklabels(
+        [r.instance_name for r in rows], rotation=45, ha="right", fontsize=7
+    )
     ax.set_ylabel("Solve time (s)")
     ax.set_title(f"Solve Time per Instance — {dataset_key}")
     fig.tight_layout()
@@ -233,7 +244,9 @@ def _create_graphs_monolithic(csv_path: str | Path, out_dir: str | Path) -> list
     ax.bar(x, lb_vals, label="Lower Bound", color="#2ecc71", edgecolor="white")
     ax.bar(x, gaps, bottom=lb_vals, label="Gap", color="#e74c3c", edgecolor="white")
     ax.set_xticks(list(x))
-    ax.set_xticklabels([r.instance_name for r in rows], rotation=45, ha="right", fontsize=7)
+    ax.set_xticklabels(
+        [r.instance_name for r in rows], rotation=45, ha="right", fontsize=7
+    )
     ax.set_ylabel("Bins")
     ax.set_title(f"Bins Used vs Lower Bound — {dataset_key}")
     ax.legend()
