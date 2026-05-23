@@ -19,16 +19,15 @@ from typing import Any, Sequence, Mapping, Optional, Tuple
 
 import numpy as np
 
-# Ensure features.py (sibling module) is importable regardless of how this
-# file is loaded (direct script, importlib from benchmark.py, notebook, etc.).
-_here = str(Path(__file__).parent)
-if _here not in sys.path:
-    sys.path.insert(0, _here)
+# Ensure parent directory is in path so 'training' can be imported as a package.
+_root_dir = str(Path(__file__).parent)
+if _root_dir not in sys.path:
+    sys.path.insert(0, _root_dir)
 
-from features import FEATURE_VERSION as _EXPECTED_FEATURE_VERSION  # noqa: E402
-from features import N_FEATURES as _EXPECTED_N_FEATURES  # noqa: E402
-from features import make_features as _make_features  # noqa: E402
-import features as _features  # noqa: E402
+from training.features import FEATURE_VERSION as _EXPECTED_FEATURE_VERSION  # noqa: E402
+from training.features import N_FEATURES as _EXPECTED_N_FEATURES  # noqa: E402
+from training.features import make_features as _make_features  # noqa: E402
+import training.features as _features  # noqa: E402
 
 
 @dataclass(slots=True)

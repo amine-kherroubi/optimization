@@ -33,7 +33,7 @@ python 5_hybrid_ml_metaheuristics/hybrid_alns/train_repair_model.py \
   --n-max 200 \
   --max-negatives 5 \
   --seed 0 \
-  --output 5_hybrid_ml_metaheuristics/hybrid_alns/repair_model.pkl
+  --output 5_hybrid_ml_metaheuristics/hybrid_alns/models/repair_model.pkl
 ```
 
 What this does exactly:
@@ -49,7 +49,7 @@ What this does exactly:
 python benchmark.py \
   --solver 5_hybrid_ml_metaheuristics/hybrid_alns/solver.py \
   --dataset falkenauer-u \
-  --method-args "model_path=5_hybrid_ml_metaheuristics/hybrid_alns/repair_model.pkl,max_iterations=5000"
+  --method-args "model_path=5_hybrid_ml_metaheuristics/hybrid_alns/models/repair_model.pkl,max_iterations=5000"
 ```
 
 ## Feature Engineering and Numba

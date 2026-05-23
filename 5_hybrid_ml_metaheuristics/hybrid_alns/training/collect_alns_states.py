@@ -274,7 +274,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Collect real ALNS repair states for training augmentation"
     )
-    parser.add_argument("--model-path", required=True, help="Existing repair_model.pkl")
+    parser.add_argument(
+        "--model-path", required=True, help="Existing ../models/repair_model.pkl"
+    )
     parser.add_argument(
         "--instances", type=int, default=500, help="Synthetic instances to run"
     )
