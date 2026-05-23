@@ -603,7 +603,7 @@ def main() -> None:
     parser.add_argument(
         "--output",
         type=str,
-        default="repair_model.pkl",
+        default="../models/repair_model.pkl",
         help="Output path for the saved model bundle",
     )
     parser.add_argument(
