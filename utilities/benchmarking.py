@@ -16,7 +16,7 @@ from typing import Any, Callable
 
 _PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent
 
-from datasets.types import BenchmarkInstance, DatasetConfig
+from datasets.types import Instance, DatasetConfig
 from datasets.registry import DATASET_REGISTRY
 
 
@@ -302,8 +302,8 @@ class Benchmark:
         self,
         num_items: int | None,
         max_items: int | None,
-    ) -> list[BenchmarkInstance]:
-        instances: list[BenchmarkInstance] = []
+    ) -> list[Instance]:
+        instances: list[Instance] = []
         for filepath in self._dataset.directory.glob(self._dataset.glob):
             try:
                 inst = self._dataset.parser(filepath, self._dataset.key)
@@ -319,7 +319,7 @@ class Benchmark:
 
     def _solve(
         self,
-        instance: BenchmarkInstance,
+        instance: Instance,
         method: str | None,
         method_args: dict[str, Any] | None = None,
         stop_flag: threading.Event | None = None,
@@ -416,7 +416,7 @@ class Benchmark:
 
     def _calculate_widths(
         self,
-        instances: list[BenchmarkInstance] | None = None,
+        instances: list[Instance] | None = None,
         results: list[BenchmarkResult] | None = None,
     ) -> TableWidths:
         def _max_len(title: str, values: list[str]) -> int:

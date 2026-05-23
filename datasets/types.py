@@ -6,7 +6,7 @@ from typing import Callable
 
 
 @dataclass(slots=True)
-class BenchmarkInstance:
+class Instance:
     """A single problem instance, independent of its source dataset."""
 
     name: str
@@ -23,5 +23,5 @@ class DatasetConfig:
     key: str
     label: str
     directory: Path
-    parser: Callable[[Path, str], BenchmarkInstance]
+    parser: Callable[[Path, str], Instance]
     glob: str = "*.txt"
