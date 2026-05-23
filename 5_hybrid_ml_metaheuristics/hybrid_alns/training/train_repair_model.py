@@ -38,9 +38,9 @@ import numpy as np
 
 try:
     from tqdm import tqdm
-except ImportError:  # pragma: no cover
+except ImportError:
 
-    def tqdm(iterable, **kwargs):  # type: ignore[misc]
+    def tqdm(iterable, **kwargs):
         """Minimal no-op fallback when tqdm is not installed."""
         desc = kwargs.get("desc", "")
         if desc:
@@ -59,16 +59,8 @@ import sys
 from concurrent.futures import ProcessPoolExecutor
 from itertools import repeat
 
-_here = str(Path(__file__).parent)
-if _here not in sys.path:
-    sys.path.insert(0, _here)
-
 import features
-from features import (
-    FEATURE_VERSION,
-    N_FEATURES,
-    make_features as _make_features,
-)  # noqa: E402
+from features import FEATURE_VERSION, N_FEATURES, make_features
 
 
 @dataclass(slots=True)
@@ -178,7 +170,7 @@ def extract_training_examples(
             )
 
     else:
-        mf = _make_features
+        mf = make_features
 
     replay_bins: list[list[int]] = []
     replay_loads: list[float] = []

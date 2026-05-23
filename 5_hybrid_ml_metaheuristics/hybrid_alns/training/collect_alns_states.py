@@ -37,13 +37,8 @@ from typing import Any, Sequence, Mapping, Tuple
 
 import math
 import numpy as np
-import sys
 
-_here = str(Path(__file__).parent)
-if _here not in sys.path:
-    sys.path.insert(0, _here)
-
-from features import make_features, N_FEATURES, FEATURE_VERSION  # noqa: E402
+from features import FEATURE_VERSION, make_features
 
 # ---------------------------------------------------------------------------
 # BFD oracle — labels a repair state with the best-fit decision
