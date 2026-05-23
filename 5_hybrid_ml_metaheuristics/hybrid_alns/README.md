@@ -43,10 +43,10 @@ What this does exactly:
 3. Trains `sklearn.linear_model.LogisticRegression`.
 4. Saves a pickle model file.
 
-## Use the solver in benchmark.py
+## Use the solver in 5_hybrid_ml_metaheuristics/utilities/benchmarking.py
 
 ```bash
-python benchmark.py \
+python 5_hybrid_ml_metaheuristics/utilities/benchmarking.py \
   --solver 5_hybrid_ml_metaheuristics/hybrid_alns/solver.py \
   --dataset falkenauer-u \
   --method-args "model_path=5_hybrid_ml_metaheuristics/hybrid_alns/models/repair_model.pkl,max_iterations=5000"
