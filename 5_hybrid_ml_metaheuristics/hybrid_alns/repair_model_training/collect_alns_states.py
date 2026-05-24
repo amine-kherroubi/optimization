@@ -37,12 +37,15 @@ from typing import Any, Sequence, Mapping, Tuple
 
 import math
 import numpy as np
+import sys
 
 try:
     from tqdm import tqdm
 except ImportError:
+
     def tqdm(iterable, **kwargs):  # type: ignore[misc]
         return iterable
+
 
 _here = str(Path(__file__).parent)
 if _here not in sys.path:
@@ -316,7 +319,9 @@ def main() -> None:
     all_y: list[int] = []
 
     print(f"Running ALNS on {args.instances} instances to collect repair states...")
-    for i in tqdm(range(args.instances), desc="Collecting ALNS states", total=args.instances):
+    for i in tqdm(
+        range(args.instances), desc="Collecting ALNS states", total=args.instances
+    ):
         sizes = _generate_instance(rng, args.n_min, args.n_max)
         X_i, y_i = _run_alns_and_capture(
             sizes=sizes,
