@@ -300,6 +300,74 @@ class Benchmark:
             self._print_row(result, widths)
         self._print_footer(widths)
 
+    def save_results_to_csv(
+        self,
+        csv_out: str | Path | None = None,
+        results_dir: str | Path | None = None,
+        timestamp: bool = True,
+    ) -> Path:
+        """Persist benchmark results to a CSV file.
+
+        Parameters
+        ----------
+        csv_out:
+            Optional explicit file path to write. When provided, its parent
+            directories will be created if needed and the path will be used as-is.
+        results_dir:
+            When ``csv_out`` is not provided, the results file will be created
+            under this directory. Defaults to the project-wide ``results/``
+            directory.
+        timestamp:
+            When True, append a timestamp to the filename to avoid accidental
+            overwrites across runs.
+
+        Returns
+        -------
+        Path
+            The path to the written CSV file.
+        """
+        if not self._results:
+            raise ValueError("No results to save. Run the benchmark first.")
+
+        if csv_out:
+            out_path = Path(csv_out)
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+        else:
+            # Default location: put results under the solver's folder so outputs
+            # are grouped by method. Structure:
+            # <solver_dir>/results/<dataset_key>/<timestamp>/results.csv
+            solver_dir = self._solver_path.parent
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S") if timestamp else ""
+            base_dir = (
+                Path(results_dir)
+                if results_dir is not None
+                else solver_dir / "results" / self._dataset.key / ts
+            )
+            base_dir.mkdir(parents=True, exist_ok=True)
+            out_path = base_dir / "results.csv"
+
+        with out_path.open("w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(
+                f,
+                fieldnames=[
+                    "instance_name",
+                    "dataset_key",
+                    "num_items",
+                    "bin_capacity",
+                    "bins_used",
+                    "lower_bound",
+                    "total_weight",
+                    "elapsed_time",
+                    "method",
+                    "timed_out",
+                ],
+            )
+            writer.writeheader()
+            for r in self._results:
+                writer.writerow(asdict(r))
+
+        return out_path
+
     @property
     def _completed(self) -> list[BenchmarkResult]:
         """Results that finished within the time limit."""
@@ -598,16 +666,9 @@ if __name__ == "__main__":
         help="Run only instances with at most N items.",
     )
 
-    arg_parser.add_argument(
-        "--csv-out",
-        default=None,
-        metavar="FILE",
-        help=(
-            "Path to save benchmark results in CSV format. "
-            "Defaults to results/<solver_dir>_<dataset>_<timestamp>.csv "
-            "under the project root."
-        ),
-    )
+    # Note: output paths are determined automatically and are placed under
+    # the solver's `results/<dataset>/<timestamp>/` directory. Users should
+    # not need to specify CSV output paths.
     arg_parser.add_argument(
         "--time-limit",
         type=float,
@@ -669,37 +730,12 @@ if __name__ == "__main__":
 
         results = bench.get_results()
         if results:
-            if args.csv_out:
-                csv_out_path = Path(args.csv_out)
-            else:
-                solver_dir = Path(args.solver).parent.name
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                results_dir = _PROJECT_ROOT / "results"
-                results_dir.mkdir(parents=True, exist_ok=True)
-                csv_out_path = (
-                    results_dir / f"{solver_dir}_{args.dataset}_{timestamp}.csv"
-                )
-
-            with open(csv_out_path, "w", newline="", encoding="utf-8") as f:
-                writer = csv.DictWriter(
-                    f,
-                    fieldnames=[
-                        "instance_name",
-                        "dataset_key",
-                        "num_items",
-                        "bin_capacity",
-                        "bins_used",
-                        "lower_bound",
-                        "total_weight",
-                        "elapsed_time",
-                        "method",
-                        "timed_out",
-                    ],
-                )
-                writer.writeheader()
-                for r in results:
-                    writer.writerow(asdict(r))
-            print(f"\033[1mResults saved to:\033[0m {csv_out_path}")
+            try:
+                csv_out_path = bench.save_results_to_csv()
+                print(f"\033[1mResults saved to:\033[0m {csv_out_path}")
+            except Exception as exc:
+                print(f"\033[91m[!] Failed to save results: {exc}\033[0m")
+                raise
 
     except KeyboardInterrupt:
         print(

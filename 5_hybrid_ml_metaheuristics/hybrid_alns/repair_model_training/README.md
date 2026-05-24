@@ -20,6 +20,18 @@ Generated artifacts are written next to these files unless you pass a different 
 - `alns_states_v1.pkl` - DAgger-lite collection of real ALNS states
 - `repair_model_v2.pkl` - model trained with synthetic + ALNS-augmented
 
+## Results & Models
+
+Trained repair models are saved to:
+
+```
+5_hybrid_ml_metaheuristics/hybrid_alns/models/
+```
+
+These `.pkl` files are intentionally not gitignored so they can be
+managed and distributed as needed. Other runtime results are written to
+the usual `results/<dataset>/<timestamp>/` folders.
+
 ## Workflow
 
 ### Step 1: Train the baseline model

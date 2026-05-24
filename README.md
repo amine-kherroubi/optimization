@@ -57,7 +57,7 @@ python utilities/benchmarking.py --solver 5_hybrid_ml_metaheuristics/hybrid_alns
 - `--method-args` (optional): comma-separated keyword arguments for `solve(...)`.
 - `--num-items` / `--max-items` (optional): instance-size filtering.
 - `--time-limit` (optional): per-instance timeout in seconds.
-- `--no-graphs` (optional): skip graph generation.
+- `--time-limit` (optional): per-instance timeout in seconds.
 
 ## Datasets
 
@@ -71,4 +71,20 @@ Registered dataset keys include:
 
 ## Results
 
-Outputs are written under `results/<solver_folder>/`, including CSV summaries and generated figures.
+Outputs are written automatically under the solver's folder using the
+following hierarchy:
+
+```
+<solver_folder>/results/<dataset_key>/<YYYYMMDD_HHMMSS>/
+	results.csv           # benchmark CSV
+	graphs/               # generated PNG figures
+```
+
+No CLI flags are required to set output paths — the runner prints the
+final path after each run. All `results/` directories are ignored by
+default (see `.gitignore`).
+
+Models for hybrid approaches are kept in their module folders. In
+particular, trained model files (`.pkl`) for the hybrid ALNS are stored
+in `5_hybrid_ml_metaheuristics/hybrid_alns/models/` and are NOT
+gitignored. Manage those artifacts intentionally.

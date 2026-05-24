@@ -3,9 +3,10 @@ from __future__ import annotations
 import argparse
 import csv
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from statistics import mean, median
-from typing import Iterable
+from typing import Iterable, Sequence, Dict
 
 
 @dataclass(slots=True)
@@ -161,6 +162,94 @@ def _print_summary(summary: dict[str, float | int], by_size: list[SizeSummary]) 
             f"completed={row.completed:3d} | timeouts={row.timeouts:3d} | "
             f"avg_time={row.avg_time_s:.4f}s | avg_gap={row.avg_gap:.3f}"
         )
+
+
+# Project root (used for sensible default output locations)
+_PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent
+
+
+def load_results_grouped(csv_paths: Sequence[str | Path]) -> Dict[str, list[ResultRow]]:
+    """Load multiple CSV files and return a mapping from file-stem to rows.
+
+    This is convenient for comparative analyses across many CSV outputs.
+    """
+    out: Dict[str, list[ResultRow]] = {}
+    for p in csv_paths:
+        key = Path(p).stem
+        out[key] = load_results(p)
+    return out
+
+
+def summarize_by_method(rows: list[ResultRow]) -> dict[str, dict[str, float | int]]:
+    """Compute the same summary statistics as :func:`summarize`, but grouped by `method`.
+
+    Returns a mapping method -> summary-dict.
+    """
+    groups: dict[str, list[ResultRow]] = {}
+    for r in rows:
+        groups.setdefault(r.method, []).append(r)
+
+    out: dict[str, dict[str, float | int]] = {}
+    for method, grp in groups.items():
+        completed, timed_out = _split_completed(grp)
+        s = _base_summary(grp, completed, timed_out)
+        if completed:
+            s.update(_completed_summary(completed))
+        out[method] = s
+    return out
+
+
+def summarize_multiple(csv_paths: Sequence[str | Path]) -> Dict[str, dict]:
+    """Summarize multiple CSV files; returns a mapping file-stem -> summary."""
+    out: Dict[str, dict] = {}
+    for p in csv_paths:
+        try:
+            rows = load_results(p)
+            out[Path(p).stem] = summarize(rows)
+        except Exception as exc:  # keep failures local to that file
+            out[Path(p).stem] = {"error": str(exc)}
+    return out
+
+
+def export_summary_csv(
+    summary: dict[str, dict],
+    out_dir: str | Path | None = None,
+    filename: str | None = None,
+    timestamp: bool = True,
+) -> Path:
+    """Write a dictionary-of-dicts summary to a CSV file.
+
+    The first column will be the group key (e.g. method or filename) and the
+    remaining columns are the union of keys found in the inner dictionaries.
+    """
+    out_dir = Path(out_dir) if out_dir else _PROJECT_ROOT / "results"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    if filename is None:
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S") if timestamp else ""
+        filename = f"summary{('_' + ts) if ts else ''}.csv"
+    path = out_dir / filename
+
+    # union of inner keys
+    extra_fields: set[str] = set()
+    for v in summary.values():
+        if isinstance(v, dict):
+            extra_fields.update(v.keys())
+
+    fieldnames = ["group"] + sorted(extra_fields)
+
+    with path.open("w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        for group, metrics in summary.items():
+            row: dict[str, object] = {"group": group}
+            if isinstance(metrics, dict):
+                for k in extra_fields:
+                    v = metrics.get(k)
+                    row[k] = "" if v is None else v
+            else:
+                row["value"] = metrics
+            writer.writerow(row)
+    return path
 
 
 if __name__ == "__main__":

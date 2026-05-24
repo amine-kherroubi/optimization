@@ -18,3 +18,18 @@ Run from repository root:
 ```bash
 python utilities/benchmarking.py --solver 5_hybrid_ml_metaheuristics/hybrid_alns/solver.py --dataset falkenauer-u --method-args "model_path=5_hybrid_ml_metaheuristics/hybrid_alns/models/repair_model_v2.pkl,max_iterations=5000"
 ```
+
+## Results & Models
+
+Benchmark outputs are written automatically under the solver folder as:
+
+```
+5_hybrid_ml_metaheuristics/hybrid_alns/results/<dataset_key>/<YYYYMMDD_HHMMSS>/
+	results.csv
+	graphs/
+```
+
+Trained model artifacts (`.pkl`) produced by the training pipeline are
+stored in `5_hybrid_ml_metaheuristics/hybrid_alns/models/` and are NOT
+gitignored so they can be tracked or shared explicitly. Result folders
+are gitignored by default.

@@ -17,3 +17,16 @@ Run from repository root:
 ```bash
 python utilities/benchmarking.py --solver 2_specific_heuristics/solver.py --dataset scholl-2 --method "best fit"
 ```
+
+## Results & Models
+
+Benchmark outputs are written automatically under the solver folder as:
+
+```
+2_specific_heuristics/results/<dataset_key>/<YYYYMMDD_HHMMSS>/
+	results.csv
+	graphs/
+```
+
+No output path needs to be provided; the runner creates the directory
+and prints the full path. Result folders are gitignored by default.
