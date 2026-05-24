@@ -2,7 +2,7 @@
 
 This module provides a single, deterministic implementation path:
 - destroy/repair ALNS with simulated annealing acceptance
-- Thompson Sampling to choose destroy operators
+- LinUCB contextual bandit to choose destroy operators (Chu et al., ICML 2011)
 - mandatory learned repair model for reconstruction
 """
 
@@ -103,7 +103,7 @@ class LinUCBBandit:
 
 
 class BinPackingSolver:
-    """Single-path hybrid ALNS solver: Thompson bandit + learned repair."""
+    """Single-path hybrid ALNS solver: LinUCB contextual bandit + learned repair."""
 
     __slots__ = (
         "_item_sizes",
