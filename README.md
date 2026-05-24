@@ -39,10 +39,9 @@ A research repository for benchmarking algorithm families on the 1D Bin Packing 
 
 ## Installation
 
-```python
-import subprocess
-
-subprocess.run(["python", "-m", "venv", ".venv"], check=True)
-subprocess.run([".venv/bin/pip", "install", "-r", "requirements.txt"], check=True)
-subprocess.run([".venv/bin/pip", "install", "-e", "."], check=True)
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+pip install -e .
 ```
