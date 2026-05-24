@@ -470,6 +470,11 @@ def main() -> None:
         action="store_true",
         help="Enable hyperparameter grid search (warning: very slow)",
     )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Show training progress for GradientBoosting",
+    )
     args = parser.parse_args()
 
     # =====================================================================
@@ -540,6 +545,7 @@ def main() -> None:
         "min_samples_leaf": 10,
         "validation_fraction": 0.1,
         "n_iter_no_change": 50,
+        "verbose": 1 if args.verbose else 0,
         "random_state": 42,
     }
 
@@ -559,6 +565,7 @@ def main() -> None:
                         subsample=0.75,
                         min_samples_split=20,
                         min_samples_leaf=10,
+                        verbose=1 if args.verbose else 0,
                         random_state=42,
                     ),
                 ),
@@ -571,7 +578,7 @@ def main() -> None:
             cv=3,
             scoring="roc_auc",
             n_jobs=-1,
-            verbose=1,
+            verbose=1 if args.verbose else 0,
         )
         print("Starting GridSearchCV...")
         t_train_start = time.perf_counter()
@@ -591,6 +598,7 @@ def main() -> None:
             min_samples_leaf=int(hyperparams["min_samples_leaf"]),
             validation_fraction=float(hyperparams["validation_fraction"]),
             n_iter_no_change=int(hyperparams["n_iter_no_change"]),
+            verbose=int(hyperparams["verbose"]),
             random_state=int(hyperparams["random_state"]),
         )
         pipe = Pipeline(
