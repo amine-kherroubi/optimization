@@ -37,7 +37,6 @@ from typing import Any, Sequence, Mapping, Tuple
 
 import math
 import numpy as np
-import sys
 
 try:
     from tqdm import tqdm
@@ -47,15 +46,7 @@ except ImportError:
         return iterable
 
 
-_here = str(Path(__file__).parent)
-if _here not in sys.path:
-    sys.path.insert(0, _here)
-
-try:
-    # Prefer package-style import when run from project root
-    from repair_model_training import features
-except Exception:  # pragma: no cover - fallback for script execution
-    import features
+from bin_packing.hybrid_ml_metaheuristics.hybrid_alns.repair_model_training import features
 
 # Local aliases for API compatibility with older script usage
 make_features = features.make_features
