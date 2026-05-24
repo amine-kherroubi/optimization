@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from bin_packing.datasets.types import Instance, DatasetConfig
+from bin_packing_optimization.datasets.types import Instance, DatasetConfig
 
 
 def parse_instance(filepath: Path, dataset_key: str) -> Instance:
@@ -21,8 +21,8 @@ def parse_instance(filepath: Path, dataset_key: str) -> Instance:
 
 
 DATASET_CONFIG = DatasetConfig(
-    key="falkenauer-t",
-    label="Falkenauer T",
+    key="falkenauer-u",
+    label="Falkenauer U",
     directory=Path(__file__).resolve().parent,
     parser=parse_instance,
 )

@@ -14,7 +14,7 @@ import numpy as np
 # Project root used for sensible defaults
 _PROJECT_ROOT: Path = Path(__file__).resolve().parents[2]
 
-from bin_packing.utilities.statistics import load_results
+from bin_packing_optimization.utilities.statistics import load_results
 
 
 def _load_completed_rows(csv_path: str | Path):

@@ -15,8 +15,8 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
-from bin_packing.datasets.types import Instance, DatasetConfig
-from bin_packing.datasets.registry import DATASET_REGISTRY
+from bin_packing_optimization.datasets.types import Instance, DatasetConfig
+from bin_packing_optimization.datasets.registry import DATASET_REGISTRY
 
 
 @dataclass(slots=True)

@@ -9,22 +9,23 @@ This module provides a single, deterministic implementation path:
 from __future__ import annotations
 
 import math
-import pickle
 import time
 import warnings
 from dataclasses import dataclass
-from typing import Any, Sequence, Mapping, Optional, Tuple
+from typing import Any, Sequence
 
 import numpy as np
 
-from bin_packing.hybrid_ml_metaheuristics.hybrid_alns.repair_model_training.features import (
+from bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns.repair_model_training.features import (
     FEATURE_VERSION as _EXPECTED_FEATURE_VERSION,
-)  # noqa: E402
-from bin_packing.hybrid_ml_metaheuristics.hybrid_alns.repair_model_training.features import (
+)
+from bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns.repair_model_training.features import (
     N_FEATURES as _EXPECTED_N_FEATURES,
-)  # noqa: E402
-from bin_packing.hybrid_ml_metaheuristics.hybrid_alns.repair_model_training.features import make_features as _make_features  # noqa: E402
-import bin_packing.hybrid_ml_metaheuristics.hybrid_alns.repair_model_training.features as _features  # noqa: E402
+)
+from bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns.repair_model_training.features import (
+    make_features as _make_features,
+)
+import bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns.repair_model_training.features as _features
 
 
 @dataclass(slots=True)
