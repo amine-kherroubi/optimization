@@ -59,7 +59,7 @@ cd ../../..
 python benchmark.py \
   --solver 5_hybrid_ml_metaheuristics/hybrid_alns/solver.py \
   --dataset falkenauer-u \
-  --method-args "model_path=5_hybrid_ml_metaheuristics/hybrid_alns/models/repair_model_v2.pkl"
+  --method-args "model_path=models/repair_model_v2.pkl"
 ```
 
 ## Notebook
