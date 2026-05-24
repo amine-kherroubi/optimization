@@ -5,7 +5,7 @@ This folder contains the offline training workflow for the hybrid ALNS repair mo
 ## Contents
 
 ```text
-training/
+repair_model_training/
 ├── README.md
 ├── repair_model_training.ipynb
 ├── collect_alns_states.py
@@ -18,7 +18,7 @@ Generated artifacts are written next to these files unless you pass a different 
 
 - `repair_model_v1.pkl` - baseline model trained on synthetic data only
 - `alns_states_v1.pkl` - DAgger-lite collection of real ALNS states
-- `repair_model_v2.pkl` - model trained with synthetic + ALNS-augmented  
+- `repair_model_v2.pkl` - model trained with synthetic + ALNS-augmented
 
 ## Workflow
 
@@ -55,8 +55,7 @@ python train_repair_model.py \
 Run the benchmark from the project root so the model path resolves correctly:
 
 ```bash
-cd ../../..
-python benchmark.py \
+python utilities/benchmarking.py \
   --solver 5_hybrid_ml_metaheuristics/hybrid_alns/solver.py \
   --dataset falkenauer-u \
   --method-args "model_path=models/repair_model_v2.pkl"

@@ -24,10 +24,14 @@ _root_dir = str(Path(__file__).parent)
 if _root_dir not in sys.path:
     sys.path.insert(0, _root_dir)
 
-from training.features import FEATURE_VERSION as _EXPECTED_FEATURE_VERSION  # noqa: E402
-from training.features import N_FEATURES as _EXPECTED_N_FEATURES  # noqa: E402
-from training.features import make_features as _make_features  # noqa: E402
-import training.features as _features  # noqa: E402
+from repair_model_training.features import (
+    FEATURE_VERSION as _EXPECTED_FEATURE_VERSION,
+)  # noqa: E402
+from repair_model_training.features import (
+    N_FEATURES as _EXPECTED_N_FEATURES,
+)  # noqa: E402
+from repair_model_training.features import make_features as _make_features  # noqa: E402
+import repair_model_training.features as _features  # noqa: E402
 
 
 @dataclass(slots=True)
