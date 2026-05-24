@@ -25,7 +25,7 @@ Generated artifacts are written next to these files unless you pass a different 
 Trained repair models are saved to:
 
 ```
-5_hybrid_ml_metaheuristics/hybrid_alns/models/
+hybrid_ml_metaheuristics/hybrid_alns/models/
 ```
 
 These `.pkl` files are intentionally not gitignored so they can be
@@ -68,7 +68,7 @@ Run the benchmark from the project root so the model path resolves correctly:
 
 ```bash
 python utilities/benchmarking.py \
-  --solver 5_hybrid_ml_metaheuristics/hybrid_alns/solver.py \
+  --solver hybrid_ml_metaheuristics/hybrid_alns/solver.py \
   --dataset falkenauer-u \
   --method-args "model_path=models/repair_model_v2.pkl"
 ```

@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # Project root used for sensible defaults
-_PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent
+_PROJECT_ROOT: Path = Path(__file__).resolve().parents[2]
 
 # Load the local statistics module by file path. A plain
 # `from statistics import load_results` would silently resolve to Python's

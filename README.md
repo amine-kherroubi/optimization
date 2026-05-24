@@ -14,7 +14,7 @@ A professional research repository for benchmarking algorithm families on the **
 ├── 2_specific_heuristics/
 ├── 3_trajectory_based_metaheuristics/
 ├── 4_population_based_metaheuristics/
-├── 5_hybrid_ml_metaheuristics/
+├── hybrid_ml_metaheuristics/
 ├── datasets/
 ├── utilities/
 │   ├── benchmarking.py
@@ -29,7 +29,7 @@ A professional research repository for benchmarking algorithm families on the **
 2. **Specific heuristics** (`2_specific_heuristics/`) for fast constructive/improvement baselines.
 3. **Trajectory-based metaheuristics** (`3_trajectory_based_metaheuristics/`) for single-solution neighborhood search.
 4. **Population-based metaheuristics** (`4_population_based_metaheuristics/`) for population-driven search (GA, ACO).
-5. **Hybrid ML + metaheuristics** (`5_hybrid_ml_metaheuristics/`) for adaptive learning-enhanced pipelines.
+5. **Hybrid ML + metaheuristics** (`hybrid_ml_metaheuristics/`) for adaptive learning-enhanced pipelines.
 
 ## Benchmarking
 
@@ -46,7 +46,7 @@ python utilities/benchmarking.py --solver 1_exact_methods/solver.py --dataset fa
 python utilities/benchmarking.py --solver 2_specific_heuristics/solver.py --dataset scholl-2 --method "best fit"
 python utilities/benchmarking.py --solver 3_trajectory_based_metaheuristics/solver.py --dataset scholl-2 --method "tabu search lns"
 python utilities/benchmarking.py --solver 4_population_based_metaheuristics/solver.py --dataset falkenauer-u --method "genetic algorithm memetic"
-python utilities/benchmarking.py --solver 5_hybrid_ml_metaheuristics/hybrid_alns/solver.py --dataset falkenauer-u --method-args "model_path=5_hybrid_ml_metaheuristics/hybrid_alns/models/repair_model.pkl,max_iterations=5000"
+python utilities/benchmarking.py --solver hybrid_ml_metaheuristics/hybrid_alns/solver.py --dataset falkenauer-u --method-args "model_path=hybrid_ml_metaheuristics/hybrid_alns/models/repair_model.pkl,max_iterations=5000"
 ```
 
 ### Core CLI Options
@@ -86,5 +86,5 @@ default (see `.gitignore`).
 
 Models for hybrid approaches are kept in their module folders. In
 particular, trained model files (`.pkl`) for the hybrid ALNS are stored
-in `5_hybrid_ml_metaheuristics/hybrid_alns/models/` and are NOT
+in `hybrid_ml_metaheuristics/hybrid_alns/models/` and are NOT
 gitignored. Manage those artifacts intentionally.

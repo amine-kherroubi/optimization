@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datasets.types import DatasetConfig
+from bin_packing.datasets.types import DatasetConfig
 
 DATASET_REGISTRY: dict[str, DatasetConfig] = {}
 
@@ -12,11 +12,11 @@ def register_dataset(config: DatasetConfig) -> None:
     DATASET_REGISTRY[config.key] = config
 
 
-from datasets.Falkenauer_T import DATASET_CONFIG as FALKENAUER_T_CONFIG
-from datasets.Falkenauer_U import DATASET_CONFIG as FALKENAUER_U_CONFIG
-from datasets.Scholl_1 import DATASET_CONFIG as SCHOLL_1_CONFIG
-from datasets.Scholl_2 import DATASET_CONFIG as SCHOLL_2_CONFIG
-from datasets.Scholl_3 import DATASET_CONFIG as SCHOLL_3_CONFIG
+from bin_packing.datasets.Falkenauer_T import DATASET_CONFIG as FALKENAUER_T_CONFIG
+from bin_packing.datasets.Falkenauer_U import DATASET_CONFIG as FALKENAUER_U_CONFIG
+from bin_packing.datasets.Scholl_1 import DATASET_CONFIG as SCHOLL_1_CONFIG
+from bin_packing.datasets.Scholl_2 import DATASET_CONFIG as SCHOLL_2_CONFIG
+from bin_packing.datasets.Scholl_3 import DATASET_CONFIG as SCHOLL_3_CONFIG
 
 for config in (
     FALKENAUER_T_CONFIG,

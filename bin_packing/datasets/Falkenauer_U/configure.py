@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from datasets.types import Instance, DatasetConfig
+from bin_packing.datasets.types import Instance, DatasetConfig
 
 
 def parse_instance(filepath: Path, dataset_key: str) -> Instance:

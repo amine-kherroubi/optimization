@@ -165,7 +165,7 @@ def _print_summary(summary: dict[str, float | int], by_size: list[SizeSummary]) 
 
 
 # Project root (used for sensible default output locations)
-_PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent
+_PROJECT_ROOT: Path = Path(__file__).resolve().parents[2]
 
 
 def load_results_grouped(csv_paths: Sequence[str | Path]) -> Dict[str, list[ResultRow]]:
