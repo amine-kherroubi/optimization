@@ -170,7 +170,8 @@ class BinPackingSolver:
         n = len(self._item_sizes)
         k_min = max(1, int(0.05 * n))
         k_max = max(k_min + 1, int(0.25 * n))
-        bandit = ThompsonSamplingBandit(n_arms=3)
+        lower_bound = math.ceil(sum(self._item_sizes) / self._bin_capacity)
+        bandit = LinUCBBandit(n_arms=3, n_features=N_CONTEXT_FEATURES, alpha=1.0)
 
         temperature = t0
         no_improve_limit = max(250, max_iterations // 20)
