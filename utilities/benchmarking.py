@@ -89,8 +89,13 @@ def _solver_worker(
 
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     try:
-        abs_path = Path(__file__).parent / solver_path
-        spec = importlib.util.spec_from_file_location("solver", abs_path)
+        # Accept either absolute paths or paths relative to this file.
+        abs_path = Path(solver_path)
+        if not abs_path.is_absolute():
+            abs_path = (Path(__file__).parent / solver_path).resolve()
+        else:
+            abs_path = abs_path.resolve()
+        spec = importlib.util.spec_from_file_location("solver", str(abs_path))
         assert spec is not None
         solver_mod = importlib.util.module_from_spec(spec)
         sys.modules[spec.name] = solver_mod

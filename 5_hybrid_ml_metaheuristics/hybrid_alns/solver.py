@@ -506,7 +506,15 @@ class BinPackingSolver:
         """
         path = Path(model_path)
         if not path.is_absolute():
-            path = (Path(__file__).resolve().parent / path).resolve()
+            # Common usage: tools invoke solver from repo root with a
+            # repository-relative path. Try current working directory first
+            # (repository root when invoked from project root), then fall
+            # back to a path relative to this module.
+            cwd_candidate = (Path.cwd() / path).resolve()
+            if cwd_candidate.exists():
+                path = cwd_candidate
+            else:
+                path = (Path(__file__).resolve().parent / path).resolve()
         if not path.exists():
             raise FileNotFoundError(f"Model file not found: {path}")
 
