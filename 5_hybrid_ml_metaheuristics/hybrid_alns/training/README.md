@@ -18,7 +18,7 @@ Generated artifacts are written next to these files unless you pass a different 
 
 - `repair_model_v1.pkl` - baseline model trained on synthetic data only
 - `alns_states_v1.pkl` - DAgger-lite collection of real ALNS states
-- `repair_model_v2.pkl` - model trained with synthetic + ALNS-augmented  
+- `repair_model_v2.pkl` - model trained with synthetic + ALNS-augmented
 
 ## Workflow
 
