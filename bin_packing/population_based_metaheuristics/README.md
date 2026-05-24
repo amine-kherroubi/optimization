@@ -16,7 +16,7 @@ This module contains population-driven search approaches.
 Run from repository root:
 
 ```bash
-python utilities/benchmarking.py --solver 4_population_based_metaheuristics/solver.py --dataset falkenauer-u --method "genetic algorithm"
+python -m bin_packing.utilities.benchmarking --solver bin_packing/population_based_metaheuristics/solver.py --dataset falkenauer-u --method "genetic algorithm"
 ```
 
 ## Results & Models
@@ -24,7 +24,7 @@ python utilities/benchmarking.py --solver 4_population_based_metaheuristics/solv
 Benchmark outputs are written automatically under the solver folder as:
 
 ```
-4_population_based_metaheuristics/results/<dataset_key>/<YYYYMMDD_HHMMSS>/
+bin_packing/population_based_metaheuristics/results/<dataset_key>/<YYYYMMDD_HHMMSS>/
 	results.csv
 	graphs/
 ```

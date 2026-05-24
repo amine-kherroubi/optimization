@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import importlib.util
-import sys
 from pathlib import Path
 from typing import Sequence
 from datetime import datetime
@@ -16,22 +14,7 @@ import numpy as np
 # Project root used for sensible defaults
 _PROJECT_ROOT: Path = Path(__file__).resolve().parents[2]
 
-# Load the local statistics module by file path. A plain
-# `from statistics import load_results` would silently resolve to Python's
-# stdlib statistics module (which has no load_results), causing an ImportError
-# at runtime when this file is executed as a script. The relative import works
-# when used as a package but fails as a script, hence the two-path approach.
-try:
-    from .statistics import load_results  # package import
-except ImportError:
-    _spec = importlib.util.spec_from_file_location(
-        "_utilities_statistics",
-        Path(__file__).with_name("statistics.py"),
-    )
-    assert _spec is not None and _spec.loader is not None
-    _stats_mod = importlib.util.module_from_spec(_spec)
-    _spec.loader.exec_module(_stats_mod)  # type: ignore[union-attr]
-    load_results = _stats_mod.load_results  # type: ignore[attr-defined]
+from bin_packing.utilities.statistics import load_results
 
 
 def _load_completed_rows(csv_path: str | Path):
