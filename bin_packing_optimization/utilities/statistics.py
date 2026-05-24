@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import argparse
 import csv
 from dataclasses import dataclass
 from datetime import datetime
@@ -250,14 +249,3 @@ def export_summary_csv(
                 row["value"] = metrics
             writer.writerow(row)
     return path
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Compute statistics from benchmark CSV output."
-    )
-    parser.add_argument("csv", help="Path to benchmark CSV file.")
-    args = parser.parse_args()
-
-    rows = load_results(args.csv)
-    _print_summary(summarize(rows), summarize_by_size(rows))

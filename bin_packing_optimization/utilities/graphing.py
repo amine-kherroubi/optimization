@@ -317,19 +317,3 @@ def create_comparison_graphs(
         paths.append(_save_figure(fig, output, "compare_success_rate_by_method.png"))
 
     return paths
-
-
-if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser(
-        description="Create graphs from benchmark CSV output."
-    )
-    parser.add_argument("csv", help="Path to benchmark CSV file.")
-    # Output directories are determined automatically; graphs are placed next
-    # to the CSV file in a `graphs/` subdirectory inside the run timestamp.
-    args = parser.parse_args()
-
-    files = create_graphs(args.csv)
-    for path in files:
-        print(path)

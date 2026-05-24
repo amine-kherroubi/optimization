@@ -6,8 +6,8 @@ training are independent steps. This lets you:
   - Version and inspect raw datasets as standalone .pkl files
   - Reuse the same dataset across multiple training runs / hyperparameter sweeps
 
-Output .pkl files are compatible with train_repair_model.py (--data) and
-collect_alns_states.py (--augment-with).
+Output .pkl files are compatible with train_repair_model.py (data field) and
+collect_alns_states.py (augmentation data input).
 
 Labelling strategy
 ------------------
@@ -18,19 +18,17 @@ negatives (up to max_negatives).
 
 Usage
 -----
-    python generate_dataset.py \\
-        --instances 4000 \\
-        --seed 0 \\
-        --output training_data/synthetic_v1.pkl
+    from bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns.repair_model_training.generate_dataset import GenerateDatasetConfig, generate_dataset
+
+    generate_dataset(GenerateDatasetConfig(instances=4000, seed=0, output="training_data/synthetic_v1.pkl"))
 
 Then pass the output to train_repair_model.py:
 
-    python train_repair_model.py --data training_data/synthetic_v1.pkl
+    train_repair_model(TrainRepairModelConfig(data=["training_data/synthetic_v1.pkl"]))
 """
 
 from __future__ import annotations
 
-import argparse
 import pickle
 from dataclasses import dataclass
 from pathlib import Path
@@ -287,51 +285,8 @@ def generate_dataset(config: GenerateDatasetConfig) -> dict:
 
     size_mb = output_path.stat().st_size / 1024 / 1024
     print(f"\nSaved: {output_path}  ({size_mb:.1f} MB)")
-    print("Next step: pass this file to train_repair_model.py via --data")
+    print("Next step: pass this file to train_repair_model.py via the data config field")
     return payload
 
 
 # ============================================================================
-# CLI
-# ============================================================================
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Generate synthetic training dataset for the repair model"
-    )
-    parser.add_argument(
-        "--instances",
-        type=int,
-        default=5000,
-        help="Number of synthetic instances to generate (default: 5000)",
-    )
-    parser.add_argument("--n-min", type=int, default=50, help="Min items per instance")
-    parser.add_argument("--n-max", type=int, default=200, help="Max items per instance")
-    parser.add_argument(
-        "--max-negatives",
-        type=int,
-        default=5,
-        help="Negative sampling budget per positive example (default: 5)",
-    )
-    parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument(
-        "--output",
-        default=f"{DEFAULT_OUTPUT_DIR}/synthetic.pkl",
-        help="Output .pkl path (default: training_data/synthetic.pkl)",
-    )
-    args = parser.parse_args()
-    generate_dataset(
-        GenerateDatasetConfig(
-            instances=args.instances,
-            n_min=args.n_min,
-            n_max=args.n_max,
-            max_negatives=args.max_negatives,
-            seed=args.seed,
-            output=args.output,
-        )
-    )
-
-
-if __name__ == "__main__":
-    main()

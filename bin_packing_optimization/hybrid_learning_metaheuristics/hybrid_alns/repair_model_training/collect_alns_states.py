@@ -12,12 +12,11 @@ and saved as an augmentation dataset.
 
 Usage
 -----
-    python collect_alns_states.py \\
-        --model-path repair_model.pkl \\
-        --instances 500 \\
-        --output alns_states.pkl
+    from bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns.repair_model_training.collect_alns_states import CollectAlnsStatesConfig, collect_alns_states
 
-Then pass --augment-with alns_states.pkl to train_repair_model.py.
+    collect_alns_states(CollectAlnsStatesConfig(model_path="repair_model.pkl", instances=500, output="alns_states.pkl"))
+
+Then include alns_states.pkl in the training data list for train_repair_model.py.
 
 Why "DAgger-lite"
 -----------------
@@ -30,7 +29,6 @@ reduces covariate shift.
 
 from __future__ import annotations
 
-import argparse
 import pickle
 from dataclasses import dataclass
 from pathlib import Path
@@ -343,36 +341,5 @@ def collect_alns_states(config: CollectAlnsStatesConfig) -> dict[str, Any]:
     with output_path.open("wb") as f:
         pickle.dump({"X": X_arr, "y": y_arr, "feature_version": FEATURE_VERSION}, f)
     print(f"Saved to: {output_path}")
-    print("Next step: retrain with --augment-with", output_path)
+    print("Next step: retrain with additional training data from", output_path)
     return {"X": X_arr, "y": y_arr, "feature_version": FEATURE_VERSION}
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Collect real ALNS repair states for training augmentation"
-    )
-    parser.add_argument("--model-path", required=True)
-    parser.add_argument("--instances", type=int, default=500)
-    parser.add_argument("--n-min", type=int, default=50)
-    parser.add_argument("--n-max", type=int, default=200)
-    parser.add_argument("--max-negatives", type=int, default=5)
-    parser.add_argument("--iterations", type=int, default=200)
-    parser.add_argument("--seed", type=int, default=1)
-    parser.add_argument("--output", default="alns_states.pkl")
-    args = parser.parse_args()
-    collect_alns_states(
-        CollectAlnsStatesConfig(
-            model_path=args.model_path,
-            instances=args.instances,
-            n_min=args.n_min,
-            n_max=args.n_max,
-            max_negatives=args.max_negatives,
-            iterations=args.iterations,
-            seed=args.seed,
-            output=args.output,
-        )
-    )
-
-
-if __name__ == "__main__":
-    main()

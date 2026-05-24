@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import argparse
 import pickle
 import time
 from dataclasses import dataclass, field
@@ -282,7 +281,7 @@ def _load_and_merge(
     Raises ValueError if a file's feature_version does not match.
     """
     if not data_paths:
-        raise ValueError("At least one --data path is required.")
+        raise ValueError("At least one data path is required.")
 
     X_parts: list[np.ndarray] = []
     y_parts: list[np.ndarray] = []
@@ -561,43 +560,3 @@ def train_repair_model(config: TrainRepairModelConfig) -> dict[str, Any]:
 
 
 # ============================================================================
-# CLI
-# ============================================================================
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Train repair model with comprehensive metrics"
-    )
-    parser.add_argument(
-        "--data",
-        nargs="+",
-        required=True,
-        metavar="PATH",
-        help=(
-            "One or more .pkl dataset files to load and merge. "
-            "Each must be produced by generate_dataset.py or collect_alns_states.py."
-        ),
-    )
-    parser.add_argument("--output", type=str, default="repair_model.pkl")
-    parser.add_argument("--no-learning-curves", action="store_true")
-    parser.add_argument("--no-plots", action="store_true")
-    parser.add_argument("--cv-folds", type=int, default=5)
-    parser.add_argument("--grid-search", action="store_true")
-    parser.add_argument("--verbose", action="store_true")
-    args = parser.parse_args()
-    train_repair_model(
-        TrainRepairModelConfig(
-            data=args.data,
-            output=args.output,
-            no_learning_curves=args.no_learning_curves,
-            no_plots=args.no_plots,
-            cv_folds=args.cv_folds,
-            grid_search=args.grid_search,
-            verbose=args.verbose,
-        )
-    )
-
-
-if __name__ == "__main__":
-    main()
