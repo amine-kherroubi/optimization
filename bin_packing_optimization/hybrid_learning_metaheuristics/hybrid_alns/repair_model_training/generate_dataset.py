@@ -30,6 +30,7 @@ Then pass the output to train_repair_model.py:
 from __future__ import annotations
 
 import pickle
+from multiprocessing import Pool
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -66,6 +67,7 @@ class GenerateDatasetConfig:
     n_max: int = 200
     max_negatives: int = 5
     seed: int = 0
+    workers: int = 1
     output: str = f"{DEFAULT_OUTPUT_DIR}/synthetic.pkl"
 
 
@@ -98,6 +100,88 @@ def _generate_instance(rng: np.random.Generator, n_min: int, n_max: int) -> np.n
     return np.clip(sizes, 0.05, 0.95)
 
 
+def _build_instance_rows(
+    args: tuple[int, int, int, int],
+) -> tuple[list[list[float]], list[int]]:
+    """Build feature/label rows for a single synthetic instance."""
+    inst_seed, n_min, n_max, max_negatives = args
+
+    rng = np.random.default_rng(inst_seed)
+    mf = features.make_features
+    sizes = _generate_instance(rng, n_min, n_max)
+    sizes_list = [float(v) for v in sizes]
+    n = len(sizes_list)
+    capacity = 1.0
+
+    order = sorted(range(n), key=lambda i: -sizes_list[i])
+    size_rank: dict[int, int] = {item: rank for rank, item in enumerate(order)}
+
+    bins: list[list[int]] = []
+    bin_loads: list[float] = []
+    for item in order:
+        s = sizes_list[item]
+        placed = False
+        for j, load in enumerate(bin_loads):
+            if load + s <= capacity:
+                bins[j].append(item)
+                bin_loads[j] += s
+                placed = True
+                break
+        if not placed:
+            bins.append([item])
+            bin_loads.append(s)
+
+    rows_X: list[list[float]] = []
+    rows_y: list[int] = []
+    remaining = len(order)
+    denom = max(1, n)
+    for item in order:
+        item_size = sizes_list[item]
+        feasible: list[int] = []
+        best_bin = -1
+        best_slack = float("inf")
+        for j, load in enumerate(bin_loads):
+            rem = capacity - load
+            if rem + 1e-9 < item_size:
+                continue
+            feasible.append(j)
+            slack = rem - item_size
+            if slack < best_slack:
+                best_slack = slack
+                best_bin = j
+
+        if best_bin == -1:
+            remaining -= 1
+            continue
+
+        def _feat(bin_idx: int) -> list[float]:
+            return mf(
+                item=item,
+                item_size=item_size,
+                bin_items=bins[bin_idx],
+                bin_load=bin_loads[bin_idx],
+                capacity=capacity,
+                sizes=sizes_list,
+                n_total=n,
+                size_rank=size_rank,
+                remaining_ratio=remaining / denom,
+            )
+
+        rows_X.append(_feat(best_bin))
+        rows_y.append(1)
+
+        negatives = [j for j in feasible if j != best_bin]
+        if len(negatives) > max_negatives:
+            negatives = list(rng.choice(negatives, size=max_negatives, replace=False))
+        for j in negatives:
+            rows_X.append(_feat(j))
+            rows_y.append(0)
+
+        remaining -= 1
+
+    return rows_X, rows_y
+
+
 # ============================================================================
 # Dataset builder
 # ============================================================================
@@ -110,6 +194,7 @@ def build_dataset(
     n_max: int,
     max_negatives: int,
     seed: int = 0,
+    workers: int = 1,
 ) -> tuple[np.ndarray, np.ndarray, DatasetSummary]:
     """Generate a synthetic (X, y) training dataset.
 
@@ -125,85 +210,34 @@ def build_dataset(
     y : int32 array of shape (n_rows,)
     summary : DatasetSummary
     """
-    rng = np.random.default_rng(seed)
-    mf = features.make_features
     all_X: list[list[float]] = []
     all_y: list[int] = []
+    worker_count = max(1, int(workers))
+    seed_seq = np.random.SeedSequence(seed)
+    child_seeds = [int(cs.generate_state(1, dtype=np.uint64)[0]) for cs in seed_seq.spawn(instances)]
+    job_args = [(s, n_min, n_max, max_negatives) for s in child_seeds]
 
-    for _ in tqdm(range(instances), desc="Generating dataset", total=instances):
-        sizes = _generate_instance(rng, n_min, n_max)
-        sizes_list = [float(v) for v in sizes]
-        n = len(sizes_list)
-        capacity = 1.0
+    if worker_count == 1:
+        iterator = (
+            _build_instance_rows(args)
+            for args in tqdm(job_args, desc="Generating dataset", total=instances)
+        )
+    else:
+        pool = Pool(processes=worker_count)
+        iterator = tqdm(
+            pool.imap(_build_instance_rows, job_args, chunksize=16),
+            desc="Generating dataset",
+            total=instances,
+        )
 
-        # Descending size order used for both FFD and size-rank feature
-        order = sorted(range(n), key=lambda i: -sizes_list[i])
-        size_rank: dict[int, int] = {item: rank for rank, item in enumerate(order)}
-
-        # FFD initial solution
-        bins: list[list[int]] = []
-        bin_loads: list[float] = []
-        for item in order:
-            s = sizes_list[item]
-            placed = False
-            for j, load in enumerate(bin_loads):
-                if load + s <= capacity:
-                    bins[j].append(item)
-                    bin_loads[j] += s
-                    placed = True
-                    break
-            if not placed:
-                bins.append([item])
-                bin_loads.append(s)
-
-        # BFD oracle labelling
-        remaining = len(order)
-        denom = max(1, n)
-        for item in order:
-            item_size = sizes_list[item]
-            feasible: list[int] = []
-            best_bin = -1
-            best_slack = float("inf")
-            for j, load in enumerate(bin_loads):
-                rem = capacity - load
-                if rem + 1e-9 < item_size:
-                    continue
-                feasible.append(j)
-                slack = rem - item_size
-                if slack < best_slack:
-                    best_slack = slack
-                    best_bin = j
-
-            if best_bin == -1:
-                remaining -= 1
-                continue
-
-            def _feat(bin_idx: int) -> list[float]:
-                return mf(
-                    item=item,
-                    item_size=item_size,
-                    bin_items=bins[bin_idx],
-                    bin_load=bin_loads[bin_idx],
-                    capacity=capacity,
-                    sizes=sizes_list,
-                    n_total=n,
-                    size_rank=size_rank,
-                    remaining_ratio=remaining / denom,
-                )
-
-            all_X.append(_feat(best_bin))
-            all_y.append(1)
-
-            negatives = [j for j in feasible if j != best_bin]
-            if len(negatives) > max_negatives:
-                negatives = list(
-                    rng.choice(negatives, size=max_negatives, replace=False)
-                )
-            for j in negatives:
-                all_X.append(_feat(j))
-                all_y.append(0)
-
-            remaining -= 1
+    try:
+        for rows_X, rows_y in iterator:
+            all_X.extend(rows_X)
+            all_y.extend(rows_y)
+    finally:
+        if worker_count > 1:
+            pool.close()
+            pool.join()
 
     if len(all_X) == 0:
         X_arr = np.zeros((0, N_FEATURES), dtype=np.float32)
@@ -244,6 +278,7 @@ def generate_dataset(config: GenerateDatasetConfig) -> dict:
     print(f"  Instance size range: [{config.n_min}, {config.n_max}] items")
     print(f"  Max negatives      : {config.max_negatives}")
     print(f"  Seed               : {config.seed}")
+    print(f"  Workers            : {config.workers}")
     print(f"  Output             : {config.output}")
 
     X, y, summary = build_dataset(
@@ -252,6 +287,7 @@ def generate_dataset(config: GenerateDatasetConfig) -> dict:
         n_max=config.n_max,
         max_negatives=config.max_negatives,
         seed=config.seed,
+        workers=config.workers,
     )
 
     print(f"\nDataset: {summary.rows:,} rows x {summary.cols} features")
@@ -275,6 +311,7 @@ def generate_dataset(config: GenerateDatasetConfig) -> dict:
             "n_max": config.n_max,
             "max_negatives": config.max_negatives,
             "seed": config.seed,
+            "workers": config.workers,
             "rows": summary.rows,
             "cols": summary.cols,
             "positive_rate": summary.positive_rate,

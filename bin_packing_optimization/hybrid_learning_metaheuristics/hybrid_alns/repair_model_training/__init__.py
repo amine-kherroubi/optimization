@@ -23,6 +23,7 @@ def generate_dataset(
     n_max: int = 200,
     max_negatives: int = 5,
     seed: int = 0,
+    workers: int = 1,
     output: str = "training_data/synthetic.pkl",
 ) -> dict[str, Any]:
     return _generate_dataset(
@@ -32,6 +33,7 @@ def generate_dataset(
             n_max=n_max,
             max_negatives=max_negatives,
             seed=seed,
+            workers=workers,
             output=output,
         )
     )
