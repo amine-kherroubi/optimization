@@ -334,7 +334,11 @@ class Benchmark:
             # are grouped by method. Structure:
             # <solver_dir>/results/<dataset_key>/<timestamp>/results.csv
             ts = datetime.now().strftime("%Y%m%d_%H%M%S") if timestamp else ""
-            base_dir = Path(results_dir) if results_dir is not None else Path("results") / self._dataset.key / ts
+            base_dir = (
+                Path(results_dir)
+                if results_dir is not None
+                else Path("results") / self._dataset.key / ts
+            )
             base_dir.mkdir(parents=True, exist_ok=True)
             out_path = base_dir / "results.csv"
 
@@ -589,9 +593,6 @@ class Benchmark:
             )
 
         print(f"\033[1;36m{chr(0x2550) * widths.total_width}\033[0m\n")
-
-
-
 
 
 def create_benchmark(

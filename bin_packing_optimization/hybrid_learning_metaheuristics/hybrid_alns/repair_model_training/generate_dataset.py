@@ -285,7 +285,9 @@ def generate_dataset(config: GenerateDatasetConfig) -> dict:
 
     size_mb = output_path.stat().st_size / 1024 / 1024
     print(f"\nSaved: {output_path}  ({size_mb:.1f} MB)")
-    print("Next step: pass this file to train_repair_model.py via the data config field")
+    print(
+        "Next step: pass this file to train_repair_model.py via the data config field"
+    )
     return payload
 
 
