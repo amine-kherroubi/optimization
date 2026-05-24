@@ -7,7 +7,6 @@ This module contains the hybrid ALNS pipeline with learned repair.
 ## Main Components
 
 - `solver.py`: runtime ALNS solver
-- `api.py`: package-level helper API (`load_model_bundle`)
 - `repair_model_training/train_repair_model.py`: repair-model training entry point
 - `models/repair_model_v1.pkl`, `models/repair_model_v2.pkl`, `models/alns_states_v1.pkl`: example artifacts
 
@@ -35,12 +34,8 @@ gitignored so they can be tracked or shared explicitly. Result folders
 are gitignored by default.
 
 
-### Notebook API
+### Notebook Model Loading
 
-`performance_evaluation.ipynb` now uses a minimal package API:
-
-```python
-from bin_packing.hybrid_ml_metaheuristics.hybrid_alns import load_model_bundle
-```
-
-No `sys.path` or hard-coded absolute filesystem paths are required.
+`performance_evaluation.ipynb` loads the selected model artifact explicitly from
+`bin_packing.hybrid_ml_metaheuristics.hybrid_alns.models` using
+`importlib.resources` + `pickle`, so model-version choice stays in the notebook.

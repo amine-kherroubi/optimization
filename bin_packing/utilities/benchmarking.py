@@ -172,6 +172,23 @@ class Benchmark:
         self._time_limit: float | None = time_limit
         self._results: list[BenchmarkResult] = []
 
+    @classmethod
+    def from_dataset_key(
+        cls,
+        dataset_key: str,
+        solver_module: ModuleType,
+        time_limit: float | None = None,
+    ) -> "Benchmark":
+        """Create a benchmark by resolving a dataset key from the registry."""
+        try:
+            dataset = DATASET_REGISTRY[dataset_key]
+        except KeyError as exc:
+            available = ", ".join(sorted(DATASET_REGISTRY.keys()))
+            raise ValueError(
+                f"Unknown dataset key '{dataset_key}'. Available keys: {available}"
+            ) from exc
+        return cls(dataset=dataset, solver_module=solver_module, time_limit=time_limit)
+
     def run(
         self,
         method: str | None,
@@ -576,3 +593,16 @@ class Benchmark:
 
 
 
+
+
+def create_benchmark(
+    dataset_key: str,
+    solver_module: ModuleType,
+    time_limit: float | None = None,
+) -> Benchmark:
+    """Return a benchmark configured from a dataset registry key."""
+    return Benchmark.from_dataset_key(
+        dataset_key=dataset_key,
+        solver_module=solver_module,
+        time_limit=time_limit,
+    )
