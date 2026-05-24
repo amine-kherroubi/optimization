@@ -12,10 +12,20 @@ This module contains the hybrid ALNS pipeline with learned repair.
 
 ## Benchmark Usage
 
-Run from repository root:
+Use object instantiation + function calls (no CLI):
 
-```bash
-python -m bin_packing.utilities.benchmarking --solver bin_packing/hybrid_ml_metaheuristics/hybrid_alns/solver.py --dataset falkenauer-u --method-args "max_iterations=5000"
+```python
+from bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns import hybrid_alns_solver
+from bin_packing_optimization.utilities.benchmarking import create_benchmark
+
+benchmark = create_benchmark(
+    dataset_key="falkenauer-u",
+    solver_module=hybrid_alns_solver,
+    time_limit=None,
+)
+benchmark.run(method=None, method_args={"max_iterations": 5000})
+csv_path = benchmark.save_results_to_csv()
+print(csv_path)
 ```
 
 ## Results & Models

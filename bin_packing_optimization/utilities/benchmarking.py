@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import argparse
 import csv
 import inspect
 import multiprocessing as mp
@@ -115,7 +114,7 @@ def _invoke_solver_safely(
         )
         if unsupported_args:
             print(
-                "\033[93m[warning]\033[0m Ignoring unsupported --method-args for "
+                "\033[93m[warning]\033[0m Ignoring unsupported method_args for "
                 f"this solver: {', '.join(unsupported_args)}"
             )
             method_args = {
