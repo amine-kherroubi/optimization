@@ -12,7 +12,7 @@ This module contains the hybrid ALNS pipeline with learned repair.
 
 ## Benchmark Usage
 
-Use object instantiation + function calls (no CLI):
+Use object instantiation and function calls:
 
 ```python
 from bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns import hybrid_alns_solver
