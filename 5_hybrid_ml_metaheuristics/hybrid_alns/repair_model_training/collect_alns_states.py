@@ -51,7 +51,16 @@ _here = str(Path(__file__).parent)
 if _here not in sys.path:
     sys.path.insert(0, _here)
 
-from features import make_features, N_FEATURES, FEATURE_VERSION  # noqa: E402
+try:
+    # Prefer package-style import when run from project root
+    from repair_model_training import features
+except Exception:  # pragma: no cover - fallback for script execution
+    import features
+
+# Local aliases for API compatibility with older script usage
+make_features = features.make_features
+N_FEATURES = features.N_FEATURES
+FEATURE_VERSION = features.FEATURE_VERSION
 
 # ---------------------------------------------------------------------------
 # BFD oracle — labels a repair state with the best-fit decision

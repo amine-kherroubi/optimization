@@ -5,7 +5,7 @@ This folder contains the offline training workflow for the hybrid ALNS repair mo
 ## Contents
 
 ```text
-training/
+repair_model_training/
 ├── README.md
 ├── repair_model_training.ipynb
 ├── collect_alns_states.py
@@ -55,8 +55,7 @@ python train_repair_model.py \
 Run the benchmark from the project root so the model path resolves correctly:
 
 ```bash
-cd ../../..
-python benchmark.py \
+python utilities/benchmarking.py \
   --solver 5_hybrid_ml_metaheuristics/hybrid_alns/solver.py \
   --dataset falkenauer-u \
   --method-args "model_path=5_hybrid_ml_metaheuristics/hybrid_alns/models/repair_model_v2.pkl"

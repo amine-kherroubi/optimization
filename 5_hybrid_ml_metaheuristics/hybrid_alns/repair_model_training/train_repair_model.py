@@ -44,8 +44,15 @@ from sklearn.utils.class_weight import compute_sample_weight
 
 import sys
 
-import features
-from features import FEATURE_VERSION, N_FEATURES
+try:
+    # Prefer package-style import when invoked from project root
+    from repair_model_training import features
+except Exception:  # pragma: no cover - fallback for script execution
+    import features
+
+# Expose feature metadata constants for downstream code
+FEATURE_VERSION = features.FEATURE_VERSION
+N_FEATURES = features.N_FEATURES
 
 try:
     from tqdm import tqdm
