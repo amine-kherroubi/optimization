@@ -179,7 +179,14 @@ class BinPackingSolver:
         for iteration in range(max_iterations):
             if deadline is not None and time.perf_counter() >= deadline:
                 break
-            arm = bandit.select_arm(self._rng)
+            _ctx = self._build_context(
+                temperature, t0,
+                iterations_since_improvement, no_improve_limit,
+                current.cost(), lower_bound,
+                k_min, n,
+                iteration, max_iterations,
+            )
+            arm = bandit.select_arm(_ctx)
             candidate = current.copy()
 
             # Adaptive k: grow the destruction radius when stagnating.
