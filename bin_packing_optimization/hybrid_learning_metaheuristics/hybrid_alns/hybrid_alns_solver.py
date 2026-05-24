@@ -224,13 +224,14 @@ class BinPackingSolver:
             else:
                 iterations_since_improvement += 1
 
-            # 3-level reward: new best (1.0) > accepted (0.5) > rejected (0.0).
-            # Thompson Sampling expects binary feedback, so we convert the
-            # continuous reward probabilistically: update with 1 if a uniform
-            # draw falls below the reward, 0 otherwise. This preserves the
-            # expected value while keeping the Beta posterior well-calibrated.
-            reward = 1.0 if improved else (0.5 if accepted else 0.0)
-            bandit.update(arm, 1 if self._rng.random() < reward else 0)
+            # LinUCB reward: improvement normalised by gap to lower bound.
+            # Saving bins near the optimum (gap small) earns more than saving
+            # the same number when far away (gap large). Accepted-without-saving
+            # earns a small signal (0.2) to keep exploration; rejected earns 0.
+            _reward = self._linucb_reward(
+                delta, accepted, improved, current.cost(), lower_bound
+            )
+            bandit.update(arm, _ctx, _reward)
             if iterations_since_improvement > 0 and (
                 iterations_since_improvement % max(50, max_iterations // 40) == 0
             ):
