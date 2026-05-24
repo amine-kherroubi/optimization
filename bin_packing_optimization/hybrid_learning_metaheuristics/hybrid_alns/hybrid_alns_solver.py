@@ -517,6 +517,71 @@ class BinPackingSolver:
         )
 
     @staticmethod
+    def _build_context(
+        temperature: float,
+        t0: float,
+        iterations_since_improvement: int,
+        no_improve_limit: int,
+        current_cost: int,
+        lower_bound: int,
+        k_items: int,
+        n: int,
+        iteration: int,
+        max_iterations: int,
+    ) -> np.ndarray:
+        """Build the 5-D context vector for LinUCB arm selection.
+
+        Features (all normalised to comparable ranges):
+          0  T / T0                        — SA phase (1→0, hot→cold)
+                                             Hot = exploration phase, cold = exploitation
+          1  iter_no_improve / limit       — stagnation (0→1)
+                                             Signals when diversification is needed
+          2  current_cost / LB            — gap to optimum (≥1)
+                                             1.0 = optimal; >1 = room for improvement
+          3  k_items / n                  — destruction radius (0.05–0.25)
+                                             Captures the current neighbourhood size
+          4  iteration / max_iterations   — search progress (0→1)
+                                             Early vs late stage of the search
+        """
+        return np.array(
+            [
+                temperature / max(t0, 1e-12),
+                iterations_since_improvement / max(no_improve_limit, 1),
+                current_cost / max(lower_bound, 1),
+                k_items / max(n, 1),
+                iteration / max(max_iterations, 1),
+            ],
+            dtype=np.float64,
+        )
+
+    @staticmethod
+    def _linucb_reward(
+        delta: int,
+        accepted: bool,
+        improved: bool,
+        current_cost: int,
+        lower_bound: int,
+    ) -> float:
+        """Normalised reward in [0, 1] for LinUCB update.
+
+        Improvement is divided by the gap to LB so that gains near the
+        optimum are rewarded more than the same gain when far away.
+
+          r = min(1, bins_saved / gap)   if bins were saved (improved=True)
+          r = 0.2                        if accepted without saving bins
+          r = 0.0                        if rejected
+
+        Note: credit assignment — reward is attributed to the destroy operator
+        but the GBT repair model also contributes. This is an accepted
+        limitation in hybrid ALNS + RL literature.
+        """
+        gap = max(1, current_cost - lower_bound)
+        bins_saved = max(0, -delta)
+        if bins_saved > 0:
+            return min(1.0, bins_saved / gap)
+        return 0.2 if accepted else 0.0
+
+    @staticmethod
     def _validate_model_components(model: Any, scaler: Any) -> tuple[Any, Any]:
         if not hasattr(model, "predict_proba"):
             raise TypeError("Loaded model must expose predict_proba(features).")
