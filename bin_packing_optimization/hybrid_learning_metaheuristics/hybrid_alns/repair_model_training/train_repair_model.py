@@ -1,21 +1,9 @@
-"""Train the repair model with enhanced metrics and optional tuning.
-
-Improvements over the original baseline training script:
-    1. Full metrics (F1, precision, recall, confusion matrix)
-    2. K-fold cross-validation
-    3. Learning curves for overfitting detection
-    4. Feature importance analysis
-    5. Optional hyperparameter grid search
-    6. Support for real Falkenauer data
-    7. Early stopping based on validation loss
-"""
-
 from __future__ import annotations
 
 import argparse
 import pickle
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -29,7 +17,6 @@ from sklearn.metrics import (
     precision_score,
     recall_score,
     confusion_matrix,
-    precision_recall_curve,
     average_precision_score,
 )
 from sklearn.model_selection import (
@@ -42,14 +29,13 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils.class_weight import compute_sample_weight
 
-import sys
-
 try:
     from . import features
+    from .generate_dataset import DatasetSummary
 except ImportError:  # pragma: no cover - fallback for direct script execution
     import features  # type: ignore[no-redef]
+    from generate_dataset import DatasetSummary  # type: ignore[no-redef]
 
-# Expose feature metadata constants for downstream code
 FEATURE_VERSION = features.FEATURE_VERSION
 N_FEATURES = features.N_FEATURES
 
@@ -59,6 +45,26 @@ except ImportError:
 
     def tqdm(iterable, **kwargs):  # type: ignore[misc]
         return iterable
+
+
+# ============================================================================
+# Config
+# ============================================================================
+
+
+@dataclass
+class TrainRepairModelConfig:
+    data: list[str] = field(default_factory=list)
+    """One or more .pkl dataset paths to load and merge before training.
+    Each file must have been produced by generate_dataset.py or
+    collect_alns_states.py (keys: X, y, feature_version).
+    """
+    output: str = "repair_model.pkl"
+    no_learning_curves: bool = False
+    no_plots: bool = False
+    cv_folds: int = 5
+    grid_search: bool = False
+    verbose: bool = False
 
 
 # ============================================================================
@@ -80,11 +86,9 @@ class ModelEvaluator:
         """Compute all metrics and return as dictionary."""
         metrics = {}
 
-        # Predictions
         y_pred = self.model.predict(self.X_test)
         y_proba = self.model.predict_proba(self.X_test)[:, 1]
 
-        # Main metrics
         metrics["accuracy"] = float((y_pred == self.y_test).mean())
         metrics["precision"] = float(precision_score(self.y_test, y_pred))
         metrics["recall"] = float(recall_score(self.y_test, y_pred))
@@ -94,7 +98,6 @@ class ModelEvaluator:
             average_precision_score(self.y_test, y_proba)
         )
 
-        # Confusion matrix
         tn, fp, fn, tp = confusion_matrix(self.y_test, y_pred).ravel()
         metrics["confusion_matrix"] = {
             "true_negatives": int(tn),
@@ -103,13 +106,10 @@ class ModelEvaluator:
             "true_positives": int(tp),
         }
 
-        # Specificity & sensitivity
         metrics["specificity"] = float(tn / (tn + fp)) if (tn + fp) > 0 else 0.0
         metrics["sensitivity"] = float(tp / (tp + fn)) if (tp + fn) > 0 else 0.0
 
-        # Threshold analysis
         fpr, tpr, thresholds = roc_curve(self.y_test, y_proba)
-        # Find optimal threshold (Youden's J)
         j_scores = tpr - fpr
         optimal_idx = np.argmax(j_scores)
         metrics["optimal_threshold"] = float(thresholds[optimal_idx])
@@ -125,14 +125,17 @@ class ModelEvaluator:
         print("\nClassification metrics:")
         print(f"  Accuracy      : {metrics['accuracy']:.4f}")
         print(
-            f"  Precision     : {metrics['precision']:.4f}  (true positives / predicted positives)"
+            f"  Precision     : {metrics['precision']:.4f}"
+            "  (true positives / predicted positives)"
         )
         print(
-            f"  Recall        : {metrics['recall']:.4f}    (true positives / actual positives)"
+            f"  Recall        : {metrics['recall']:.4f}"
+            "    (true positives / actual positives)"
         )
         print(f"  F1-Score      : {metrics['f1']:.4f}")
         print(
-            f"  Specificity   : {metrics['specificity']:.4f}  (true negatives / actual negatives)"
+            f"  Specificity   : {metrics['specificity']:.4f}"
+            "  (true negatives / actual negatives)"
         )
         print(f"  Sensitivity   : {metrics['sensitivity']:.4f}  (= recall)")
 
@@ -157,6 +160,11 @@ class ModelEvaluator:
             "  ROC-AUC measures ranking quality, which is the key objective for ALNS repair."
         )
         print("=" * 70 + "\n")
+
+
+# ============================================================================
+# Plots
+# ============================================================================
 
 
 def plot_learning_curves(
@@ -255,213 +263,91 @@ def plot_feature_importance(
     plt.savefig(output_path, dpi=150)
     print(f"Feature importance saved: {output_path}")
 
-    # Print top features
     print("\nTop 5 features by importance:")
     for i, idx in enumerate(indices[:5], 1):
         print(f"  {i}. {feature_names[idx]:20s} : {importances[idx]:.4f}")
 
 
-# ---------------------------------------------------------------------------
-# Dataset generation utilities (self-contained)
-# ---------------------------------------------------------------------------
+# ============================================================================
+# Data loading
+# ============================================================================
 
 
-@dataclass
-class DatasetSummary:
-    rows: int
-    cols: int
-    positive_rate: float
-
-
-@dataclass
-class TrainRepairModelConfig:
-    instances: int = 5000
-    n_min: int = 50
-    n_max: int = 200
-    max_negatives: int = 5
-    seed: int = 0
-    workers: int = 1
-    output: str = "repair_model.pkl"
-    augment_with: str | None = None
-    no_learning_curves: bool = False
-    no_plots: bool = False
-    cv_folds: int = 5
-    grid_search: bool = False
-    verbose: bool = False
-
-
-def _generate_instance(rng: np.random.Generator, n_min: int, n_max: int) -> np.ndarray:
-    n = int(rng.integers(n_min, n_max + 1))
-    dist = rng.integers(0, 5)
-    if dist < 2:
-        sizes = rng.uniform(0.1, 0.9, size=n)
-    elif dist < 4:
-        half = n // 2
-        sizes = np.concatenate(
-            [rng.uniform(0.05, 0.35, half), rng.uniform(0.60, 0.95, n - half)]
-        )
-        rng.shuffle(sizes)
-    else:
-        sizes = rng.normal(0.5, 0.2, size=n)
-    return np.clip(sizes, 0.05, 0.95)
-
-
-def build_dataset(
-    *,
-    instances: int,
-    n_min: int,
-    n_max: int,
-    max_negatives: int,
-    seed: int = 0,
-    workers: int = 1,
+def _load_and_merge(
+    data_paths: list[str],
 ) -> tuple[np.ndarray, np.ndarray, DatasetSummary]:
-    """Generate a synthetic training dataset (X, y) and a short summary.
+    """Load and merge one or more dataset .pkl files.
 
-    This function mirrors the labeling logic used elsewhere: for each
-    synthetic instance we compute a simple FFD start solution and label
-    feasible bin placements using the BFD oracle (minimum post-placement slack).
+    Each file must contain keys: X, y, feature_version.
+    Raises ValueError if a file's feature_version does not match.
     """
-    rng = np.random.default_rng(seed)
-    all_X: list[list[float]] = []
-    all_y: list[int] = []
+    if not data_paths:
+        raise ValueError("At least one --data path is required.")
 
-    for _ in tqdm(range(instances), desc="Generating dataset", total=instances):
-        sizes = _generate_instance(rng, n_min, n_max)
-        sizes_list = [float(v) for v in sizes]
-        n = len(sizes_list)
-        capacity = 1.0
-        mf = features.make_features
+    X_parts: list[np.ndarray] = []
+    y_parts: list[np.ndarray] = []
 
-        # Size ranking (as used by the feature creator)
-        order = sorted(range(n), key=lambda i: -sizes_list[i])
-        size_rank: dict[int, int] = {item: rank for rank, item in enumerate(order)}
+    for path_str in data_paths:
+        p = Path(path_str)
+        if not p.exists():
+            raise FileNotFoundError(f"Dataset file not found: {p}")
+        with p.open("rb") as f:
+            bundle = pickle.load(f)
+        fv = bundle.get("feature_version")
+        if fv != FEATURE_VERSION:
+            raise ValueError(
+                f"{p}: feature_version={fv} does not match "
+                f"current FEATURE_VERSION={FEATURE_VERSION}. Regenerate first."
+            )
+        X_parts.append(bundle["X"].astype(np.float32))
+        y_parts.append(bundle["y"].astype(np.int32))
+        rows = bundle["X"].shape[0]
+        pos = bundle["y"].mean() if len(bundle["y"]) > 0 else 0.0
+        print(f"  Loaded {p.name}: {rows:,} rows  (pos_rate={pos:.3f})")
 
-        # FFD initial solution
-        bins: list[list[int]] = []
-        bin_loads: list[float] = []
-        for item in order:
-            s = sizes_list[item]
-            placed = False
-            for j, load in enumerate(bin_loads):
-                if load + s <= capacity:
-                    bins[j].append(item)
-                    bin_loads[j] += s
-                    placed = True
-                    break
-            if not placed:
-                bins.append([item])
-                bin_loads.append(s)
+    X = np.concatenate(X_parts, axis=0)
+    y = np.concatenate(y_parts, axis=0)
 
-        # Label each item with BFD oracle and collect positives + sampled negatives
-        remaining = len(order)
-        denom = max(1, n)
-        for item in order:
-            item_size = sizes_list[item]
-            feasible: list[int] = []
-            best_bin = -1
-            best_slack = float("inf")
-            for j, load in enumerate(bin_loads):
-                rem = capacity - load
-                if rem + 1e-9 < item_size:
-                    continue
-                feasible.append(j)
-                slack = rem - item_size
-                if slack < best_slack:
-                    best_slack = slack
-                    best_bin = j
-
-            if best_bin == -1:
-                remaining -= 1
-                continue
-
-            def _feat(bin_idx: int) -> list[float]:
-                return mf(
-                    item=item,
-                    item_size=item_size,
-                    bin_items=bins[bin_idx],
-                    bin_load=bin_loads[bin_idx],
-                    capacity=capacity,
-                    sizes=sizes_list,
-                    n_total=n,
-                    size_rank=size_rank,
-                    remaining_ratio=remaining / denom,
-                )
-
-            # Positive example (BFD)
-            all_X.append(_feat(best_bin))
-            all_y.append(1)
-
-            # Negatives (other feasible bins), subsampled
-            negatives = [j for j in feasible if j != best_bin]
-            if len(negatives) > max_negatives:
-                negatives = list(
-                    rng.choice(negatives, size=max_negatives, replace=False)
-                )
-            for j in negatives:
-                all_X.append(_feat(j))
-                all_y.append(0)
-
-            remaining -= 1
-
-    if len(all_X) == 0:
-        X_arr = np.zeros((0, N_FEATURES), dtype=np.float32)
-        y_arr = np.zeros((0,), dtype=np.int32)
-    else:
-        X_arr = np.asarray(all_X, dtype=np.float32)
-        y_arr = np.asarray(all_y, dtype=np.int32)
-
-    pos_rate = float(y_arr.mean()) if y_arr.size > 0 else 0.0
+    pos_rate = float(y.mean()) if y.size > 0 else 0.0
     summary = DatasetSummary(
-        rows=int(X_arr.shape[0]), cols=int(N_FEATURES), positive_rate=pos_rate
+        rows=int(X.shape[0]),
+        cols=int(N_FEATURES),
+        positive_rate=pos_rate,
     )
-    return X_arr, y_arr, summary
+    return X, y, summary
 
 
 # ============================================================================
-# Main entry point
+# Main training function
 # ============================================================================
 
 
 def train_repair_model(config: TrainRepairModelConfig) -> dict[str, Any]:
+    """Load pre-generated data, train a GradientBoostingClassifier, and save.
+
+    Parameters
+    ----------
+    config : TrainRepairModelConfig
+
+    Returns
+    -------
+    dict — the saved model bundle (model, scaler, metrics, …)
+    """
     args = config
 
     # =====================================================================
-    # 1. Data generation
+    # 1. Load data
     # =====================================================================
     print("=" * 70)
-    print("PHASE 1: DATASET GENERATION")
+    print("PHASE 1: LOADING DATASET(S)")
     print("=" * 70)
-    print(f"Generating {args.instances} synthetic instances...")
-    print(f"  Item size range: [{args.n_min}, {args.n_max}]")
-    print(f"  Maximum negatives per positive: {args.max_negatives}")
-    print(f"  Workers: {args.workers}")
 
-    X, y, summary = build_dataset(
-        instances=args.instances,
-        n_min=args.n_min,
-        n_max=args.n_max,
-        max_negatives=args.max_negatives,
-        seed=args.seed,
-        workers=args.workers,
-    )
+    X, y, summary = _load_and_merge(args.data)
 
-    if args.augment_with:
-        aug_path = Path(args.augment_with)
-        if aug_path.exists():
-            with aug_path.open("rb") as f:
-                aug = pickle.load(f)
-            X_aug = aug["X"].astype(np.float32)
-            y_aug = aug["y"].astype(np.int32)
-            X = np.concatenate([X, X_aug], axis=0)
-            y = np.concatenate([y, y_aug], axis=0)
-            print(f"Augmented with {len(X_aug)} ALNS states -> total: {len(X)} rows")
-
-    print(f"Dataset generated: {summary.rows} rows x {summary.cols} features")
-    print(
-        f"   Positive rate: {summary.positive_rate:.4f} (expected min: {1.0/(1+args.max_negatives):.4f})"
-    )
-    print(f"   Class 0 (negatives): {(y==0).sum():,} samples")
-    print(f"   Class 1 (positives):  {(y==1).sum():,} samples")
+    print(f"\nMerged dataset: {summary.rows:,} rows x {summary.cols} features")
+    print(f"  Positive rate : {summary.positive_rate:.4f}")
+    print(f"  Class 0 (neg) : {(y == 0).sum():,}")
+    print(f"  Class 1 (pos) : {(y == 1).sum():,}")
 
     # =====================================================================
     # 2. Train/Test split
@@ -473,8 +359,8 @@ def train_repair_model(config: TrainRepairModelConfig) -> dict[str, Any]:
     x_trainval, x_test, y_trainval, y_test = train_test_split(
         X, y, test_size=0.15, random_state=42, stratify=y
     )
-    print(f"Training set:  {len(x_trainval):,} samples")
-    print(f"Test set:      {len(x_test):,} samples")
+    print(f"Training set : {len(x_trainval):,} samples")
+    print(f"Test set     : {len(x_test):,} samples")
 
     # =====================================================================
     # 3. Model training with optional hyperparameter tuning
@@ -483,7 +369,6 @@ def train_repair_model(config: TrainRepairModelConfig) -> dict[str, Any]:
     print("PHASE 3: MODEL TRAINING")
     print("=" * 70)
 
-    # Improved hyperparameters compared with the original baseline.
     hyperparams = {
         "n_estimators": 500,
         "max_depth": 6,
@@ -533,10 +418,9 @@ def train_repair_model(config: TrainRepairModelConfig) -> dict[str, Any]:
         gs.fit(x_trainval, y_trainval, clf__sample_weight=sample_weights)
         t_train_elapsed = time.perf_counter() - t_train_start
         pipe = gs.best_estimator_
-        print(f"Best params: {gs.best_params_}")
-        print(f"Best CV score: {gs.best_score_:.4f}")
+        print(f"Best params   : {gs.best_params_}")
+        print(f"Best CV score : {gs.best_score_:.4f}")
     else:
-        # Build classifier explicitly to satisfy static type checkers
         clf = GradientBoostingClassifier(
             n_estimators=int(hyperparams["n_estimators"]),
             max_depth=int(hyperparams["max_depth"]),
@@ -570,8 +454,8 @@ def train_repair_model(config: TrainRepairModelConfig) -> dict[str, Any]:
         t_train_elapsed = time.perf_counter() - t_train_start
 
     print(f"Training finished in {t_train_elapsed:.1f}s")
-    n_estimators = pipe.named_steps["clf"].n_estimators_
-    print(f"   Trees used: {n_estimators}")
+    n_estimators_used = pipe.named_steps["clf"].n_estimators_
+    print(f"  Trees used: {n_estimators_used}")
 
     # =====================================================================
     # 4. Cross-validation
@@ -585,8 +469,8 @@ def train_repair_model(config: TrainRepairModelConfig) -> dict[str, Any]:
         scoring="roc_auc",
         n_jobs=-1,
     )
-    print(f"   CV scores: {cv_scores}")
-    print(f"   Mean CV ROC-AUC: {cv_scores.mean():.4f} ± {cv_scores.std():.4f}")
+    print(f"  CV scores        : {cv_scores}")
+    print(f"  Mean CV ROC-AUC  : {cv_scores.mean():.4f} ± {cv_scores.std():.4f}")
 
     # =====================================================================
     # 5. Evaluation on test set
@@ -599,11 +483,8 @@ def train_repair_model(config: TrainRepairModelConfig) -> dict[str, Any]:
     metrics = evaluator.evaluate_all()
     evaluator.print_report(metrics)
 
-    # Check AUC threshold
     if metrics["roc_auc"] < 0.70:
-        print(
-            "WARNING: ROC-AUC < 0.70. Consider increasing the number of instances or features."
-        )
+        print("WARNING: ROC-AUC < 0.70. Consider more training data or features.")
 
     # =====================================================================
     # 6. Visualization
@@ -613,11 +494,9 @@ def train_repair_model(config: TrainRepairModelConfig) -> dict[str, Any]:
         print("PHASE 5: VISUALIZATIONS")
         print("=" * 70)
 
-        # ROC curve
         y_proba = pipe.predict_proba(x_test)[:, 1]
         plot_roc_curve(y_test, y_proba)
 
-        # Feature importance
         feature_names = [
             "item_size",
             "item_size_sq",
@@ -633,7 +512,6 @@ def train_repair_model(config: TrainRepairModelConfig) -> dict[str, Any]:
         ]
         plot_feature_importance(pipe.named_steps["clf"], feature_names)
 
-        # Learning curves
         if not args.no_learning_curves:
             plot_learning_curves(pipe, x_trainval, y_trainval)
 
@@ -657,10 +535,10 @@ def train_repair_model(config: TrainRepairModelConfig) -> dict[str, Any]:
     with output_path.open("wb") as f:
         pickle.dump(payload, f)
 
-    print(f"Model saved: {output_path}")
-    print(f"   Size: {output_path.stat().st_size / 1024 / 1024:.2f} MB")
-    print(f"   Test ROC-AUC: {metrics['roc_auc']:.4f}")
-    print(f"   Test F1-Score: {metrics['f1']:.4f}")
+    print(f"Model saved : {output_path}")
+    print(f"  Size       : {output_path.stat().st_size / 1024 / 1024:.2f} MB")
+    print(f"  Test AUC   : {metrics['roc_auc']:.4f}")
+    print(f"  Test F1    : {metrics['f1']:.4f}")
 
     # =====================================================================
     # Summary
@@ -668,9 +546,9 @@ def train_repair_model(config: TrainRepairModelConfig) -> dict[str, Any]:
     print("\n" + "=" * 70)
     print("FINAL SUMMARY")
     print("=" * 70)
-    print(f"Dataset       : {summary.rows:,} samples")
+    print(f"Dataset files : {args.data}")
+    print(f"Total samples : {summary.rows:,}")
     print(f"Features      : {summary.cols}")
-    print(f"Instances     : {args.instances}")
     print(f"CV folds      : {args.cv_folds}")
     print(f"CV mean AUC   : {cv_scores.mean():.4f}")
     print(f"Test AUC      : {metrics['roc_auc']:.4f}")
@@ -682,18 +560,26 @@ def train_repair_model(config: TrainRepairModelConfig) -> dict[str, Any]:
     return payload
 
 
+# ============================================================================
+# CLI
+# ============================================================================
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Train repair model with comprehensive metrics"
     )
-    parser.add_argument("--instances", type=int, default=5000)
-    parser.add_argument("--n-min", type=int, default=50)
-    parser.add_argument("--n-max", type=int, default=200)
-    parser.add_argument("--max-negatives", type=int, default=5)
-    parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--workers", type=int, default=1)
+    parser.add_argument(
+        "--data",
+        nargs="+",
+        required=True,
+        metavar="PATH",
+        help=(
+            "One or more .pkl dataset files to load and merge. "
+            "Each must be produced by generate_dataset.py or collect_alns_states.py."
+        ),
+    )
     parser.add_argument("--output", type=str, default="repair_model.pkl")
-    parser.add_argument("--augment-with", type=str, default=None)
     parser.add_argument("--no-learning-curves", action="store_true")
     parser.add_argument("--no-plots", action="store_true")
     parser.add_argument("--cv-folds", type=int, default=5)
@@ -702,14 +588,8 @@ def main() -> None:
     args = parser.parse_args()
     train_repair_model(
         TrainRepairModelConfig(
-            instances=args.instances,
-            n_min=args.n_min,
-            n_max=args.n_max,
-            max_negatives=args.max_negatives,
-            seed=args.seed,
-            workers=args.workers,
+            data=args.data,
             output=args.output,
-            augment_with=args.augment_with,
             no_learning_curves=args.no_learning_curves,
             no_plots=args.no_plots,
             cv_folds=args.cv_folds,

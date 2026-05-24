@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from .generate_dataset import (
+    GenerateDatasetConfig,
+    generate_dataset as _generate_dataset,
+)
 from .train_repair_model import (
     TrainRepairModelConfig,
     train_repair_model as _train_repair_model,
@@ -12,16 +16,31 @@ from .collect_alns_states import (
 )
 
 
-def train_repair_model(
+def generate_dataset(
     *,
     instances: int = 5000,
     n_min: int = 50,
     n_max: int = 200,
     max_negatives: int = 5,
     seed: int = 0,
-    workers: int = 1,
+    output: str = "training_data/synthetic.pkl",
+) -> dict[str, Any]:
+    return _generate_dataset(
+        GenerateDatasetConfig(
+            instances=instances,
+            n_min=n_min,
+            n_max=n_max,
+            max_negatives=max_negatives,
+            seed=seed,
+            output=output,
+        )
+    )
+
+
+def train_repair_model(
+    *,
+    data: list[str],
     output: str = "repair_model.pkl",
-    augment_with: str | None = None,
     no_learning_curves: bool = False,
     no_plots: bool = False,
     cv_folds: int = 5,
@@ -30,14 +49,8 @@ def train_repair_model(
 ) -> dict[str, Any]:
     return _train_repair_model(
         TrainRepairModelConfig(
-            instances=instances,
-            n_min=n_min,
-            n_max=n_max,
-            max_negatives=max_negatives,
-            seed=seed,
-            workers=workers,
+            data=data,
             output=output,
-            augment_with=augment_with,
             no_learning_curves=no_learning_curves,
             no_plots=no_plots,
             cv_folds=cv_folds,
@@ -73,8 +86,10 @@ def collect_alns_states(
 
 
 __all__ = [
+    "generate_dataset",
     "train_repair_model",
     "collect_alns_states",
+    "GenerateDatasetConfig",
     "TrainRepairModelConfig",
     "CollectAlnsStatesConfig",
 ]

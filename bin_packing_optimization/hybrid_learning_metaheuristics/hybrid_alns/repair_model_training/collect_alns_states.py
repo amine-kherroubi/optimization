@@ -47,7 +47,9 @@ except ImportError:
         return iterable
 
 
-from bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns.repair_model_training import features
+from bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns.repair_model_training import (
+    features,
+)
 
 # Local aliases for API compatibility with older script usage
 make_features = features.make_features
@@ -65,6 +67,7 @@ class CollectAlnsStatesConfig:
     iterations: int = 200
     seed: int = 1
     output: str = "alns_states.pkl"
+
 
 # ---------------------------------------------------------------------------
 # BFD oracle — labels a repair state with the best-fit decision

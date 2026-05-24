@@ -118,7 +118,7 @@ def make_features_batch_py(
     remaining_ratio_arr,
 ):
     """Batch version of make_features (Python implementation, always available).
-    
+
     This runs even if numba is not installed. It processes multiple (item, bin)
     pairs efficiently.
     """
