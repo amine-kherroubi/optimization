@@ -45,10 +45,9 @@ from sklearn.utils.class_weight import compute_sample_weight
 import sys
 
 try:
-    # Prefer package-style import when invoked from project root
-    from repair_model_training import features
-except Exception:  # pragma: no cover - fallback for script execution
-    import features
+    from . import features
+except ImportError:  # pragma: no cover - fallback for direct script execution
+    import features  # type: ignore[no-redef]
 
 # Expose feature metadata constants for downstream code
 FEATURE_VERSION = features.FEATURE_VERSION
@@ -274,6 +273,23 @@ class DatasetSummary:
     positive_rate: float
 
 
+@dataclass
+class TrainRepairModelConfig:
+    instances: int = 5000
+    n_min: int = 50
+    n_max: int = 200
+    max_negatives: int = 5
+    seed: int = 0
+    workers: int = 1
+    output: str = "repair_model.pkl"
+    augment_with: str | None = None
+    no_learning_curves: bool = False
+    no_plots: bool = False
+    cv_folds: int = 5
+    grid_search: bool = False
+    verbose: bool = False
+
+
 def _generate_instance(rng: np.random.Generator, n_min: int, n_max: int) -> np.ndarray:
     n = int(rng.integers(n_min, n_max + 1))
     dist = rng.integers(0, 5)
@@ -406,76 +422,8 @@ def build_dataset(
 # ============================================================================
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Train repair model with comprehensive metrics"
-    )
-    parser.add_argument(
-        "--instances",
-        type=int,
-        default=5000,
-        help="Number of synthetic BPP instances to generate",
-    )
-    parser.add_argument(
-        "--n-min", type=int, default=50, help="Minimum number of items per instance"
-    )
-    parser.add_argument(
-        "--n-max", type=int, default=200, help="Maximum number of items per instance"
-    )
-    parser.add_argument(
-        "--max-negatives",
-        type=int,
-        default=5,
-        help="Maximum negative samples per positive",
-    )
-    parser.add_argument(
-        "--seed", type=int, default=0, help="RNG seed for reproducibility"
-    )
-    parser.add_argument(
-        "--workers",
-        type=int,
-        default=1,
-        help="Number of worker processes for dataset generation",
-    )
-    parser.add_argument(
-        "--output",
-        type=str,
-        default="repair_model.pkl",
-        help="Output path for the saved model bundle",
-    )
-    parser.add_argument(
-        "--augment-with",
-        type=str,
-        default=None,
-        help="Path to a .pkl file produced by collect_alns_states.py for data augmentation",
-    )
-    parser.add_argument(
-        "--no-learning-curves",
-        action="store_true",
-        help="Skip learning curves (saves time)",
-    )
-    parser.add_argument(
-        "--no-plots",
-        action="store_true",
-        help="Skip all plot generation",
-    )
-    parser.add_argument(
-        "--cv-folds",
-        type=int,
-        default=5,
-        help="Number of cross-validation folds",
-    )
-    parser.add_argument(
-        "--grid-search",
-        action="store_true",
-        help="Enable hyperparameter grid search (warning: very slow)",
-    )
-    parser.add_argument(
-        "--verbose",
-        action="store_true",
-        help="Show training progress for GradientBoosting",
-    )
-    args = parser.parse_args()
+def train_repair_model(config: TrainRepairModelConfig) -> dict[str, Any]:
+    args = config
 
     # =====================================================================
     # 1. Data generation
@@ -731,6 +679,44 @@ def main() -> None:
     print(f"Recall        : {metrics['recall']:.4f}")
     print(f"Model path    : {output_path}")
     print("=" * 70)
+    return payload
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Train repair model with comprehensive metrics"
+    )
+    parser.add_argument("--instances", type=int, default=5000)
+    parser.add_argument("--n-min", type=int, default=50)
+    parser.add_argument("--n-max", type=int, default=200)
+    parser.add_argument("--max-negatives", type=int, default=5)
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--workers", type=int, default=1)
+    parser.add_argument("--output", type=str, default="repair_model.pkl")
+    parser.add_argument("--augment-with", type=str, default=None)
+    parser.add_argument("--no-learning-curves", action="store_true")
+    parser.add_argument("--no-plots", action="store_true")
+    parser.add_argument("--cv-folds", type=int, default=5)
+    parser.add_argument("--grid-search", action="store_true")
+    parser.add_argument("--verbose", action="store_true")
+    args = parser.parse_args()
+    train_repair_model(
+        TrainRepairModelConfig(
+            instances=args.instances,
+            n_min=args.n_min,
+            n_max=args.n_max,
+            max_negatives=args.max_negatives,
+            seed=args.seed,
+            workers=args.workers,
+            output=args.output,
+            augment_with=args.augment_with,
+            no_learning_curves=args.no_learning_curves,
+            no_plots=args.no_plots,
+            cv_folds=args.cv_folds,
+            grid_search=args.grid_search,
+            verbose=args.verbose,
+        )
+    )
 
 
 if __name__ == "__main__":
