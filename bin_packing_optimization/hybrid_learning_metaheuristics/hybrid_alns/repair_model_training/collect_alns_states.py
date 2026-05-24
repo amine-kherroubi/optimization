@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import pickle
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Sequence, Mapping, Tuple
 
@@ -52,6 +53,18 @@ from bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns.repair_
 make_features = features.make_features
 N_FEATURES = features.N_FEATURES
 FEATURE_VERSION = features.FEATURE_VERSION
+
+
+@dataclass
+class CollectAlnsStatesConfig:
+    model_path: str
+    instances: int = 500
+    n_min: int = 50
+    n_max: int = 200
+    max_negatives: int = 5
+    iterations: int = 200
+    seed: int = 1
+    output: str = "alns_states.pkl"
 
 # ---------------------------------------------------------------------------
 # BFD oracle — labels a repair state with the best-fit decision
@@ -278,25 +291,8 @@ def _run_alns_and_capture(
 # ---------------------------------------------------------------------------
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Collect real ALNS repair states for training augmentation"
-    )
-    parser.add_argument(
-        "--model-path", required=True, help="Existing ../models/repair_model.pkl"
-    )
-    parser.add_argument(
-        "--instances", type=int, default=500, help="Synthetic instances to run"
-    )
-    parser.add_argument("--n-min", type=int, default=50)
-    parser.add_argument("--n-max", type=int, default=200)
-    parser.add_argument("--max-negatives", type=int, default=5)
-    parser.add_argument(
-        "--iterations", type=int, default=200, help="ALNS iterations per instance"
-    )
-    parser.add_argument("--seed", type=int, default=1)
-    parser.add_argument("--output", default="alns_states.pkl")
-    args = parser.parse_args()
+def collect_alns_states(config: CollectAlnsStatesConfig) -> dict[str, Any]:
+    args = config
 
     model_path = Path(args.model_path)
     if not model_path.exists():
@@ -345,6 +341,34 @@ def main() -> None:
         pickle.dump({"X": X_arr, "y": y_arr, "feature_version": FEATURE_VERSION}, f)
     print(f"Saved to: {output_path}")
     print("Next step: retrain with --augment-with", output_path)
+    return {"X": X_arr, "y": y_arr, "feature_version": FEATURE_VERSION}
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Collect real ALNS repair states for training augmentation"
+    )
+    parser.add_argument("--model-path", required=True)
+    parser.add_argument("--instances", type=int, default=500)
+    parser.add_argument("--n-min", type=int, default=50)
+    parser.add_argument("--n-max", type=int, default=200)
+    parser.add_argument("--max-negatives", type=int, default=5)
+    parser.add_argument("--iterations", type=int, default=200)
+    parser.add_argument("--seed", type=int, default=1)
+    parser.add_argument("--output", default="alns_states.pkl")
+    args = parser.parse_args()
+    collect_alns_states(
+        CollectAlnsStatesConfig(
+            model_path=args.model_path,
+            instances=args.instances,
+            n_min=args.n_min,
+            n_max=args.n_max,
+            max_negatives=args.max_negatives,
+            iterations=args.iterations,
+            seed=args.seed,
+            output=args.output,
+        )
+    )
 
 
 if __name__ == "__main__":
