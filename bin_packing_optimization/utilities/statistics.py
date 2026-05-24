@@ -249,3 +249,24 @@ def export_summary_csv(
                 row["value"] = metrics
             writer.writerow(row)
     return path
+
+
+def print_benchmark_report(csv_path: str | Path) -> tuple[dict[str, float | int], list[SizeSummary]]:
+    """Load a benchmark CSV and print overall + per-size summaries."""
+    rows = load_results(csv_path)
+    summary = summarize(rows)
+    by_size = summarize_by_size(rows)
+
+    print("Overall")
+    for key, value in summary.items():
+        formatted = f"{value:.4f}" if isinstance(value, float) else str(value)
+        print(f"  {key:<30s}: {formatted}")
+
+    print("\nBy instance size")
+    for row in by_size:
+        print(
+            f"  n={row.num_items:4d} | completed={row.completed}/{row.instances}"
+            f" | avg_time={row.avg_time_s:.4f}s | avg_gap={row.avg_gap:.3f}"
+        )
+
+    return summary, by_size
