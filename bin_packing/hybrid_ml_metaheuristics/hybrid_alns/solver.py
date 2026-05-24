@@ -531,4 +531,3 @@ class BinPackingSolver:
         model = bundle["model"]
         scaler = bundle["scaler"]
         return BinPackingSolver._validate_model_components(model, scaler)
-
