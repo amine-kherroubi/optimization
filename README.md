@@ -10,13 +10,14 @@ A professional research repository for benchmarking algorithm families on the **
 
 ```text
 .
-├── 1_exact_methods/
-├── 2_specific_heuristics/
-├── 3_trajectory_based_metaheuristics/
-├── 4_population_based_metaheuristics/
-├── hybrid_ml_metaheuristics/
-├── datasets/
-├── utilities/
+├── bin_packing/
+│   ├── exact_methods/
+│   ├── specific_heuristics/
+│   ├── trajectory_based_metaheuristics/
+│   ├── population_based_metaheuristics/
+│   ├── hybrid_ml_metaheuristics/
+│   ├── datasets/
+│   └── utilities/
 │   ├── benchmarking.py
 │   ├── graphing.py
 │   └── statistics.py
@@ -25,28 +26,28 @@ A professional research repository for benchmarking algorithm families on the **
 
 ## Solver Families
 
-1. **Exact methods** (`1_exact_methods/`) for optimal solutions.
-2. **Specific heuristics** (`2_specific_heuristics/`) for fast constructive/improvement baselines.
-3. **Trajectory-based metaheuristics** (`3_trajectory_based_metaheuristics/`) for single-solution neighborhood search.
-4. **Population-based metaheuristics** (`4_population_based_metaheuristics/`) for population-driven search (GA, ACO).
-5. **Hybrid ML + metaheuristics** (`hybrid_ml_metaheuristics/`) for adaptive learning-enhanced pipelines.
+1. **Exact methods** (`bin_packing/exact_methods/`) for optimal solutions.
+2. **Specific heuristics** (`bin_packing/specific_heuristics/`) for fast constructive/improvement baselines.
+3. **Trajectory-based metaheuristics** (`bin_packing/trajectory_based_metaheuristics/`) for single-solution neighborhood search.
+4. **Population-based metaheuristics** (`bin_packing/population_based_metaheuristics/`) for population-driven search (GA, ACO).
+5. **Hybrid ML + metaheuristics** (`bin_packing/hybrid_ml_metaheuristics/`) for adaptive learning-enhanced pipelines.
 
 ## Benchmarking
 
 Run all experiments from the project root using:
 
 ```bash
-python utilities/benchmarking.py --solver <solver_path> --dataset <dataset_key> [--method <method_name>] [--method-args "k=v,..."]
+python -m bin_packing.utilities.benchmarking --solver <solver_path> --dataset <dataset_key> [--method <method_name>] [--method-args "k=v,..."]
 ```
 
 ### Example Commands
 
 ```bash
-python utilities/benchmarking.py --solver 1_exact_methods/solver.py --dataset falkenauer-t --method "branch and bound"
-python utilities/benchmarking.py --solver 2_specific_heuristics/solver.py --dataset scholl-2 --method "best fit"
-python utilities/benchmarking.py --solver 3_trajectory_based_metaheuristics/solver.py --dataset scholl-2 --method "tabu search lns"
-python utilities/benchmarking.py --solver 4_population_based_metaheuristics/solver.py --dataset falkenauer-u --method "genetic algorithm memetic"
-python utilities/benchmarking.py --solver hybrid_ml_metaheuristics/hybrid_alns/solver.py --dataset falkenauer-u --method-args "model_path=hybrid_ml_metaheuristics/hybrid_alns/models/repair_model.pkl,max_iterations=5000"
+python -m bin_packing.utilities.benchmarking --solver bin_packing/exact_methods/solver.py --dataset falkenauer-t --method "branch and bound"
+python -m bin_packing.utilities.benchmarking --solver bin_packing/specific_heuristics/solver.py --dataset scholl-2 --method "best fit"
+python -m bin_packing.utilities.benchmarking --solver bin_packing/trajectory_based_metaheuristics/solver.py --dataset scholl-2 --method "tabu search lns"
+python -m bin_packing.utilities.benchmarking --solver bin_packing/population_based_metaheuristics/solver.py --dataset falkenauer-u --method "genetic algorithm memetic"
+python -m bin_packing.utilities.benchmarking --solver bin_packing/hybrid_ml_metaheuristics/hybrid_alns/solver.py --dataset falkenauer-u --method-args "max_iterations=5000"
 ```
 
 ### Core CLI Options
@@ -56,7 +57,6 @@ python utilities/benchmarking.py --solver hybrid_ml_metaheuristics/hybrid_alns/s
 - `--method` (optional): method name/alias accepted by the solver.
 - `--method-args` (optional): comma-separated keyword arguments for `solve(...)`.
 - `--num-items` / `--max-items` (optional): instance-size filtering.
-- `--time-limit` (optional): per-instance timeout in seconds.
 - `--time-limit` (optional): per-instance timeout in seconds.
 
 ## Datasets
@@ -86,5 +86,5 @@ default (see `.gitignore`).
 
 Models for hybrid approaches are kept in their module folders. In
 particular, trained model files (`.pkl`) for the hybrid ALNS are stored
-in `hybrid_ml_metaheuristics/hybrid_alns/models/` and are NOT
+in `bin_packing/hybrid_ml_metaheuristics/hybrid_alns/models/` and are NOT
 gitignored. Manage those artifacts intentionally.

@@ -64,13 +64,13 @@ python train_repair_model.py \
 
 ### Step 4: Validate in the benchmark
 
-Run the benchmark from the project root so the model path resolves correctly:
+Run the benchmark from the project root:
 
 ```bash
-python utilities/benchmarking.py \
-  --solver hybrid_ml_metaheuristics/hybrid_alns/solver.py \
+python -m bin_packing.utilities.benchmarking \
+  --solver bin_packing/hybrid_ml_metaheuristics/hybrid_alns/solver.py \
   --dataset falkenauer-u \
-  --method-args "model_path=models/repair_model_v2.pkl"
+  --method-args "max_iterations=5000"
 ```
 
 ## Notebook

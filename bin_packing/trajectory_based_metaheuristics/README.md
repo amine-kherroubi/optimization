@@ -19,7 +19,7 @@ This module contains single-solution trajectory-based search strategies.
 Run from repository root:
 
 ```bash
-python utilities/benchmarking.py --solver 3_trajectory_based_metaheuristics/solver.py --dataset scholl-2 --method "tabu search lns"
+python -m bin_packing.utilities.benchmarking --solver bin_packing/trajectory_based_metaheuristics/solver.py --dataset scholl-2 --method "tabu search lns"
 ```
 
 ## Results & Models
@@ -27,7 +27,7 @@ python utilities/benchmarking.py --solver 3_trajectory_based_metaheuristics/solv
 Benchmark outputs are written automatically under the solver folder as:
 
 ```
-3_trajectory_based_metaheuristics/results/<dataset_key>/<YYYYMMDD_HHMMSS>/
+bin_packing/trajectory_based_metaheuristics/results/<dataset_key>/<YYYYMMDD_HHMMSS>/
 	results.csv
 	graphs/
 ```

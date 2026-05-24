@@ -9,7 +9,7 @@ from math import ceil
 from pathlib import Path
 from typing import Any
 
-from solver import BinPackingSolver
+from bin_packing.population_based_metaheuristics.solver import BinPackingSolver
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 BENCHMARKS_ROOT = PROJECT_ROOT / "datasets"

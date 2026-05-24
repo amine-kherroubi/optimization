@@ -15,7 +15,7 @@ This module contains fast constructive and lightweight local-improvement heurist
 Run from repository root:
 
 ```bash
-python utilities/benchmarking.py --solver 2_specific_heuristics/solver.py --dataset scholl-2 --method "best fit"
+python -m bin_packing.utilities.benchmarking --solver bin_packing/specific_heuristics/solver.py --dataset scholl-2 --method "best fit"
 ```
 
 ## Results & Models
@@ -23,7 +23,7 @@ python utilities/benchmarking.py --solver 2_specific_heuristics/solver.py --data
 Benchmark outputs are written automatically under the solver folder as:
 
 ```
-2_specific_heuristics/results/<dataset_key>/<YYYYMMDD_HHMMSS>/
+bin_packing/specific_heuristics/results/<dataset_key>/<YYYYMMDD_HHMMSS>/
 	results.csv
 	graphs/
 ```
