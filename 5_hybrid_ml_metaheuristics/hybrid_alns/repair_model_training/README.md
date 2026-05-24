@@ -50,7 +50,7 @@ python collect_alns_states.py --model-path repair_model_v1.pkl --instances 500 -
 
 ```bash
 python train_repair_model.py \
-  --instances 2000 \
+  --instances 4000 \
   --n-min 50 --n-max 200 \
   --max-negatives 3 \
   --seed 0 \
