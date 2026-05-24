@@ -66,23 +66,40 @@ class _WorkingSolution:
                 self.item_to_bin[item] = j
 
 
-class ThompsonSamplingBandit:
-    """Beta-Bernoulli Thompson Sampling for destroy-operator selection."""
+N_CONTEXT_FEATURES = 5  # [T/T0, stagnation/limit, cost/LB, k/n, iter/max_iter]
 
-    __slots__ = ("alpha", "beta")
 
-    def __init__(self, n_arms: int):
-        self.alpha = np.ones(n_arms, dtype=np.float64)
-        self.beta = np.ones(n_arms, dtype=np.float64)
+class LinUCBBandit:
+    """Disjoint LinUCB contextual bandit for destroy-operator selection.
 
-    def select_arm(self, rng: np.random.Generator) -> int:
-        return int(np.argmax(rng.beta(self.alpha, self.beta)))
+    Each arm k maintains A_k (d×d covariance) and b_k (d reward vector).
+    Selection: argmax_k [ θ_k^T x + α √(x^T A_k^{-1} x) ]
+    Update:    A_k += x x^T,  b_k += r * x
 
-    def update(self, arm: int, reward: int) -> None:
-        if reward == 1:
-            self.alpha[arm] += 1.0
-        else:
-            self.beta[arm] += 1.0
+    Reference: Chu et al., ICML 2011.
+    """
+
+    __slots__ = ("alpha", "_A", "_b", "_n_arms")
+
+    def __init__(self, n_arms: int, n_features: int, alpha: float = 1.0):
+        self.alpha = float(alpha)
+        self._n_arms = n_arms
+        self._A: list[np.ndarray] = [np.eye(n_features) for _ in range(n_arms)]
+        self._b: list[np.ndarray] = [np.zeros(n_features) for _ in range(n_arms)]
+
+    def select_arm(self, context: np.ndarray) -> int:
+        """Return arm with highest UCB score for the given context vector."""
+        scores = np.empty(self._n_arms)
+        for k in range(self._n_arms):
+            A_inv = np.linalg.inv(self._A[k])
+            theta = A_inv @ self._b[k]
+            scores[k] = theta @ context + self.alpha * np.sqrt(context @ A_inv @ context)
+        return int(np.argmax(scores))
+
+    def update(self, arm: int, context: np.ndarray, reward: float) -> None:
+        """Update arm k with observed (context, reward)."""
+        self._A[arm] += np.outer(context, context)
+        self._b[arm] += reward * context
 
 
 class BinPackingSolver:
