@@ -10,28 +10,21 @@ from __future__ import annotations
 
 import math
 import pickle
-import sys
 import time
 import warnings
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any, Sequence, Mapping, Optional, Tuple
 
 import numpy as np
 
-# Ensure parent directory is in path so 'training' can be imported as a package.
-_root_dir = str(Path(__file__).parent)
-if _root_dir not in sys.path:
-    sys.path.insert(0, _root_dir)
-
-from repair_model_training.features import (
+from bin_packing.hybrid_ml_metaheuristics.hybrid_alns.repair_model_training.features import (
     FEATURE_VERSION as _EXPECTED_FEATURE_VERSION,
 )  # noqa: E402
-from repair_model_training.features import (
+from bin_packing.hybrid_ml_metaheuristics.hybrid_alns.repair_model_training.features import (
     N_FEATURES as _EXPECTED_N_FEATURES,
 )  # noqa: E402
-from repair_model_training.features import make_features as _make_features  # noqa: E402
-import repair_model_training.features as _features  # noqa: E402
+from bin_packing.hybrid_ml_metaheuristics.hybrid_alns.repair_model_training.features import make_features as _make_features  # noqa: E402
+import bin_packing.hybrid_ml_metaheuristics.hybrid_alns.repair_model_training.features as _features  # noqa: E402
 
 
 @dataclass(slots=True)
@@ -124,13 +117,18 @@ class BinPackingSolver:
                 stacklevel=2,
             )
 
-        model_path = params.get("model_path")
-        if not model_path:
+        model_bundle = params.get("model_bundle")
+        model = params.get("model")
+        scaler = params.get("scaler")
+        if model_bundle is not None:
+            self._model, self._scaler = self._validate_model_bundle(model_bundle)
+        elif model is not None and scaler is not None:
+            self._model, self._scaler = self._validate_model_components(model, scaler)
+        else:
             raise ValueError(
-                "model_path is required for this approach. "
-                "Train it first with train_repair_model.py."
+                "Provide model_bundle or both model and scaler objects. "
+                "Path-based model loading is no longer supported."
             )
-        self._model, self._scaler = self._load_model(str(model_path))
 
         max_iterations = int(params.get("max_iterations", 5_000))
         if max_iterations <= 0:
@@ -492,35 +490,14 @@ class BinPackingSolver:
         )
 
     @staticmethod
-    def _load_model(model_path: str) -> tuple[Any, Any]:
-        """Load and validate the model bundle produced by train_repair_model.py.
+    def _validate_model_components(model: Any, scaler: Any) -> tuple[Any, Any]:
+        if not hasattr(model, "predict_proba"):
+            raise TypeError("Loaded model must expose predict_proba(features).")
+        return model, scaler
 
-        The bundle is a dict containing at minimum:
-          - "model":           fitted sklearn estimator with predict_proba
-          - "scaler":          fitted StandardScaler (applied before predict_proba)
-          - "feature_version": int, must match _EXPECTED_FEATURE_VERSION
-          - "n_features":      int, sanity-checked against _make_repair_features output
-
-        Returns (model, scaler). Raises if the file is missing, malformed, or
-        was produced by an incompatible version of the training script.
-        """
-        path = Path(model_path)
-        if not path.is_absolute():
-            # Common usage: tools invoke solver from repo root with a
-            # repository-relative path. Try current working directory first
-            # (repository root when invoked from project root), then fall
-            # back to a path relative to this module.
-            cwd_candidate = (Path.cwd() / path).resolve()
-            if cwd_candidate.exists():
-                path = cwd_candidate
-            else:
-                path = (Path(__file__).resolve().parent / path).resolve()
-        if not path.exists():
-            raise FileNotFoundError(f"Model file not found: {path}")
-
-        with path.open("rb") as handle:
-            bundle = pickle.load(handle)
-
+    @staticmethod
+    def _validate_model_bundle(bundle: Any) -> tuple[Any, Any]:
+        """Validate an in-memory model bundle produced by train_repair_model.py."""
         if not isinstance(bundle, dict):
             raise TypeError(
                 f"Expected a model bundle dict, got {type(bundle).__name__}. "
@@ -552,7 +529,6 @@ class BinPackingSolver:
             )
 
         model = bundle["model"]
-        if not hasattr(model, "predict_proba"):
-            raise TypeError("Loaded model must expose predict_proba(features).")
+        scaler = bundle["scaler"]
+        return BinPackingSolver._validate_model_components(model, scaler)
 
-        return model, bundle["scaler"]

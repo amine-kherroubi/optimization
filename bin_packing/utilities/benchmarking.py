@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import importlib.util
 import inspect
 import multiprocessing as mp
 import queue
@@ -13,18 +12,11 @@ from dataclasses import dataclass, asdict
 from datetime import datetime
 from math import ceil
 from pathlib import Path
+from types import ModuleType
 from typing import Any
-
-_PROJECT_ROOT: Path = Path(__file__).resolve().parents[2]
-if str(_PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(_PROJECT_ROOT))
 
 from bin_packing.datasets.types import Instance, DatasetConfig
 from bin_packing.datasets.registry import DATASET_REGISTRY
-
-# Cache for solver modules loaded by path. Avoids re-importing the solver
-# module from disk for every instance when no per-instance time limit is set.
-_solver_module_cache: dict[str, Any] = {}
 
 
 @dataclass(slots=True)
@@ -78,31 +70,16 @@ def _solver_worker(
     bin_capacity: int,
     method: str | None,
     method_args: dict[str, Any],
-    solver_path: str,
+    solver_module: ModuleType,
     out_queue: mp.Queue[tuple[int | None, float | None, str | None]],
 ) -> None:
     """Run the solver in an isolated subprocess and report (bins, elapsed, error)."""
-    import importlib.util
     import signal
     import time
-    from pathlib import Path
 
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     try:
-        # Accept either absolute paths or paths relative to this file.
-        abs_path = Path(solver_path)
-        if not abs_path.is_absolute():
-            abs_path = (Path(__file__).parent / solver_path).resolve()
-        else:
-            abs_path = abs_path.resolve()
-        spec = importlib.util.spec_from_file_location("solver", str(abs_path))
-        assert spec is not None
-        solver_mod = importlib.util.module_from_spec(spec)
-        sys.modules[spec.name] = solver_mod
-        assert spec.loader is not None
-        spec.loader.exec_module(solver_mod)
-        BinPackingSolver = solver_mod.BinPackingSolver
-
+        BinPackingSolver = solver_module.BinPackingSolver
         start: float = time.perf_counter()
         solver = BinPackingSolver(sizes, bin_capacity)
         _invoke_solver_safely(solver, method, method_args)
@@ -187,11 +164,11 @@ class Benchmark:
     def __init__(
         self,
         dataset: DatasetConfig,
-        solver_path: Path,
+        solver_module: ModuleType,
         time_limit: float | None = None,
     ) -> None:
         self._dataset: DatasetConfig = dataset
-        self._solver_path: Path = solver_path
+        self._solver_module: ModuleType = solver_module
         self._time_limit: float | None = time_limit
         self._results: list[BenchmarkResult] = []
 
@@ -270,11 +247,10 @@ class Benchmark:
 
     def run_instance(
         self,
-        filepath: str | Path,
+        instance: Instance,
         method: str | None = None,
         method_args: dict[str, Any] | None = None,
     ) -> BenchmarkResult:
-        instance = self._dataset.parser(Path(filepath), self._dataset.key)
         result = self._solve(instance, method, method_args)
         self._results.append(result)
         return result
@@ -341,13 +317,8 @@ class Benchmark:
             # Default location: put results under the solver's folder so outputs
             # are grouped by method. Structure:
             # <solver_dir>/results/<dataset_key>/<timestamp>/results.csv
-            solver_dir = self._solver_path.parent
             ts = datetime.now().strftime("%Y%m%d_%H%M%S") if timestamp else ""
-            base_dir = (
-                Path(results_dir)
-                if results_dir is not None
-                else solver_dir / "results" / self._dataset.key / ts
-            )
+            base_dir = Path(results_dir) if results_dir is not None else Path("results") / self._dataset.key / ts
             base_dir.mkdir(parents=True, exist_ok=True)
             out_path = base_dir / "results.csv"
 
@@ -410,17 +381,7 @@ class Benchmark:
         method_label = method if method is not None else "<default>"
 
         if self._time_limit is None:
-            abs_path = self._solver_path
-            solver_key = str(abs_path)
-            if solver_key not in _solver_module_cache:
-                spec = importlib.util.spec_from_file_location("solver", abs_path)
-                assert spec is not None
-                solver_mod = importlib.util.module_from_spec(spec)
-                sys.modules[spec.name] = solver_mod
-                assert spec.loader is not None
-                spec.loader.exec_module(solver_mod)
-                _solver_module_cache[solver_key] = solver_mod
-            BinPackingSolver = _solver_module_cache[solver_key].BinPackingSolver
+            BinPackingSolver = self._solver_module.BinPackingSolver
 
             start = time.perf_counter()
             solver = BinPackingSolver(instance.sizes, instance.bin_capacity)
@@ -448,7 +409,7 @@ class Benchmark:
                 instance.bin_capacity,
                 solver_method,
                 dict(method_args or {}),
-                str(self._solver_path),
+                self._solver_module,
                 out_queue,
             ),
             daemon=True,
@@ -614,140 +575,4 @@ class Benchmark:
         print(f"\033[1;36m{chr(0x2550) * widths.total_width}\033[0m\n")
 
 
-if __name__ == "__main__":
-    mp.freeze_support()
 
-    _dataset_keys = sorted(DATASET_REGISTRY.keys())
-    _dataset_help = "\n".join(
-        f"  {k:22s} {DATASET_REGISTRY[k].label}" for k in _dataset_keys
-    )
-
-    arg_parser = argparse.ArgumentParser(
-        description="Bin-packing benchmark runner.",
-        formatter_class=argparse.RawTextHelpFormatter,
-    )
-    arg_parser.add_argument(
-        "--solver",
-        required=True,
-        metavar="PATH",
-        help="Path to the solver.py to benchmark (e.g. 1_exact_methods/solver.py).",
-    )
-    arg_parser.add_argument(
-        "--dataset",
-        choices=_dataset_keys,
-        required=True,
-        metavar="DATASET",
-        help=f"Dataset to benchmark. Available:\n{_dataset_help}",
-    )
-    arg_parser.add_argument(
-        "--method",
-        default=None,
-        metavar="METHOD",
-        help="Optional solving method passed to BinPackingSolver.solve(method=...).",
-    )
-    arg_parser.add_argument(
-        "--method-args",
-        default=None,
-        metavar="K=V,...",
-        help=(
-            "Optional comma-separated key/value params passed to solve(), "
-            "for example: model_path=foo.pkl,max_iterations=5000"
-        ),
-    )
-
-    size_group = arg_parser.add_mutually_exclusive_group()
-    size_group.add_argument(
-        "--num-items",
-        type=int,
-        default=None,
-        metavar="N",
-        help="Run only instances with exactly N items.",
-    )
-    size_group.add_argument(
-        "--max-items",
-        type=int,
-        default=None,
-        metavar="N",
-        help="Run only instances with at most N items.",
-    )
-
-    # Note: output paths are determined automatically and are placed under
-    # the solver's `results/<dataset>/<timestamp>/` directory. Users should
-    # not need to specify CSV output paths.
-    arg_parser.add_argument(
-        "--time-limit",
-        type=float,
-        default=None,
-        metavar="SECS",
-        help="Per-instance time limit in seconds (enables multiprocessing isolation).",
-    )
-
-    args = arg_parser.parse_args()
-
-    def _parse_method_args(raw_args: str | None) -> dict[str, Any]:
-        if raw_args is None or not raw_args.strip():
-            return {}
-        parsed: dict[str, Any] = {}
-        for chunk in raw_args.split(","):
-            piece = chunk.strip()
-            if not piece:
-                continue
-            if "=" not in piece:
-                raise ValueError(
-                    f"Invalid --method-args entry '{piece}'. Expected key=value."
-                )
-            key, value = piece.split("=", 1)
-            key = key.strip()
-            if not key:
-                raise ValueError("Method-arg keys cannot be empty.")
-            value = value.strip()
-            lowered = value.lower()
-            if lowered == "true":
-                parsed[key] = True
-            elif lowered == "false":
-                parsed[key] = False
-            else:
-                try:
-                    parsed[key] = int(value)
-                except ValueError:
-                    try:
-                        parsed[key] = float(value)
-                    except ValueError:
-                        parsed[key] = value
-        return parsed
-
-    method_args = _parse_method_args(args.method_args)
-
-    solver_path = (_PROJECT_ROOT / args.solver).resolve()
-    if not solver_path.is_file():
-        arg_parser.error(f"Solver file not found: {solver_path}")
-
-    dataset_cfg = DATASET_REGISTRY[args.dataset]
-    bench = Benchmark(dataset_cfg, solver_path, time_limit=args.time_limit)
-
-    try:
-        bench.run(
-            method=args.method,
-            method_args=method_args,
-            num_items=args.num_items,
-            max_items=args.max_items,
-        )
-
-        results = bench.get_results()
-        if results:
-            try:
-                csv_out_path = bench.save_results_to_csv()
-                print(f"\033[1mResults saved to:\033[0m {csv_out_path}")
-            except Exception as exc:
-                print(f"\033[91m[!] Failed to save results: {exc}\033[0m")
-                raise
-
-    except KeyboardInterrupt:
-        print(
-            "\n\n\033[91m\033[1m[!] Benchmark abruptly stopped by user "
-            "(KeyboardInterrupt).\033[0m"
-        )
-        sys.exit(130)
-    except Exception as e:
-        print(f"\n\n\033[91m\033[1m[!] An unexpected error occurred: {e}\033[0m")
-        sys.exit(1)
