@@ -34,8 +34,6 @@ from bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns.hybrid_
     BinPackingSolver,
     LinUCBBandit,
     WarmStartLinUCBBandit,
-    NeuralLinUCBBandit,
-    AnnealedLinUCBBandit,
 )
 from bin_packing_optimization.datasets.Falkenauer_T.configure import DATASET_CONFIG as FALK_T
 from bin_packing_optimization.datasets.Scholl_1.configure import DATASET_CONFIG as SCHOLL1
@@ -73,25 +71,8 @@ class _ThompsonSampling:
             self._beta[arm] += 1.0
 
 
-class _LinUCB_alpha1:
-    """LinUCB avec alpha=1.0 (valeur originale)."""
-    def __init__(self, n_arms: int, n_features: int, alpha: float = 1.0):
-        self._b = LinUCBBandit(n_arms=n_arms, n_features=n_features, alpha=1.0)
-    def select_arm(self, context): return self._b.select_arm(context)
-    def update(self, arm, context, reward): self._b.update(arm, context, reward)
-
-
-class _WarmStart20:
-    """TS warm-up 200 iters → LinUCB alpha=0.3."""
-    def __init__(self, n_arms: int, n_features: int, alpha: float = 0.3):
-        self._b = WarmStartLinUCBBandit(n_arms=n_arms, n_features=n_features,
-                                        alpha=0.3, warmup_calls=200)
-    def select_arm(self, context): return self._b.select_arm(context)
-    def update(self, arm, context, reward): self._b.update(arm, context, reward)
-
-
 class _WarmStart30:
-    """TS warm-up 300 iters → LinUCB alpha=0.3."""
+    """TS warm-up 300 iters → LinUCB alpha=0.3 (défaut du solver)."""
     def __init__(self, n_arms: int, n_features: int, alpha: float = 0.3):
         self._b = WarmStartLinUCBBandit(n_arms=n_arms, n_features=n_features,
                                         alpha=0.3, warmup_calls=300)
@@ -101,11 +82,9 @@ class _WarmStart30:
 
 # ── Registre des méthodes ─────────────────────────────────────────────────────
 METHODS: dict[str, type] = {
-    "TS":            _ThompsonSampling,
-    "LinUCB-0.3":    LinUCBBandit,          # alpha fixe=0.3
-    "WS-30":         _WarmStart30,          # TS 300 iters → LinUCB-0.3
-    "AnnealedLinUCB": AnnealedLinUCBBandit, # α(t) = 0.05 + 0.95×(T/T₀)  ← NEW
-    "NeuralLinUCB":  NeuralLinUCBBandit,    # MLP 5→32→16 + LinUCB (online)
+    "TS":         _ThompsonSampling,   # baseline (sans contexte)
+    "LinUCB-0.3": LinUCBBandit,        # LinUCB contextuel alpha=0.3
+    "WS-30":      _WarmStart30,        # TS 300 iters → LinUCB-0.3  ← DÉFAUT SOLVER
 }
 
 
