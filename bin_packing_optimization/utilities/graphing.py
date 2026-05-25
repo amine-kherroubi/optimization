@@ -10,6 +10,7 @@ from matplotlib.figure import Figure
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
+from IPython.display import Image, display
 
 # Project root used for sensible defaults
 _PROJECT_ROOT: Path = Path(__file__).resolve().parents[2]
@@ -317,3 +318,23 @@ def create_comparison_graphs(
         paths.append(_save_figure(fig, output, "compare_success_rate_by_method.png"))
 
     return paths
+
+
+def _caption_from_graph_name(path: Path) -> str:
+    if path.name.startswith("fig1_"):
+        return "Fig 1 — Solve time per instance (seconds)"
+    if path.name.startswith("fig2_"):
+        return "Fig 2 — Bins used vs continuous lower bound"
+    if path.name.startswith("fig3_"):
+        return "Fig 3 — Solve time distribution by instance size"
+    return f"Figure — {path.stem}"
+
+
+def display_graphs(csv_path: str | Path) -> list[Path]:
+    """Create benchmark graphs and display each with an automatic caption."""
+    graph_paths = create_graphs(csv_path)
+    for path in graph_paths:
+        print(_caption_from_graph_name(path))
+        display(Image(filename=str(path)))
+        print()
+    return graph_paths
