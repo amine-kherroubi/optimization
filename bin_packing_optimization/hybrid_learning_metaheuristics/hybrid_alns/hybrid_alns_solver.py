@@ -289,8 +289,11 @@ class BinPackingSolver:
             # Adaptive k: grow the destruction radius when stagnating.
             # stagnation_ratio goes from 0 → 1 as iterations_since_improvement
             # increases, linearly expanding k toward k_max.
+            # Denominator is no_improve_limit (the stagnation budget), NOT
+            # max_iterations — using max_iterations kept the ratio near 0 for
+            # the entire run, making adaptive-k effectively a no-op.
             stagnation_ratio = min(
-                1.0, iterations_since_improvement / max(1, max_iterations)
+                1.0, iterations_since_improvement / max(1, no_improve_limit)
             )
             k_adaptive_max = k_min + int(stagnation_ratio * (k_max - k_min))
             k_items = int(self._rng.integers(k_min, max(k_min + 1, k_adaptive_max + 1)))
@@ -329,14 +332,23 @@ class BinPackingSolver:
                 delta, accepted, improved, current.cost(), lower_bound
             )
             bandit.update(arm, _ctx, _reward)
-            if iterations_since_improvement > 0 and (
-                iterations_since_improvement % max(50, max_iterations // 40) == 0
-            ):
-                # Soft reheat helps escape local minima during long plateaus.
-                temperature = max(temperature, t0 * 0.35)
+            # Cool first, then conditionally reheat — wrong order caused each
+            # reheat to be immediately eroded by the multiplication that followed.
             temperature *= alpha_cool
+            if iterations_since_improvement > 0 and (
+                iterations_since_improvement % max(50, no_improve_limit // 4) == 0
+            ):
+                # Soft reheat tied to no_improve_limit (not max_iterations) so
+                # the interval scales with the actual stagnation budget.
+                temperature = max(temperature, t0 * 0.35)
             if iterations_since_improvement >= no_improve_limit:
-                break
+                # Diversification restart: return to best, reheat partially, and
+                # shrink the patience window so successive restarts get shorter.
+                # The outer range(max_iterations) guarantees termination.
+                current = best.copy()
+                iterations_since_improvement = 0
+                temperature = max(temperature, t0 * 0.20)
+                no_improve_limit = max(100, no_improve_limit * 2 // 3)
 
         self._final_solution = self._to_presentable_solution(best)
 
@@ -376,47 +388,35 @@ class BinPackingSolver:
         return sol
 
     def _destroy_random(self, sol: _WorkingSolution, k_items: int) -> list[int]:
-        if len(sol.bins) <= 1:
+        all_items = [item for b in sol.bins for item in b]
+        if len(all_items) <= 1:
             return []
-        # Select bins in random order until cumulative displaced items reach k_items.
-        bin_order = self._rng.permutation(len(sol.bins)).tolist()
-        selected: list[int] = []
-        removed_count = 0
-        for j in bin_order:
-            if removed_count >= k_items:
-                break
-            if len(selected) >= len(sol.bins) - 1:
-                break
-            selected.append(j)
-            removed_count += len(sol.bins[j])
-        # Defensive fallback: unreachable in practice because the len(sol.bins) <= 1
-        # guard above ensures at least 2 bins exist, so the first loop iteration
-        # always appends before either break condition can fire.
-        if not selected:
-            selected = [int(bin_order[0])]
-        return self._remove_bins(sol, selected)
+        # Item-level selection: sample exactly min(k_items, n-1) items at random.
+        # Previously this removed whole bins, which could displace 6–30× k_items
+        # when a randomly chosen bin happened to be large.
+        k_effective = min(k_items, len(all_items) - 1)
+        to_remove = [int(x) for x in self._rng.choice(all_items, size=k_effective, replace=False)]
+        return self._remove_items(sol, to_remove)
 
     def _destroy_worst(self, sol: _WorkingSolution, k_items: int) -> list[int]:
-        if len(sol.bins) <= 1:
+        all_items = [item for b in sol.bins for item in b]
+        if len(all_items) <= 1:
             return []
-        # Greedily pick least-loaded bins until cumulative displaced items reach k_items.
+        # Item-level selection: collect items from least-loaded bins first,
+        # stopping once we reach exactly k_items items.  The tiny random nudge
+        # on bin load breaks ties without changing the overall ranking.
         order = sorted(
             range(len(sol.bins)),
             key=lambda j: sol.bin_loads[j] + float(self._rng.uniform(0.0, 1e-6)),
         )
-        selected: list[int] = []
-        removed_count = 0
+        candidates: list[int] = []
         for j in order:
-            if removed_count >= k_items:
+            candidates.extend(sol.bins[j])
+            if len(candidates) >= k_items:
                 break
-            if len(selected) >= len(sol.bins) - 1:
-                break
-            selected.append(j)
-            removed_count += len(sol.bins[j])
-        # Defensive fallback: same reasoning as _destroy_random — unreachable in practice.
-        if not selected:
-            selected = [order[0]]
-        return self._remove_bins(sol, selected)
+        k_effective = min(k_items, len(all_items) - 1)
+        to_remove = candidates[:k_effective]
+        return self._remove_items(sol, to_remove)
 
     def _destroy_related(self, sol: _WorkingSolution, k_items: int) -> list[int]:
         all_items = [item for b in sol.bins for item in b]
@@ -425,44 +425,32 @@ class BinPackingSolver:
         seed = int(self._rng.choice(all_items))
         candidates = [i for i in all_items if i != seed]
         candidates.sort(key=lambda i: abs(self._item_sizes[i] - self._item_sizes[seed]))
-        # Cap displacement so at least one item (and therefore one bin) stays
-        # placed, matching the ≥1-bin-preserved guarantee enforced by
-        # _destroy_random and _destroy_worst. Without this cap, k_items ≥
-        # len(all_items) would evict every item from every bin, reducing the
-        # warm-started solution to an empty state and forcing a restart from
-        # scratch on every related-destroy call — defeating the purpose of ALNS.
+        # Cap displacement so at least one item stays placed.  Without this cap,
+        # k_items ≥ len(all_items) would evict every item, reducing the warm-
+        # started solution to an empty state on every related-destroy call.
         k_effective = min(k_items, len(all_items) - 1)
         to_remove = [seed] + candidates[: max(0, k_effective - 1)]
+        return self._remove_items(sol, to_remove)
 
+    def _remove_items(self, sol: _WorkingSolution, to_remove: list[int]) -> list[int]:
+        """Remove specific items from their bins (swap-with-last O(1)), prune
+        empty bins, rebuild item_to_bin.  Shared by all three destroy operators."""
         for item in to_remove:
             j = sol.item_to_bin[item]
             if j == -1:
                 continue
-            # swap-with-last then pop: O(1) instead of O(len(bin)) for list.remove()
             lst = sol.bins[j]
             idx = lst.index(item)
             lst[idx] = lst[-1]
             lst.pop()
             sol.bin_loads[j] -= self._item_sizes[item]
             sol.item_to_bin[item] = -1
-
         empty = [j for j, b in enumerate(sol.bins) if not b]
         for j in reversed(empty):
             sol.bins.pop(j)
             sol.bin_loads.pop(j)
         sol.rebuild_item_to_bin()
         return to_remove
-
-    def _remove_bins(self, sol: _WorkingSolution, bin_indices: list[int]) -> list[int]:
-        displaced: list[int] = []
-        for j in sorted(bin_indices, reverse=True):
-            displaced.extend(sol.bins[j])
-            sol.bins.pop(j)
-            sol.bin_loads.pop(j)
-        for item in displaced:
-            sol.item_to_bin[item] = -1
-        sol.rebuild_item_to_bin()
-        return displaced
 
     def _repair_learned(self, sol: _WorkingSolution, displaced: list[int]) -> None:
         n = len(self._item_sizes)
@@ -569,10 +557,14 @@ class BinPackingSolver:
         lightly-loaded bin, tries to move it to another bin that has room.
         Empty bins are pruned at the end. A single rebuild_item_to_bin() call
         is deferred until after all moves to avoid redundant O(n) scans.
+
+        The sorted order is computed once before the outer loop and only
+        recomputed after a pass that made at least one move — avoids an
+        unnecessary O(B log B) sort when the first pass makes no moves.
         """
         changed = False
+        order = sorted(range(len(sol.bins)), key=lambda j: sol.bin_loads[j])
         for _ in range(len(sol.bins)):
-            order = sorted(range(len(sol.bins)), key=lambda j: sol.bin_loads[j])
             moved_any = False
             for src in order:
                 if not sol.bins[src]:
@@ -596,6 +588,9 @@ class BinPackingSolver:
                             break
             if not moved_any:
                 break
+            # Re-sort only when loads changed — skip unnecessary work on the
+            # final pass where moved_any was False (caught by the break above).
+            order = sorted(range(len(sol.bins)), key=lambda j: sol.bin_loads[j])
 
         if changed:
             empty = [j for j, b in enumerate(sol.bins) if not b]
