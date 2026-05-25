@@ -72,33 +72,39 @@ N_CONTEXT_FEATURES = 5  # [T/T0, stagnation/limit, cost/LB, k/n, iter/max_iter]
 class LinUCBBandit:
     """Disjoint LinUCB contextual bandit for destroy-operator selection.
 
-    Each arm k maintains A_k (d×d covariance) and b_k (d reward vector).
+    Each arm k maintains A_k^{-1} (cached inverse) and b_k (reward vector).
     Selection: argmax_k [ θ_k^T x + α √(x^T A_k^{-1} x) ]
-    Update:    A_k += x x^T,  b_k += r * x
+    Update:    A_k^{-1} via Sherman-Morrison (O(d²) instead of O(d³))
+               b_k += r * x
 
     Reference: Chu et al., ICML 2011.
+    Sherman-Morrison: (A + uv^T)^{-1} = A^{-1} - (A^{-1}u v^T A^{-1}) / (1 + v^T A^{-1} u)
     """
 
-    __slots__ = ("alpha", "_A", "_b", "_n_arms")
+    __slots__ = ("alpha", "_A_inv", "_b", "_n_arms")
 
     def __init__(self, n_arms: int, n_features: int, alpha: float = 1.0):
         self.alpha = float(alpha)
         self._n_arms = n_arms
-        self._A: list[np.ndarray] = [np.eye(n_features) for _ in range(n_arms)]
+        # Store A_inv directly — identity matrix is its own inverse
+        self._A_inv: list[np.ndarray] = [np.eye(n_features) for _ in range(n_arms)]
         self._b: list[np.ndarray] = [np.zeros(n_features) for _ in range(n_arms)]
 
     def select_arm(self, context: np.ndarray) -> int:
         """Return arm with highest UCB score for the given context vector."""
         scores = np.empty(self._n_arms)
         for k in range(self._n_arms):
-            A_inv = np.linalg.inv(self._A[k])
+            A_inv = self._A_inv[k]
             theta = A_inv @ self._b[k]
             scores[k] = theta @ context + self.alpha * np.sqrt(context @ A_inv @ context)
         return int(np.argmax(scores))
 
     def update(self, arm: int, context: np.ndarray, reward: float) -> None:
-        """Update arm k with observed (context, reward)."""
-        self._A[arm] += np.outer(context, context)
+        """Update arm k using Sherman-Morrison rank-1 inverse update (O(d²))."""
+        A_inv = self._A_inv[arm]
+        Ax = A_inv @ context                          # d-vector, O(d²)
+        denom = 1.0 + context @ Ax                    # scalar
+        self._A_inv[arm] = A_inv - np.outer(Ax, Ax) / denom  # rank-1 update
         self._b[arm] += reward * context
 
 
