@@ -69,6 +69,48 @@ class _WorkingSolution:
 N_CONTEXT_FEATURES = 5  # [T/T0, stagnation/limit, cost/LB, k/n, iter/max_iter]
 
 
+class _FastPredictor:
+    """Thin wrapper around GBT + StandardScaler that bypasses sklearn's
+    per-call input validation (validate_data), which accounts for ~33% of
+    total solve time in profiling.
+
+    Applies scaling manually (pure numpy) then calls model._raw_predict
+    directly, converting logits to probabilities via sigmoid.
+    Only works with GradientBoostingClassifier + StandardScaler.
+    Falls back to the standard path for any other model type.
+    """
+
+    __slots__ = ("_model", "_mean", "_scale", "_fast")
+
+    def __init__(self, model: Any, scaler: Any) -> None:
+        self._model = model
+        self._fast = False
+        try:
+            from sklearn.ensemble import GradientBoostingClassifier
+            from sklearn.preprocessing import StandardScaler
+            if isinstance(model, GradientBoostingClassifier) and isinstance(scaler, StandardScaler):
+                self._mean  = scaler.mean_.astype(np.float64)
+                self._scale = scaler.scale_.astype(np.float64)
+                self._fast  = True
+        except Exception:
+            pass
+        if not self._fast:
+            self._mean  = None
+            self._scale = None
+
+    def predict_proba_col1(self, X: np.ndarray) -> np.ndarray:
+        """Return P(class=1) for each row of X — fast path or safe fallback."""
+        if self._fast:
+            X_scaled = ((X - self._mean) / self._scale).astype(np.float32)  # GBT needs float32
+            raw = self._model._raw_predict(X_scaled)            # shape (n, 1)
+            return 1.0 / (1.0 + np.exp(-raw[:, 0]))            # sigmoid → P(1)
+        # fallback: standard sklearn path
+        scaler = getattr(self, "_scaler_fallback", None)
+        if scaler is not None:
+            X = scaler.transform(X)
+        return self._model.predict_proba(X)[:, 1]
+
+
 class LinUCBBandit:
     """Disjoint LinUCB contextual bandit for destroy-operator selection.
 
@@ -117,6 +159,7 @@ class BinPackingSolver:
         "_final_solution",
         "_model",
         "_scaler",
+        "_predictor",
         "_rng",
     )
 
@@ -132,6 +175,7 @@ class BinPackingSolver:
         self._final_solution: BinPackingSolution | None = None
         self._model: Any = None
         self._scaler: Any = None
+        self._predictor: _FastPredictor | None = None
         self._rng = np.random.default_rng(seed)
 
     def solve(self, method: str | None = None, **params) -> None:
@@ -153,6 +197,7 @@ class BinPackingSolver:
                 "Provide model_bundle or both model and scaler objects. "
                 "Path-based model loading is no longer supported."
             )
+        self._predictor = _FastPredictor(self._model, self._scaler)
 
         max_iterations = int(params.get("max_iterations", 5_000))
         if max_iterations <= 0:
@@ -381,6 +426,7 @@ class BinPackingSolver:
         mf = _make_features
         model = self._model
         scaler = self._scaler
+        predictor = self._predictor
         denom = max(1, n)
         cap_float = float(self._bin_capacity)
         eps = 1e-9
@@ -462,10 +508,7 @@ class BinPackingSolver:
                     remaining_ratio_arr,
                 )
 
-            if scaler is not None:
-                feats_arr = scaler.transform(feats_arr)
-
-            scores = model.predict_proba(feats_arr)[:, 1]
+            scores = predictor.predict_proba_col1(feats_arr)
             best_idx = int(scores.argmax())
             best_j = idxs[best_idx]
             sol.bins[best_j].append(item)
