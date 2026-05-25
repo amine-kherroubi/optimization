@@ -138,7 +138,9 @@ class LinUCBBandit:
         for k in range(self._n_arms):
             A_inv = self._A_inv[k]
             theta = A_inv @ self._b[k]
-            scores[k] = theta @ context + self.alpha * np.sqrt(context @ A_inv @ context)
+            scores[k] = theta @ context + self.alpha * np.sqrt(
+                context @ A_inv @ context
+            )
         return int(np.argmax(scores))
 
     def update(self, arm: int, context: np.ndarray, reward: float) -> None:
@@ -277,11 +279,16 @@ class BinPackingSolver:
             if deadline is not None and time.perf_counter() >= deadline:
                 break
             _ctx = self._build_context(
-                temperature, t0,
-                iterations_since_improvement, no_improve_limit,
-                current.cost(), lower_bound,
-                k_min, n,
-                iteration, max_iterations,
+                temperature,
+                t0,
+                iterations_since_improvement,
+                no_improve_limit,
+                current.cost(),
+                lower_bound,
+                k_min,
+                n,
+                iteration,
+                max_iterations,
             )
             arm = bandit.select_arm(_ctx)
             candidate = current.copy()
