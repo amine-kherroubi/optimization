@@ -42,8 +42,10 @@ import numpy as np
 try:
     from tqdm import tqdm
 except ImportError:
+
     def tqdm(iterable, **kwargs):  # type: ignore[misc]
         return iterable
+
 
 try:
     from . import features
@@ -88,6 +90,7 @@ class GenerateDatasetConfig:
         Path to the output .pkl file.  Parent directories are created
         automatically.
     """
+
     instances: int = 5000
     n_min: int = 50
     n_max: int = 200
@@ -100,6 +103,7 @@ class GenerateDatasetConfig:
 @dataclass
 class DatasetSummary:
     """Lightweight summary of the generated dataset."""
+
     rows: int
     cols: int
     positive_rate: float
@@ -142,10 +146,12 @@ def _generate_instance(rng: np.random.Generator, n_min: int, n_max: int) -> np.n
     elif dist < 4:
         # Bimodal: equal halves of small and large items, shuffled.
         half = n // 2
-        sizes = np.concatenate([
-            rng.uniform(0.05, 0.35, half),
-            rng.uniform(0.60, 0.95, n - half),
-        ])
+        sizes = np.concatenate(
+            [
+                rng.uniform(0.05, 0.35, half),
+                rng.uniform(0.60, 0.95, n - half),
+            ]
+        )
         rng.shuffle(sizes)
     else:
         # Gaussian centred at 0.5.
@@ -204,8 +210,8 @@ def _build_instance_rows(
     # size_rank[item] = position in the FFD ordering (0 = largest item).
     size_rank: dict[int, int] = {item: rank for rank, item in enumerate(order)}
 
-    bins: list[list[int]] = []      # bins[j] = list of item indices in bin j
-    bin_loads: list[float] = []     # bin_loads[j] = total size of items in bin j
+    bins: list[list[int]] = []  # bins[j] = list of item indices in bin j
+    bin_loads: list[float] = []  # bin_loads[j] = total size of items in bin j
 
     for item in order:
         s = sizes_list[item]
@@ -224,8 +230,8 @@ def _build_instance_rows(
     rows_X: list[list[float]] = []
     rows_y: list[int] = []
 
-    remaining = len(order)   # items yet to be "decided" (counts down in loop)
-    denom = max(1, n)        # denominator for remaining_ratio feature
+    remaining = len(order)  # items yet to be "decided" (counts down in loop)
+    denom = max(1, n)  # denominator for remaining_ratio feature
 
     for item in order:
         item_size = sizes_list[item]
@@ -459,6 +465,8 @@ def generate_dataset(config: GenerateDatasetConfig) -> dict:
 
     size_mb = output_path.stat().st_size / 1024 / 1024
     print(f"\nSaved: {output_path}  ({size_mb:.1f} MB)")
-    print("Next step: pass this file to train_repair_model.py via the data config field")
+    print(
+        "Next step: pass this file to train_repair_model.py via the data config field"
+    )
 
     return payload
