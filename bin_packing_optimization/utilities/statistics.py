@@ -94,6 +94,42 @@ def load_results(csv_path: str | Path) -> list[ResultRow]:
         return [_parse_result_row(row) for row in reader]
 
 
+def load_results_many(csv_paths: Sequence[str | Path]) -> list[ResultRow]:
+    """Load and concatenate rows from many benchmark result CSV files."""
+    rows: list[ResultRow] = []
+    for p in csv_paths:
+        rows.extend(load_results(p))
+    return rows
+
+
+def filter_rows_by_items(
+    rows: Sequence[ResultRow],
+    *,
+    num_items: int | None = None,
+    min_items: int | None = None,
+    max_items: int | None = None,
+) -> list[ResultRow]:
+    """Filter rows by instance size.
+
+    `num_items` is exact-match and mutually exclusive with (`min_items`, `max_items`).
+    """
+    if num_items is not None and (min_items is not None or max_items is not None):
+        raise ValueError("num_items is mutually exclusive with min_items/max_items.")
+    if min_items is not None and max_items is not None and min_items > max_items:
+        raise ValueError("min_items cannot be greater than max_items.")
+
+    out: list[ResultRow] = []
+    for row in rows:
+        if num_items is not None and row.num_items != num_items:
+            continue
+        if min_items is not None and row.num_items < min_items:
+            continue
+        if max_items is not None and row.num_items > max_items:
+            continue
+        out.append(row)
+    return out
+
+
 def _split_completed(rows: list[ResultRow]) -> tuple[list[ResultRow], list[ResultRow]]:
     completed = [r for r in rows if not r.timed_out]
     timed_out = [r for r in rows if r.timed_out]
@@ -229,6 +265,32 @@ def summarize_multiple(csv_paths: Sequence[str | Path]) -> Dict[str, dict]:
     return out
 
 
+def summarize_multiple_by_dataset(
+    csv_paths: Sequence[str | Path],
+    *,
+    num_items: int | None = None,
+    min_items: int | None = None,
+    max_items: int | None = None,
+) -> dict[str, dict[str, float | int]]:
+    """Summarize many CSV files and aggregate rows by dataset key.
+
+    Unlike :func:`summarize_multiple` (grouped by file), this function merges
+    rows from all inputs and returns one summary per ``dataset_key``.
+    """
+    groups: dict[str, list[ResultRow]] = {}
+    for p in csv_paths:
+        rows = filter_rows_by_items(
+            load_results(p),
+            num_items=num_items,
+            min_items=min_items,
+            max_items=max_items,
+        )
+        for row in rows:
+            groups.setdefault(row.dataset_key, []).append(row)
+
+    return {dataset_key: summarize(rows) for dataset_key, rows in groups.items()}
+
+
 def export_summary_csv(
     summary: dict[str, dict],
     out_dir: str | Path | None = None,
@@ -270,9 +332,20 @@ def export_summary_csv(
     return path
 
 
-def print_benchmark_report(csv_path: str | Path) -> tuple[dict[str, float | int], list[SizeSummary]]:
+def print_benchmark_report(
+    csv_path: str | Path,
+    *,
+    num_items: int | None = None,
+    min_items: int | None = None,
+    max_items: int | None = None,
+) -> tuple[dict[str, float | int], list[SizeSummary]]:
     """Load a benchmark CSV and print overall + per-size summaries."""
-    rows = load_results(csv_path)
+    rows = filter_rows_by_items(
+        load_results(csv_path),
+        num_items=num_items,
+        min_items=min_items,
+        max_items=max_items,
+    )
     summary = summarize(rows)
     by_size = summarize_by_size(rows)
 
@@ -291,3 +364,53 @@ def print_benchmark_report(csv_path: str | Path) -> tuple[dict[str, float | int]
         )
 
     return summary, by_size
+
+
+def print_multi_benchmark_report(
+    csv_paths: Sequence[str | Path],
+    *,
+    num_items: int | None = None,
+    min_items: int | None = None,
+    max_items: int | None = None,
+) -> tuple[dict[str, dict[str, float | int]], dict[str, list[SizeSummary]]]:
+    """Print per-dataset summaries aggregated from many benchmark CSV files."""
+    if not csv_paths:
+        raise ValueError("At least one CSV path must be provided.")
+
+    rows = filter_rows_by_items(
+        load_results_many(csv_paths),
+        num_items=num_items,
+        min_items=min_items,
+        max_items=max_items,
+    )
+    if not rows:
+        raise ValueError("No benchmark rows loaded.")
+
+    grouped: dict[str, list[ResultRow]] = {}
+    for row in rows:
+        grouped.setdefault(row.dataset_key, []).append(row)
+
+    summaries: dict[str, dict[str, float | int]] = {}
+    by_size_map: dict[str, list[SizeSummary]] = {}
+    for dataset_key in sorted(grouped):
+        dataset_rows = grouped[dataset_key]
+        summary = summarize(dataset_rows)
+        by_size = summarize_by_size(dataset_rows)
+        summaries[dataset_key] = summary
+        by_size_map[dataset_key] = by_size
+
+        _print_section(f"OVERALL — {dataset_key}")
+        for key, value in summary.items():
+            formatted = _fmt_float(value) if isinstance(value, float) else str(value)
+            print(f"  {key:<34s}: {formatted}")
+
+        _print_section(f"BY INSTANCE SIZE — {dataset_key}")
+        print(f"{'n':>6} │ {'done/total':>12} │ {'avg_time(s)':>14} │ {'avg_gap':>10}")
+        print("─" * 60)
+        for item in by_size:
+            print(
+                f"{item.num_items:>6d} │ {f'{item.completed}/{item.instances}':>12} │ "
+                f"{_fmt_float(item.avg_time_s):>14} │ {item.avg_gap:>10.3f}"
+            )
+
+    return summaries, by_size_map
