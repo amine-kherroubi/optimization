@@ -42,6 +42,17 @@ class SizeSummary:
     avg_gap: float
 
 
+def _fmt_float(value: float, decimals: int = 4) -> str:
+    return f"{value:.{decimals}f}"
+
+
+def _print_section(title: str) -> None:
+    line = "═" * 90
+    print(f"\n\033[1;36m{line}\033[0m")
+    print(f"\033[1;36m{title:^90}\033[0m")
+    print(f"\033[1;36m{line}\033[0m")
+
+
 def _validate_columns(fieldnames: Iterable[str] | None) -> None:
     required = {
         "instance_name",
@@ -102,13 +113,20 @@ def _base_summary(
 
 def _completed_summary(completed: list[ResultRow]) -> dict[str, float | int]:
     gaps = [r.gap for r in completed]
+    times = [r.elapsed_time for r in completed]
+    fill_rates = [r.fill_rate for r in completed]
     return {
         "avg_time_completed_s": mean(r.elapsed_time for r in completed),
         "median_time_completed_s": median(r.elapsed_time for r in completed),
+        "min_time_completed_s": min(times),
+        "max_time_completed_s": max(times),
         "avg_bins_completed": mean(r.bins_used for r in completed),
         "avg_gap_completed": mean(gaps),
+        "median_gap_completed": median(gaps),
+        "min_gap_completed": min(gaps),
         "max_gap_completed": max(gaps),
-        "avg_fill_rate_completed_pct": mean(r.fill_rate for r in completed),
+        "avg_fill_rate_completed_pct": mean(fill_rates),
+        "median_fill_rate_completed_pct": median(fill_rates),
     }
 
 
@@ -147,19 +165,20 @@ def summarize_by_size(rows: list[ResultRow]) -> list[SizeSummary]:
 
 
 def _print_summary(summary: dict[str, float | int], by_size: list[SizeSummary]) -> None:
-    print("\n=== Benchmark Summary ===")
+    _print_section("BENCHMARK SUMMARY")
     for key, value in summary.items():
         if isinstance(value, float):
-            print(f"{key:28s}: {value:.4f}")
+            print(f"{key:34s}: {_fmt_float(value)}")
         else:
-            print(f"{key:28s}: {value}")
+            print(f"{key:34s}: {value}")
 
-    print("\n=== By num_items ===")
+    _print_section("SUMMARY BY NUM_ITEMS")
+    print(f"{'n':>6} │ {'inst':>6} │ {'done':>6} │ {'tout':>6} │ {'avg_time(s)':>14} │ {'avg_gap':>10}")
+    print("─" * 90)
     for row in by_size:
         print(
-            f"n={row.num_items:4d} | instances={row.instances:3d} | "
-            f"completed={row.completed:3d} | timeouts={row.timeouts:3d} | "
-            f"avg_time={row.avg_time_s:.4f}s | avg_gap={row.avg_gap:.3f}"
+            f"{row.num_items:>6d} │ {row.instances:>6d} │ {row.completed:>6d} │ {row.timeouts:>6d} │ "
+            f"{_fmt_float(row.avg_time_s):>14} │ {row.avg_gap:>10.3f}"
         )
 
 
@@ -257,16 +276,18 @@ def print_benchmark_report(csv_path: str | Path) -> tuple[dict[str, float | int]
     summary = summarize(rows)
     by_size = summarize_by_size(rows)
 
-    print("Overall")
+    _print_section("OVERALL")
     for key, value in summary.items():
-        formatted = f"{value:.4f}" if isinstance(value, float) else str(value)
-        print(f"  {key:<30s}: {formatted}")
+        formatted = _fmt_float(value) if isinstance(value, float) else str(value)
+        print(f"  {key:<34s}: {formatted}")
 
-    print("\nBy instance size")
+    _print_section("BY INSTANCE SIZE")
+    print(f"{'n':>6} │ {'done/total':>12} │ {'avg_time(s)':>14} │ {'avg_gap':>10}")
+    print("─" * 60)
     for row in by_size:
         print(
-            f"  n={row.num_items:4d} | completed={row.completed}/{row.instances}"
-            f" | avg_time={row.avg_time_s:.4f}s | avg_gap={row.avg_gap:.3f}"
+            f"{row.num_items:>6d} │ {f'{row.completed}/{row.instances}':>12} │ "
+            f"{_fmt_float(row.avg_time_s):>14} │ {row.avg_gap:>10.3f}"
         )
 
     return summary, by_size
