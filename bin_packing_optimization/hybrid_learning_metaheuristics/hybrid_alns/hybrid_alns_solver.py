@@ -250,6 +250,15 @@ class BinPackingSolver:
             and hasattr(_features, "make_features_batch_jit")
         )
 
+    @staticmethod
+    def _read_bool_param(params: dict[str, Any], name: str, default: bool) -> bool:
+        raw = params.get(name, default)
+        if isinstance(raw, bool):
+            return raw
+        if isinstance(raw, (int, np.integer)) and raw in (0, 1):
+            return bool(raw)
+        raise TypeError(f"{name} must be a bool (or 0/1), got {type(raw).__name__}.")
+
     def solve(self, method: str | None = None, **params) -> None:
         if method is not None:
             warnings.warn(
@@ -257,19 +266,27 @@ class BinPackingSolver:
                 stacklevel=2,
             )
 
-        model_bundle = params.get("model_bundle")
-        model = params.get("model")
-        scaler = params.get("scaler")
-        if model_bundle is not None:
-            self._model, self._scaler = self._validate_model_bundle(model_bundle)
-        elif model is not None and scaler is not None:
-            self._model, self._scaler = self._validate_model_components(model, scaler)
+        use_offline_model = self._read_bool_param(params, "use_offline_model", True)
+        use_online_rl = self._read_bool_param(params, "use_online_rl", True)
+
+        if use_offline_model:
+            model_bundle = params.get("model_bundle")
+            model = params.get("model")
+            scaler = params.get("scaler")
+            if model_bundle is not None:
+                self._model, self._scaler = self._validate_model_bundle(model_bundle)
+            elif model is not None and scaler is not None:
+                self._model, self._scaler = self._validate_model_components(model, scaler)
+            else:
+                raise ValueError(
+                    "Provide model_bundle or both model and scaler objects when use_offline_model=True. "
+                    "Path-based model loading is no longer supported."
+                )
+            self._predictor = _FastPredictor(self._model, self._scaler)
         else:
-            raise ValueError(
-                "Provide model_bundle or both model and scaler objects. "
-                "Path-based model loading is no longer supported."
-            )
-        self._predictor = _FastPredictor(self._model, self._scaler)
+            self._model = None
+            self._scaler = None
+            self._predictor = None
 
         max_iterations = int(params.get("max_iterations", 5_000))
         if max_iterations <= 0:
@@ -296,7 +313,7 @@ class BinPackingSolver:
         lower_bound = math.ceil(sum(self._item_sizes) / self._bin_capacity)
         bandit = WarmStartLinUCBBandit(
             n_arms=3, n_features=N_CONTEXT_FEATURES, alpha=0.3, warmup_calls=300
-        )
+        ) if use_online_rl else None
 
         temperature = t0
         no_improve_limit = max(250, max_iterations // 20)
@@ -304,19 +321,23 @@ class BinPackingSolver:
         for iteration in range(max_iterations):
             if deadline is not None and time.perf_counter() >= deadline:
                 break
-            _ctx = self._build_context(
-                temperature,
-                t0,
-                iterations_since_improvement,
-                no_improve_limit,
-                current.cost(),
-                lower_bound,
-                k_min,
-                n,
-                iteration,
-                max_iterations,
-            )
-            arm = bandit.select_arm(_ctx)
+            if bandit is not None:
+                _ctx = self._build_context(
+                    temperature,
+                    t0,
+                    iterations_since_improvement,
+                    no_improve_limit,
+                    current.cost(),
+                    lower_bound,
+                    k_min,
+                    n,
+                    iteration,
+                    max_iterations,
+                )
+                arm = bandit.select_arm(_ctx)
+            else:
+                _ctx = None
+                arm = int(self._rng.integers(0, 3))
             candidate = current.copy()
 
             # Adaptive k: grow the destruction radius when stagnating.
@@ -339,7 +360,10 @@ class BinPackingSolver:
                 displaced = self._destroy_related(candidate, k_items)
 
             if displaced:
-                self._repair_learned(candidate, displaced)
+                if use_offline_model:
+                    self._repair_learned(candidate, displaced)
+                else:
+                    self._repair_best_fit(candidate, displaced)
                 self._consolidate(candidate)
 
             delta = candidate.cost() - current.cost()
@@ -361,10 +385,12 @@ class BinPackingSolver:
             # Saving bins near the optimum (gap small) earns more than saving
             # the same number when far away (gap large). Accepted-without-saving
             # earns a small signal (0.2) to keep exploration; rejected earns 0.
-            _reward = self._linucb_reward(
-                delta, accepted, improved, current.cost(), lower_bound
-            )
-            bandit.update(arm, _ctx, _reward)
+            if bandit is not None:
+                _reward = self._linucb_reward(
+                    delta, accepted, improved, current.cost(), lower_bound
+                )
+                assert _ctx is not None
+                bandit.update(arm, _ctx, _reward)
             # Cool first, then conditionally reheat — wrong order caused each
             # reheat to be immediately eroded by the multiplication that followed.
             temperature *= alpha_cool
@@ -570,6 +596,29 @@ class BinPackingSolver:
             sol.bin_loads[best_j] += size
             sol.item_to_bin[item] = best_j
             remaining -= 1
+
+
+    def _repair_best_fit(self, sol: _WorkingSolution, displaced: list[int]) -> None:
+        """Fallback non-ML repair for ablations when offline model use is disabled."""
+        for item in sorted(displaced, key=lambda i: -self._item_sizes[i]):
+            size = self._item_sizes[item]
+            best_j = -1
+            best_remaining = math.inf
+            for j, load in enumerate(sol.bin_loads):
+                remaining = self._bin_capacity - (load + size)
+                if remaining < 0:
+                    continue
+                if remaining < best_remaining:
+                    best_remaining = float(remaining)
+                    best_j = j
+            if best_j == -1:
+                sol.bins.append([item])
+                sol.bin_loads.append(size)
+                sol.item_to_bin[item] = len(sol.bins) - 1
+            else:
+                sol.bins[best_j].append(item)
+                sol.bin_loads[best_j] += size
+                sol.item_to_bin[item] = best_j
 
     def _consolidate(self, sol: _WorkingSolution) -> None:
         """Post-repair local search: merge under-loaded bins into others.
