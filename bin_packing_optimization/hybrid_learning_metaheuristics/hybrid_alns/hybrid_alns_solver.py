@@ -80,7 +80,7 @@ class _FastPredictor:
     Falls back to the standard path for any other model type.
     """
 
-    __slots__ = ("_model", "_mean", "_scale", "_fast")
+    __slots__ = ("_model", "_mean", "_scale", "_fast", "_scaler_fallback")
 
     def __init__(self, model: Any, scaler: Any) -> None:
         self._model = model
@@ -92,11 +92,13 @@ class _FastPredictor:
                 self._mean  = scaler.mean_.astype(np.float64)
                 self._scale = scaler.scale_.astype(np.float64)
                 self._fast  = True
+                self._scaler_fallback = None         # ADD THIS LINE
         except Exception:
             pass
         if not self._fast:
             self._mean  = None
             self._scale = None
+            self._scaler_fallback = scaler   # ADD THIS LINE
 
     def predict_proba_col1(self, X: np.ndarray) -> np.ndarray:
         """Return P(class=1) for each row of X — fast path or safe fallback."""
@@ -207,6 +209,10 @@ class BinPackingSolver:
         "_scaler",
         "_predictor",
         "_rng",
+        "_sizes_arr",
+        "_size_ranks_arr",
+        "_use_batch",
+        "_cap_float",
     )
 
     def __init__(self, item_sizes: list[int], bin_capacity: int, seed: int | None = 42):
@@ -223,6 +229,18 @@ class BinPackingSolver:
         self._scaler: Any = None
         self._predictor: _FastPredictor | None = None
         self._rng = np.random.default_rng(seed)
+        self._sizes_arr: np.ndarray = np.array(
+            [float(v) for v in item_sizes], dtype=np.float64
+        )
+        _global_order = np.argsort(-self._sizes_arr)          # descending size order
+        _rank = np.empty(len(item_sizes), dtype=np.int64)
+        _rank[_global_order] = np.arange(len(item_sizes), dtype=np.int64)
+        self._size_ranks_arr: np.ndarray = _rank
+        self._cap_float: float = float(bin_capacity)
+        self._use_batch: bool = (
+            getattr(_features, "njit", None) is not None
+            and hasattr(_features, "make_features_batch_jit")
+        )
 
     def solve(self, method: str | None = None, **params) -> None:
         if method is not None:
@@ -453,32 +471,18 @@ class BinPackingSolver:
             sol.bin_loads[j] -= self._item_sizes[item]
             sol.item_to_bin[item] = -1
         empty = [j for j, b in enumerate(sol.bins) if not b]
-        for j in reversed(empty):
-            sol.bins.pop(j)
-            sol.bin_loads.pop(j)
-        sol.rebuild_item_to_bin()
+        if empty:
+            for j in reversed(empty):
+                sol.bins.pop(j)
+                sol.bin_loads.pop(j)
+            sol.rebuild_item_to_bin()
         return to_remove
 
     def _repair_learned(self, sol: _WorkingSolution, displaced: list[int]) -> None:
         n = len(self._item_sizes)
-        sizes_float = [float(v) for v in self._item_sizes]
-        global_order = sorted(range(n), key=lambda i: -self._item_sizes[i])
-        rank = {item: idx for idx, item in enumerate(global_order)}
-        mf = _make_features
-        model = self._model
-        scaler = self._scaler
         predictor = self._predictor
         denom = max(1, n)
-        cap_float = float(self._bin_capacity)
         eps = 1e-9
-
-        # Precompute arrays used by the batch feature API
-        sizes_arr = np.array(sizes_float, dtype=np.float64)
-        size_ranks_arr = np.array([rank[i] for i in range(n)], dtype=np.int64)
-
-        use_batch = getattr(_features, "njit", None) is not None and hasattr(
-            _features, "make_features_batch_jit"
-        )
 
         remaining = len(displaced)
         for item in sorted(displaced, key=lambda i: -self._item_sizes[i]):
@@ -511,7 +515,7 @@ class BinPackingSolver:
                 remaining -= 1
                 continue
 
-            assert model is not None
+            assert self._model is not None
 
             items_arr = np.array(items_all, dtype=np.int64)
             item_sizes_arr = np.array(item_sizes_all, dtype=np.float64)
@@ -522,17 +526,17 @@ class BinPackingSolver:
                 items_arr.shape[0], remaining / denom, dtype=np.float64
             )
 
-            if use_batch:
+            if self._use_batch:
                 feats_arr = _features.make_features_batch_jit(
                     items_arr,
                     item_sizes_arr,
                     bin_items_flat_arr,
                     bin_offsets_arr,
                     bin_loads_arr,
-                    cap_float,
-                    sizes_arr,
+                    self._cap_float,
+                    self._sizes_arr,
                     n,
-                    size_ranks_arr,
+                    self._size_ranks_arr,
                     remaining_ratio_arr,
                 )
             else:
@@ -542,10 +546,10 @@ class BinPackingSolver:
                     bin_items_flat_arr,
                     bin_offsets_arr,
                     bin_loads_arr,
-                    cap_float,
-                    sizes_arr,
+                    self._cap_float,
+                    self._sizes_arr,
                     n,
-                    size_ranks_arr,
+                    self._size_ranks_arr,
                     remaining_ratio_arr,
                 )
 
