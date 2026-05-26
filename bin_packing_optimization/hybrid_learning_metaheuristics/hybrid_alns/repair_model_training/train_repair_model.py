@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pickle
+import random
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -64,6 +65,21 @@ class TrainRepairModelConfig:
     cv_folds: int = 5
     grid_search: bool = False
     verbose: bool = False
+
+    # --- Reproducibility -------------------------------------------------
+    seed: int = 42
+    """Single source of randomness for train/test split and model training."""
+
+    # --- Quality gates ---------------------------------------------------
+    min_roc_auc: float = 0.70
+    """Warn (and optionally fail) if holdout ROC-AUC falls below this."""
+    min_average_precision: float = 0.50
+    """Warn if holdout Average Precision falls below this."""
+
+    # --- Covariate-shift mitigation --------------------------------------
+    require_alns_states: bool = True
+    """When True, training will raise if no ALNS-state dataset is detected
+    in `data`.  Set to False only for the v1 baseline model."""
 
 
 # ============================================================================
@@ -268,23 +284,37 @@ def plot_feature_importance(
 
 
 # ============================================================================
-# Data loading
+# Data loading and integrity checks
 # ============================================================================
 
 
 def _load_and_merge(
     data_paths: list[str],
-) -> tuple[np.ndarray, np.ndarray, DatasetSummary]:
+) -> tuple[np.ndarray, np.ndarray, DatasetSummary, dict[str, Any]]:
     """Load and merge one or more dataset .pkl files.
 
     Each file must contain keys: X, y, feature_version.
-    Raises ValueError if a file's feature_version does not match.
+    Raises ValueError if:
+      - a file's feature_version does not match FEATURE_VERSION
+      - X has wrong number of features (N_FEATURES)
+      - y contains values other than 0/1
+      - X or y contain NaN / inf values
+
+    Returns X, y, summary, source_info
+    where source_info holds per-file counts and ALNS proportion.
     """
     if not data_paths:
         raise ValueError("At least one data path is required.")
 
     X_parts: list[np.ndarray] = []
     y_parts: list[np.ndarray] = []
+    source_rows: dict[str, int] = {}   # source_tag -> row count
+    alns_rows = 0
+    total_rows = 0
+
+    print(f"\n{'─' * 60}")
+    print("DATASET INTEGRITY CHECKS")
+    print(f"{'─' * 60}")
 
     for path_str in data_paths:
         p = Path(path_str)
@@ -292,28 +322,90 @@ def _load_and_merge(
             raise FileNotFoundError(f"Dataset file not found: {p}")
         with p.open("rb") as f:
             bundle = pickle.load(f)
+
+        # ── feature_version check ──────────────────────────────────────
         fv = bundle.get("feature_version")
         if fv != FEATURE_VERSION:
             raise ValueError(
                 f"{p}: feature_version={fv} does not match "
                 f"current FEATURE_VERSION={FEATURE_VERSION}. Regenerate first."
             )
-        X_parts.append(bundle["X"].astype(np.float32))
-        y_parts.append(bundle["y"].astype(np.int32))
-        rows = bundle["X"].shape[0]
-        pos = bundle["y"].mean() if len(bundle["y"]) > 0 else 0.0
-        print(f"  Loaded {p.name}: {rows:,} rows  (pos_rate={pos:.3f})")
+
+        X_i = bundle["X"].astype(np.float32)
+        y_i = bundle["y"].astype(np.int32)
+
+        # ── feature count check ────────────────────────────────────────
+        if X_i.ndim != 2 or X_i.shape[1] != N_FEATURES:
+            raise ValueError(
+                f"{p}: expected {N_FEATURES} features per row, "
+                f"got shape {X_i.shape}"
+            )
+
+        # ── NaN / inf check ────────────────────────────────────────────
+        if not np.isfinite(X_i).all():
+            raise ValueError(f"{p}: X contains NaN or inf values — regenerate.")
+        if not np.isfinite(y_i.astype(np.float32)).all():
+            raise ValueError(f"{p}: y contains NaN or inf values — regenerate.")
+
+        # ── label value check ──────────────────────────────────────────
+        unique_labels = np.unique(y_i)
+        if not np.all(np.isin(unique_labels, [0, 1])):
+            raise ValueError(
+                f"{p}: y has invalid label values {unique_labels}; "
+                "expected only 0 and 1."
+            )
+
+        rows = X_i.shape[0]
+        pos_rate = float(y_i.mean()) if rows > 0 else 0.0
+        source_tag = str(bundle.get("source", p.stem))
+
+        print(f"  ✓ {p.name}")
+        print(f"      source       : {source_tag}")
+        print(f"      rows         : {rows:,}")
+        print(f"      feature_ver  : {fv}")
+        print(f"      pos_rate     : {pos_rate:.4f}")
+        print(f"      NaN/inf      : none")
+        print(f"      labels       : {sorted(unique_labels.tolist())}")
+
+        X_parts.append(X_i)
+        y_parts.append(y_i)
+
+        source_rows[source_tag] = source_rows.get(source_tag, 0) + rows
+        if "alns" in source_tag.lower():
+            alns_rows += rows
+        total_rows += rows
 
     X = np.concatenate(X_parts, axis=0)
     y = np.concatenate(y_parts, axis=0)
 
+    # Global NaN guard on merged array (catches numeric edge-cases in concat)
+    if not np.isfinite(X).all():
+        raise ValueError("Merged X contains NaN/inf — check individual files.")
+
     pos_rate = float(y.mean()) if y.size > 0 else 0.0
+    alns_ratio = alns_rows / total_rows if total_rows > 0 else 0.0
+
     summary = DatasetSummary(
         rows=int(X.shape[0]),
         cols=int(N_FEATURES),
         positive_rate=pos_rate,
     )
-    return X, y, summary
+
+    source_info: dict[str, Any] = {
+        "per_source": source_rows,
+        "alns_rows": alns_rows,
+        "alns_ratio": alns_ratio,
+    }
+
+    print(f"\n  Merged totals")
+    print(f"    rows         : {total_rows:,}")
+    print(f"    positive rate: {pos_rate:.4f}")
+    print(f"    ALNS rows    : {alns_rows:,}  ({alns_ratio:.1%} of total)")
+    for src, cnt in source_rows.items():
+        print(f"    [{src}] : {cnt:,} rows")
+    print(f"{'─' * 60}\n")
+
+    return X, y, summary, source_info
 
 
 # ============================================================================
@@ -335,18 +427,42 @@ def train_repair_model(config: TrainRepairModelConfig) -> dict[str, Any]:
     args = config
 
     # =====================================================================
-    # 1. Load data
+    # 0. Seed logging
     # =====================================================================
     print("=" * 70)
+    print("REPRODUCIBILITY — SEEDS")
+    print("=" * 70)
+    print(f"  config.seed          : {args.seed}  (train/test split + model)")
+    print(f"  Python random seed   : set to {args.seed}")
+    print(f"  numpy random seed    : set to {args.seed}")
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+
+    # =====================================================================
+    # 1. Load data
+    # =====================================================================
+    print("\n" + "=" * 70)
     print("PHASE 1: LOADING DATASET(S)")
     print("=" * 70)
 
-    X, y, summary = _load_and_merge(args.data)
+    X, y, summary, source_info = _load_and_merge(args.data)
 
-    print(f"\nMerged dataset: {summary.rows:,} rows x {summary.cols} features")
+    print(f"Merged dataset : {summary.rows:,} rows x {summary.cols} features")
     print(f"  Positive rate : {summary.positive_rate:.4f}")
     print(f"  Class 0 (neg) : {(y == 0).sum():,}")
     print(f"  Class 1 (pos) : {(y == 1).sum():,}")
+    print(f"  ALNS ratio    : {source_info['alns_ratio']:.1%}")
+
+    # =====================================================================
+    # 1b. Covariate-shift gate: require ALNS states for v2+ models
+    # =====================================================================
+    if args.require_alns_states and source_info["alns_rows"] == 0:
+        raise ValueError(
+            "require_alns_states=True but no ALNS-state dataset was found "
+            "in the provided data files.  Run collect_alns_states.py first "
+            "and include its output in config.data, or set "
+            "require_alns_states=False for the v1 baseline."
+        )
 
     # =====================================================================
     # 2. Train/Test split
@@ -354,9 +470,10 @@ def train_repair_model(config: TrainRepairModelConfig) -> dict[str, Any]:
     print("\n" + "=" * 70)
     print("PHASE 2: TRAIN/TEST SPLIT")
     print("=" * 70)
+    print(f"  random_state = {args.seed}")
 
     x_trainval, x_test, y_trainval, y_test = train_test_split(
-        X, y, test_size=0.15, random_state=42, stratify=y
+        X, y, test_size=0.15, random_state=args.seed, stratify=y
     )
     print(f"Training set : {len(x_trainval):,} samples")
     print(f"Test set     : {len(x_test):,} samples")
@@ -378,7 +495,7 @@ def train_repair_model(config: TrainRepairModelConfig) -> dict[str, Any]:
         "validation_fraction": 0.1,
         "n_iter_no_change": 50,
         "verbose": 1 if args.verbose else 0,
-        "random_state": 42,
+        "random_state": args.seed,
     }
 
     if args.grid_search:
@@ -398,7 +515,7 @@ def train_repair_model(config: TrainRepairModelConfig) -> dict[str, Any]:
                         min_samples_split=20,
                         min_samples_leaf=10,
                         verbose=1 if args.verbose else 0,
-                        random_state=42,
+                        random_state=args.seed,
                     ),
                 ),
             ]
@@ -445,6 +562,7 @@ def train_repair_model(config: TrainRepairModelConfig) -> dict[str, Any]:
         print(f"  subsample         : {hyperparams['subsample']}")
         print(f"  min_samples_split : {hyperparams['min_samples_split']}")
         print(f"  min_samples_leaf  : {hyperparams['min_samples_leaf']}")
+        print(f"  random_state      : {hyperparams['random_state']}")
         print(f"  early_stopping    : YES (validation_fraction=0.1)")
 
         t_train_start = time.perf_counter()
@@ -482,8 +600,42 @@ def train_repair_model(config: TrainRepairModelConfig) -> dict[str, Any]:
     metrics = evaluator.evaluate_all()
     evaluator.print_report(metrics)
 
-    if metrics["roc_auc"] < 0.70:
-        print("WARNING: ROC-AUC < 0.70. Consider more training data or features.")
+    # =====================================================================
+    # 5b. Quality gates
+    # =====================================================================
+    print("=" * 70)
+    print("QUALITY GATES")
+    print("=" * 70)
+    gate_passed = True
+
+    roc = metrics["roc_auc"]
+    ap = metrics["average_precision"]
+
+    if roc < args.min_roc_auc:
+        print(
+            f"  ⚠  ROC-AUC {roc:.4f} is below threshold {args.min_roc_auc:.4f}. "
+            "Consider more training data or features."
+        )
+        gate_passed = False
+    else:
+        print(f"  ✓  ROC-AUC {roc:.4f} ≥ {args.min_roc_auc:.4f}")
+
+    if ap < args.min_average_precision:
+        print(
+            f"  ⚠  Average Precision {ap:.4f} is below threshold "
+            f"{args.min_average_precision:.4f}."
+        )
+        gate_passed = False
+    else:
+        print(f"  ✓  Average Precision {ap:.4f} ≥ {args.min_average_precision:.4f}")
+
+    if gate_passed:
+        print("  All quality gates passed.")
+    else:
+        print(
+            "  One or more quality gates failed — model saved but review is recommended."
+        )
+    print("=" * 70)
 
     # =====================================================================
     # 6. Visualization
@@ -528,6 +680,21 @@ def train_repair_model(config: TrainRepairModelConfig) -> dict[str, Any]:
         "n_features": N_FEATURES,
         "metrics": metrics,
         "cv_scores": cv_scores.tolist(),
+        # Reproducibility provenance saved in the bundle
+        "seed": args.seed,
+        "dataset_summary": {
+            "rows": summary.rows,
+            "cols": summary.cols,
+            "positive_rate": summary.positive_rate,
+            "alns_rows": source_info["alns_rows"],
+            "alns_ratio": source_info["alns_ratio"],
+            "per_source": source_info["per_source"],
+        },
+        "quality_gates": {
+            "min_roc_auc": args.min_roc_auc,
+            "min_average_precision": args.min_average_precision,
+            "passed": gate_passed,
+        },
     }
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -547,13 +714,16 @@ def train_repair_model(config: TrainRepairModelConfig) -> dict[str, Any]:
     print("=" * 70)
     print(f"Dataset files : {args.data}")
     print(f"Total samples : {summary.rows:,}")
+    print(f"ALNS ratio    : {source_info['alns_ratio']:.1%}")
     print(f"Features      : {summary.cols}")
+    print(f"Seed          : {args.seed}")
     print(f"CV folds      : {args.cv_folds}")
     print(f"CV mean AUC   : {cv_scores.mean():.4f}")
     print(f"Test AUC      : {metrics['roc_auc']:.4f}")
     print(f"Test F1       : {metrics['f1']:.4f}")
     print(f"Precision     : {metrics['precision']:.4f}")
     print(f"Recall        : {metrics['recall']:.4f}")
+    print(f"Quality gates : {'PASSED' if gate_passed else 'FAILED (see warnings)'}")
     print(f"Model path    : {output_path}")
     print("=" * 70)
     return payload
