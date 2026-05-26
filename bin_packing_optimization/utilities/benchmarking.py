@@ -16,6 +16,7 @@ from typing import Any
 
 from bin_packing_optimization.datasets.types import Instance, DatasetConfig
 from bin_packing_optimization.datasets.registry import DATASET_REGISTRY
+from bin_packing_optimization.datasets.solutions import get_instance_solution
 
 
 @dataclass(slots=True)
@@ -396,7 +397,13 @@ class Benchmark:
         stop_flag: threading.Event | None = None,
     ) -> BenchmarkResult:
         total_weight = sum(instance.sizes)
-        lower_bound = ceil(total_weight / instance.bin_capacity)
+        fallback_lower_bound = ceil(total_weight / instance.bin_capacity)
+        reference_solution = get_instance_solution(instance.dataset_key, instance.name)
+        lower_bound = (
+            reference_solution.best_lb
+            if reference_solution is not None
+            else fallback_lower_bound
+        )
         solver_method = "branch and bound" if method == "b&b" else method
         method_label = method if method is not None else "<default>"
 
