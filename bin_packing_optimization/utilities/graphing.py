@@ -46,6 +46,11 @@ def _save_figure(fig: Figure, out_dir: Path, filename: str) -> Path:
     return path
 
 
+def _apply_common_style(ax: plt.Axes) -> None:
+    ax.grid(axis="y", linestyle="--", alpha=0.35)
+    ax.set_axisbelow(True)
+
+
 def _plot_bar_by_instance(
     labels: Sequence[str],
     values: Sequence[float],
@@ -59,6 +64,7 @@ def _plot_bar_by_instance(
     ax.set_xticklabels(labels, rotation=45, ha="right", fontsize=7)
     ax.set_ylabel(ylabel)
     ax.set_title(title)
+    _apply_common_style(ax)
     fig.tight_layout()
     return fig
 
@@ -90,6 +96,7 @@ def _plot_stacked_bar_by_instance(
     ax.set_ylabel(ylabel)
     ax.set_title(title)
     ax.legend()
+    _apply_common_style(ax)
     fig.tight_layout()
     return fig
 
@@ -114,6 +121,7 @@ def _plot_box_with_jitter(
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
     ax.set_title(title)
+    _apply_common_style(ax)
     fig.tight_layout()
     return fig
 
@@ -142,8 +150,38 @@ def _plot_boxplot_categories(
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
     ax.set_title(title)
+    _apply_common_style(ax)
     fig.tight_layout()
     return fig
+
+
+def _build_fill_rate_chart(rows, dataset_key: str, out_dir: Path) -> Path:
+    labels = _instance_labels(rows)
+    fill_rates = [r.total_weight / (r.bins_used * r.bin_capacity) * 100 for r in rows]
+    fig = _plot_bar_by_instance(
+        labels,
+        fill_rates,
+        "Fill rate (%)",
+        f"Bin Fill Rate per Instance — {dataset_key}",
+        color="#1abc9c",
+    )
+    return _save_figure(fig, out_dir, f"fig4_fill_rate_{dataset_key}.png")
+
+
+def _build_gap_vs_time_scatter(rows, dataset_key: str, out_dir: Path) -> Path:
+    fig, ax = plt.subplots(figsize=(8, 5))
+    gaps = [r.bins_used - r.lower_bound for r in rows]
+    times = [r.elapsed_time for r in rows]
+    sizes = [max(25, r.num_items * 0.8) for r in rows]
+    sc = ax.scatter(gaps, times, s=sizes, alpha=0.8, c=[r.num_items for r in rows], cmap="viridis")
+    cbar = fig.colorbar(sc, ax=ax)
+    cbar.set_label("Number of items (n)")
+    ax.set_xlabel("Gap (bins_used - lower_bound)")
+    ax.set_ylabel("Solve time (s)")
+    ax.set_title(f"Gap vs Solve Time — {dataset_key}")
+    _apply_common_style(ax)
+    fig.tight_layout()
+    return _save_figure(fig, out_dir, f"fig5_gap_vs_time_{dataset_key}.png")
 
 
 def _group_times_by_size(rows) -> dict[int, list[float]]:
@@ -232,6 +270,8 @@ def create_graphs(
     maybe_path = _build_time_by_size_chart(rows, dataset_key, output)
     if maybe_path is not None:
         paths.append(maybe_path)
+    paths.append(_build_fill_rate_chart(rows, dataset_key, output))
+    paths.append(_build_gap_vs_time_scatter(rows, dataset_key, output))
     return paths
 
 

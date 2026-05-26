@@ -65,6 +65,10 @@ class TableWidths:
         )
 
 
+def _format_float(value: float, decimals: int = 4) -> str:
+    return f"{value:.{decimals}f}"
+
+
 def _solver_worker(
     sizes: list[int],
     bin_capacity: int,
@@ -514,7 +518,10 @@ class Benchmark:
         else:
             raise ValueError("Either instances or results must be provided.")
 
-        time_w = max(len("Time (s)"), 10)
+        time_candidates = []
+        if results is not None:
+            time_candidates = [_format_float(r.elapsed_time) for r in results]
+        time_w = max(len("Time (s)"), 10, *(len(t) for t in time_candidates))
         method_w = max(
             len("Method"),
             20,  # minimum width
@@ -545,7 +552,7 @@ class Benchmark:
 
     def _print_row(self, result: BenchmarkResult, widths: TableWidths) -> None:
         gap = result.bins_used - result.lower_bound
-        time_str = f"{result.elapsed_time:.4f}"
+        time_str = _format_float(result.elapsed_time)
 
         raw_state = "T.O." if result.timed_out else "Done"
         padded_state = f"{raw_state:<{widths.state}}"
@@ -570,36 +577,7 @@ class Benchmark:
     def _print_footer(self, widths: TableWidths) -> None:
         separator = "\033[90m" + "\u2500" * widths.total_width + "\033[0m"
         print(separator)
-
-        print(f"\n\033[1;36m{chr(0x2550) * widths.total_width}\033[0m")
-        print(f"\033[1;36m{'BENCHMARK STATISTICS':^{widths.total_width}}\033[0m")
-        print(f"\033[1;36m{chr(0x2550) * widths.total_width}\033[0m")
-
-        if not self._results:
-            print(" No results to display.")
-            return
-
-        completed = self._completed
-        timeout_count = len(self._results) - len(completed)
-        total_time = sum(r.elapsed_time for r in self._results)
-
-        print(f"\033[1mInstances processed      :\033[0m {len(self._results)}")
-
-        if completed:
-            average_time = sum(r.elapsed_time for r in completed) / len(completed)
-            average_bins = sum(r.bins_used for r in completed) / len(completed)
-            print(f"\033[1mAverage time (completed) :\033[0m {average_time:.4f} s")
-            print(f"\033[1mAverage bins (completed) :\033[0m {average_bins:.2f}")
-
-        print(f"\033[1mTotal elapsed time       :\033[0m {total_time:.4f} s")
-
-        if timeout_count:
-            print(
-                f"\033[1mTimeouts                 :\033[0m "
-                f"\033[91m{timeout_count} / {len(self._results)}\033[0m"
-            )
-
-        print(f"\033[1;36m{chr(0x2550) * widths.total_width}\033[0m\n")
+        print()
 
 
 def create_benchmark(
