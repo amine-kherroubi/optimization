@@ -92,20 +92,22 @@ class _FastPredictor:
             if isinstance(model, GradientBoostingClassifier) and isinstance(
                 scaler, StandardScaler
             ):
+                assert scaler.mean_ is not None and scaler.scale_ is not None
                 self._mean = scaler.mean_.astype(np.float64)
                 self._scale = scaler.scale_.astype(np.float64)
-                self._fast  = True
-                self._scaler_fallback = None         # ADD THIS LINE
+                self._fast = True
+                self._scaler_fallback = None  # ADD THIS LINE
         except Exception:
             pass
         if not self._fast:
             self._mean = None
             self._scale = None
-            self._scaler_fallback = scaler   # ADD THIS LINE
+            self._scaler_fallback = scaler  # ADD THIS LINE
 
     def predict_proba_col1(self, X: np.ndarray) -> np.ndarray:
         """Return P(class=1) for each row of X — fast path or safe fallback."""
         if self._fast:
+            assert self._mean is not None and self._scale is not None
             X_scaled = ((X - self._mean) / self._scale).astype(
                 np.float32
             )  # GBT needs float32
@@ -240,15 +242,14 @@ class BinPackingSolver:
         self._sizes_arr: np.ndarray = np.array(
             [float(v) for v in item_sizes], dtype=np.float64
         )
-        _global_order = np.argsort(-self._sizes_arr)          # descending size order
+        _global_order = np.argsort(-self._sizes_arr)  # descending size order
         _rank = np.empty(len(item_sizes), dtype=np.int64)
         _rank[_global_order] = np.arange(len(item_sizes), dtype=np.int64)
         self._size_ranks_arr: np.ndarray = _rank
         self._cap_float: float = float(bin_capacity)
-        self._use_batch: bool = (
-            getattr(_features, "njit", None) is not None
-            and hasattr(_features, "make_features_batch_jit")
-        )
+        self._use_batch: bool = getattr(
+            _features, "njit", None
+        ) is not None and hasattr(_features, "make_features_batch_jit")
 
     @staticmethod
     def _read_bool_param(params: dict[str, Any], name: str, default: bool) -> bool:
@@ -276,7 +277,9 @@ class BinPackingSolver:
             if model_bundle is not None:
                 self._model, self._scaler = self._validate_model_bundle(model_bundle)
             elif model is not None and scaler is not None:
-                self._model, self._scaler = self._validate_model_components(model, scaler)
+                self._model, self._scaler = self._validate_model_components(
+                    model, scaler
+                )
             else:
                 raise ValueError(
                     "Provide model_bundle or both model and scaler objects when use_offline_model=True. "
@@ -311,9 +314,13 @@ class BinPackingSolver:
         k_min = max(1, int(0.05 * n))
         k_max = max(k_min + 1, int(0.25 * n))
         lower_bound = math.ceil(sum(self._item_sizes) / self._bin_capacity)
-        bandit = WarmStartLinUCBBandit(
-            n_arms=3, n_features=N_CONTEXT_FEATURES, alpha=0.3, warmup_calls=300
-        ) if use_online_rl else None
+        bandit = (
+            WarmStartLinUCBBandit(
+                n_arms=3, n_features=N_CONTEXT_FEATURES, alpha=0.3, warmup_calls=300
+            )
+            if use_online_rl
+            else None
+        )
 
         temperature = t0
         no_improve_limit = max(250, max_iterations // 20)
@@ -589,6 +596,7 @@ class BinPackingSolver:
                     remaining_ratio_arr,
                 )
 
+            assert predictor is not None
             scores = predictor.predict_proba_col1(feats_arr)
             best_idx = int(scores.argmax())
             best_j = idxs[best_idx]
@@ -596,7 +604,6 @@ class BinPackingSolver:
             sol.bin_loads[best_j] += size
             sol.item_to_bin[item] = best_j
             remaining -= 1
-
 
     def _repair_best_fit(self, sol: _WorkingSolution, displaced: list[int]) -> None:
         """Fallback non-ML repair for ablations when offline model use is disabled."""
