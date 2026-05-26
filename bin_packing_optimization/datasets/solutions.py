@@ -60,7 +60,9 @@ def _dataset_solutions(dataset_key: str) -> dict[str, InstanceSolution]:
     return table
 
 
-def get_instance_solution(dataset_key: str, instance_name: str) -> InstanceSolution | None:
+def get_instance_solution(
+    dataset_key: str, instance_name: str
+) -> InstanceSolution | None:
     """Return best-known solution information for a given dataset instance."""
     candidate_names = {instance_name, f"{instance_name}.txt"}
     solutions = _dataset_solutions(dataset_key)
