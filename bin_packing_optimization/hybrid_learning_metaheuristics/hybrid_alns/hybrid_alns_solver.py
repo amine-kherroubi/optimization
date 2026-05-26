@@ -167,7 +167,7 @@ class WarmStartLinUCBBandit:
     quickly finds good arms, then LinUCB refines choices using context.
     """
 
-    __slots__ = ("_linucb", "_ts_alpha", "_ts_beta", "_rng", "_calls", "_warmup_calls")
+    __slots__ = ("_linucb", "_ts_alpha", "_ts_beta", "_rng", "_calls", "_warmup_calls", "arm_counts")
 
     def __init__(self, n_arms: int, n_features: int, alpha: float = 0.3,
                  warmup_calls: int = 200):
@@ -179,11 +179,15 @@ class WarmStartLinUCBBandit:
         self._rng = np.random.default_rng(42)
         self._calls = 0
         self._warmup_calls = int(warmup_calls)
+        self.arm_counts = [0, 0, 0]
 
     def select_arm(self, context: np.ndarray) -> int:
         if self._calls < self._warmup_calls:
-            return int(np.argmax(self._rng.beta(self._ts_alpha, self._ts_beta)))
-        return self._linucb.select_arm(context)
+            arm = int(np.argmax(self._rng.beta(self._ts_alpha, self._ts_beta)))
+        else:
+            arm = self._linucb.select_arm(context)
+        self.arm_counts[arm] += 1
+        return arm
 
     def update(self, arm: int, context: np.ndarray, reward: float) -> None:
         if self._calls < self._warmup_calls:
@@ -207,6 +211,7 @@ class BinPackingSolver:
         "_scaler",
         "_predictor",
         "_rng",
+        "_bandit",
     )
 
     def __init__(self, item_sizes: list[int], bin_capacity: int, seed: int | None = 42):
@@ -255,42 +260,74 @@ class BinPackingSolver:
         if not 0.0 < alpha_cool <= 1.0:
             raise ValueError("alpha_cool must be in (0, 1].")
 
+        k_min_frac = float(params.get("k_min_frac", 0.05))
+        if not 0 < k_min_frac < 1:
+            raise ValueError("k_min_frac must be in (0, 1).")
+        k_max_frac = float(params.get("k_max_frac", 0.25))
+        if not k_min_frac < k_max_frac < 1:
+            raise ValueError("k_max_frac must be > k_min_frac and < 1.")
+        bandit_alpha = float(params.get("bandit_alpha", 0.3))
+        if bandit_alpha <= 0:
+            raise ValueError("bandit_alpha must be > 0.")
+        warmup_calls = int(params.get("warmup_calls", 300))
+        if warmup_calls < 0:
+            raise ValueError("warmup_calls must be >= 0.")
+        no_improve_frac = float(params.get("no_improve_frac", 0.05))
+        if not 0 < no_improve_frac < 1:
+            raise ValueError("no_improve_frac must be in (0, 1).")
+        reheat_soft_mult = float(params.get("reheat_soft_mult", 0.35))
+        if not 0 < reheat_soft_mult <= 1:
+            raise ValueError("reheat_soft_mult must be in (0, 1].")
+        reheat_hard_mult = float(params.get("reheat_hard_mult", 0.20))
+        if not 0 < reheat_hard_mult <= 1:
+            raise ValueError("reheat_hard_mult must be in (0, 1].")
+
+        force_uniform_random = bool(params.get("force_uniform_random", False))
+
         raw_tl = params.get("time_limit_seconds")
         deadline: float | None = (
             time.perf_counter() + float(raw_tl) if raw_tl is not None else None
         )
+        
+        min_no_improve_limit = int(params.get("min_no_improve_limit", 250))
+        if min_no_improve_limit < 0:
+            raise ValueError("min_no_improve_limit must be >= 0.")
+        temp_precision_floor = float(params.get("temp_precision_floor", 1e-12))
+        if temp_precision_floor <= 0:
+            raise ValueError("temp_precision_floor must be > 0.")
+        reheat_check_interval_divisor = float(params.get("reheat_check_interval_divisor", 4))
+        if reheat_check_interval_divisor <= 0:
+            raise ValueError("reheat_check_interval_divisor must be > 0.")
+        reheat_check_min_interval = int(params.get("reheat_check_min_interval", 50))
+        if reheat_check_min_interval < 1:
+            raise ValueError("reheat_check_min_interval must be >= 1.")
+        hard_restart_min_limit = int(params.get("hard_restart_min_limit", 100))
+        if hard_restart_min_limit < 1:
+            raise ValueError("hard_restart_min_limit must be >= 1.")
+        patience_shrink_factor = float(params.get("patience_shrink_factor", 2.0 / 3.0))
+        if not 0 < patience_shrink_factor <= 1:
+            raise ValueError("patience_shrink_factor must be in (0, 1].")
 
         start = self._build_ffd_start_solution()
         best = start.copy()
         current = start.copy()
 
         n = len(self._item_sizes)
-        k_min = max(1, int(0.05 * n))
-        k_max = max(k_min + 1, int(0.25 * n))
+        k_min = max(1, int(k_min_frac * n))
+        k_max = max(k_min + 1, int(k_max_frac * n))
         lower_bound = math.ceil(sum(self._item_sizes) / self._bin_capacity)
         bandit = WarmStartLinUCBBandit(
-            n_arms=3, n_features=N_CONTEXT_FEATURES, alpha=0.3, warmup_calls=300
+            n_arms=3, n_features=N_CONTEXT_FEATURES,
+            alpha=bandit_alpha, warmup_calls=warmup_calls,
         )
+        self._bandit = bandit
 
         temperature = t0
-        no_improve_limit = max(250, max_iterations // 20)
+        no_improve_limit = max(min_no_improve_limit, int(no_improve_frac * max_iterations))
         iterations_since_improvement = 0
         for iteration in range(max_iterations):
             if deadline is not None and time.perf_counter() >= deadline:
                 break
-            _ctx = self._build_context(
-                temperature,
-                t0,
-                iterations_since_improvement,
-                no_improve_limit,
-                current.cost(),
-                lower_bound,
-                k_min,
-                n,
-                iteration,
-                max_iterations,
-            )
-            arm = bandit.select_arm(_ctx)
             candidate = current.copy()
 
             # Adaptive k: grow the destruction radius when stagnating.
@@ -304,6 +341,25 @@ class BinPackingSolver:
             )
             k_adaptive_max = k_min + int(stagnation_ratio * (k_max - k_min))
             k_items = int(self._rng.integers(k_min, max(k_min + 1, k_adaptive_max + 1)))
+
+            _ctx = self._build_context(
+                temperature,
+                t0,
+                iterations_since_improvement,
+                no_improve_limit,
+                current.cost(),
+                lower_bound,
+                k_items,
+                n,
+                iteration,
+                max_iterations,
+                temp_precision_floor,
+            )
+            if force_uniform_random:
+                arm = int(self._rng.integers(0, 3))
+                bandit.arm_counts[arm] += 1
+            else:
+                arm = bandit.select_arm(_ctx)
 
             if arm == 0:
                 displaced = self._destroy_random(candidate, k_items)
@@ -347,14 +403,14 @@ class BinPackingSolver:
             ):
                 # Soft reheat tied to no_improve_limit (not max_iterations) so
                 # the interval scales with the actual stagnation budget.
-                temperature = max(temperature, t0 * 0.35)
+                temperature = max(temperature, t0 * reheat_soft_mult)
             if iterations_since_improvement >= no_improve_limit:
                 # Diversification restart: return to best, reheat partially, and
                 # shrink the patience window so successive restarts get shorter.
                 # The outer range(max_iterations) guarantees termination.
                 current = best.copy()
                 iterations_since_improvement = 0
-                temperature = max(temperature, t0 * 0.20)
+                temperature = max(temperature, t0 * reheat_hard_mult)
                 no_improve_limit = max(100, no_improve_limit * 2 // 3)
 
         self._final_solution = self._to_presentable_solution(best)
@@ -625,6 +681,7 @@ class BinPackingSolver:
         n: int,
         iteration: int,
         max_iterations: int,
+        temp_precision_floor: float,
     ) -> np.ndarray:
         """Build the 5-D context vector for LinUCB arm selection.
 
@@ -642,7 +699,7 @@ class BinPackingSolver:
         """
         return np.array(
             [
-                temperature / max(t0, 1e-12),
+                temperature / max(t0, temp_precision_floor),
                 iterations_since_improvement / max(no_improve_limit, 1),
                 current_cost / max(lower_bound, 1),
                 k_items / max(n, 1),
