@@ -205,11 +205,7 @@ class Benchmark:
             raise ValueError(
                 "num_items is mutually exclusive with min_items and max_items."
             )
-        if (
-            min_items is not None
-            and max_items is not None
-            and min_items > max_items
-        ):
+        if min_items is not None and max_items is not None and min_items > max_items:
             raise ValueError("min_items cannot be greater than max_items.")
 
         instances = self._load_instances(num_items, min_items, max_items)

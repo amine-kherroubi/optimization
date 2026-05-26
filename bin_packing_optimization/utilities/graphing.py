@@ -6,6 +6,7 @@ from datetime import datetime
 
 import matplotlib
 from matplotlib.figure import Figure
+from matplotlib.axes import Axes
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -61,7 +62,7 @@ def _save_figure(fig: Figure, out_dir: Path, filename: str) -> Path:
     return path
 
 
-def _apply_common_style(ax: plt.Axes) -> None:
+def _apply_common_style(ax: Axes) -> None:
     ax.grid(axis="y", linestyle="--", alpha=0.35)
     ax.set_axisbelow(True)
 
@@ -188,7 +189,9 @@ def _build_gap_vs_time_scatter(rows, dataset_key: str, out_dir: Path) -> Path:
     gaps = [r.bins_used - r.lower_bound for r in rows]
     times = [r.elapsed_time for r in rows]
     sizes = [max(25, r.num_items * 0.8) for r in rows]
-    sc = ax.scatter(gaps, times, s=sizes, alpha=0.8, c=[r.num_items for r in rows], cmap="viridis")
+    sc = ax.scatter(
+        gaps, times, s=sizes, alpha=0.8, c=[r.num_items for r in rows], cmap="viridis"
+    )
     cbar = fig.colorbar(sc, ax=ax)
     cbar.set_label("Number of items (n)")
     ax.set_xlabel("Gap (bins_used - lower_bound)")
@@ -388,7 +391,9 @@ def create_comparison_graphs(
     return paths
 
 
-def _dataset_colors(dataset_keys: list[str]) -> dict[str, tuple[float, float, float, float]]:
+def _dataset_colors(
+    dataset_keys: list[str],
+) -> dict[str, tuple[float, float, float, float]]:
     n = len(dataset_keys)
     if n <= 20:
         cmap = plt.get_cmap("tab20", max(1, n))
@@ -428,7 +433,9 @@ def create_multi_dataset_graphs(
 
     if out_dir is None:
         out_dir = _PROJECT_ROOT / "results" / "multi_dataset_graphs"
-    output = _prepare_output_dir(Path(out_dir) / datetime.now().strftime("%Y%m%d_%H%M%S"))
+    output = _prepare_output_dir(
+        Path(out_dir) / datetime.now().strftime("%Y%m%d_%H%M%S")
+    )
 
     dataset_keys = sorted({r.dataset_key for r in completed})
     colors = _dataset_colors(dataset_keys)
@@ -436,7 +443,9 @@ def create_multi_dataset_graphs(
 
     # 1) Solve-time distribution by dataset (boxplot + jitter, color-coded).
     fig, ax = plt.subplots(figsize=(max(8, len(dataset_keys) * 0.8), 5))
-    data = [[r.elapsed_time for r in completed if r.dataset_key == k] for k in dataset_keys]
+    data = [
+        [r.elapsed_time for r in completed if r.dataset_key == k] for k in dataset_keys
+    ]
     bp = ax.boxplot(data, patch_artist=True)
     for patch, key in zip(bp["boxes"], dataset_keys):
         patch.set_facecolor(colors[key])
@@ -445,7 +454,9 @@ def create_multi_dataset_graphs(
     for i, key in enumerate(dataset_keys):
         vals = [r.elapsed_time for r in completed if r.dataset_key == key]
         jitter = rng.uniform(-0.12, 0.12, size=len(vals))
-        ax.scatter(np.full(len(vals), i + 1) + jitter, vals, s=20, color=colors[key], alpha=0.8)
+        ax.scatter(
+            np.full(len(vals), i + 1) + jitter, vals, s=20, color=colors[key], alpha=0.8
+        )
     ax.set_xticks(range(1, len(dataset_keys) + 1))
     ax.set_xticklabels(dataset_keys, rotation=45, ha="right", fontsize=8)
     ax.set_yscale("log")
@@ -458,11 +469,19 @@ def create_multi_dataset_graphs(
 
     # 2) Average optimality gap by dataset.
     avg_gap = {
-        key: float(np.mean([r.bins_used - r.lower_bound for r in completed if r.dataset_key == key]))
+        key: float(
+            np.mean(
+                [r.bins_used - r.lower_bound for r in completed if r.dataset_key == key]
+            )
+        )
         for key in dataset_keys
     }
     fig, ax = plt.subplots(figsize=(max(8, len(dataset_keys) * 0.8), 5))
-    ax.bar(range(len(dataset_keys)), [avg_gap[k] for k in dataset_keys], color=[colors[k] for k in dataset_keys])
+    ax.bar(
+        range(len(dataset_keys)),
+        [avg_gap[k] for k in dataset_keys],
+        color=[colors[k] for k in dataset_keys],
+    )
     ax.set_xticks(range(len(dataset_keys)))
     ax.set_xticklabels(dataset_keys, rotation=45, ha="right", fontsize=8)
     ax.set_xlabel("Dataset")

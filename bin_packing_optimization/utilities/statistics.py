@@ -209,7 +209,9 @@ def _print_summary(summary: dict[str, float | int], by_size: list[SizeSummary]) 
             print(f"{key:34s}: {value}")
 
     _print_section("SUMMARY BY NUM_ITEMS")
-    print(f"{'n':>6} │ {'inst':>6} │ {'done':>6} │ {'tout':>6} │ {'avg_time(s)':>14} │ {'avg_gap':>10}")
+    print(
+        f"{'n':>6} │ {'inst':>6} │ {'done':>6} │ {'tout':>6} │ {'avg_time(s)':>14} │ {'avg_gap':>10}"
+    )
     print("─" * 90)
     for row in by_size:
         print(
