@@ -6,6 +6,7 @@ from datetime import datetime
 
 import matplotlib
 from matplotlib.figure import Figure
+from matplotlib.axes import Axes
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -15,11 +16,26 @@ from IPython.display import Image, display
 # Project root used for sensible defaults
 _PROJECT_ROOT: Path = Path(__file__).resolve().parents[2]
 
-from bin_packing_optimization.utilities.statistics import load_results
+from bin_packing_optimization.utilities.statistics import (
+    filter_rows_by_items,
+    load_results,
+)
 
 
-def _load_completed_rows(csv_path: str | Path):
-    rows = [r for r in load_results(csv_path) if not r.timed_out]
+def _load_completed_rows(
+    csv_path: str | Path,
+    *,
+    num_items: int | None = None,
+    min_items: int | None = None,
+    max_items: int | None = None,
+):
+    rows = filter_rows_by_items(
+        load_results(csv_path),
+        num_items=num_items,
+        min_items=min_items,
+        max_items=max_items,
+    )
+    rows = [r for r in rows if not r.timed_out]
     if not rows:
         raise ValueError("No completed rows found in CSV.")
     return rows
@@ -46,6 +62,11 @@ def _save_figure(fig: Figure, out_dir: Path, filename: str) -> Path:
     return path
 
 
+def _apply_common_style(ax: Axes) -> None:
+    ax.grid(axis="y", linestyle="--", alpha=0.35)
+    ax.set_axisbelow(True)
+
+
 def _plot_bar_by_instance(
     labels: Sequence[str],
     values: Sequence[float],
@@ -59,6 +80,7 @@ def _plot_bar_by_instance(
     ax.set_xticklabels(labels, rotation=45, ha="right", fontsize=7)
     ax.set_ylabel(ylabel)
     ax.set_title(title)
+    _apply_common_style(ax)
     fig.tight_layout()
     return fig
 
@@ -90,6 +112,7 @@ def _plot_stacked_bar_by_instance(
     ax.set_ylabel(ylabel)
     ax.set_title(title)
     ax.legend()
+    _apply_common_style(ax)
     fig.tight_layout()
     return fig
 
@@ -114,6 +137,7 @@ def _plot_box_with_jitter(
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
     ax.set_title(title)
+    _apply_common_style(ax)
     fig.tight_layout()
     return fig
 
@@ -142,8 +166,40 @@ def _plot_boxplot_categories(
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
     ax.set_title(title)
+    _apply_common_style(ax)
     fig.tight_layout()
     return fig
+
+
+def _build_fill_rate_chart(rows, dataset_key: str, out_dir: Path) -> Path:
+    labels = _instance_labels(rows)
+    fill_rates = [r.total_weight / (r.bins_used * r.bin_capacity) * 100 for r in rows]
+    fig = _plot_bar_by_instance(
+        labels,
+        fill_rates,
+        "Fill rate (%)",
+        f"Bin Fill Rate per Instance — {dataset_key}",
+        color="#1abc9c",
+    )
+    return _save_figure(fig, out_dir, f"fig4_fill_rate_{dataset_key}.png")
+
+
+def _build_gap_vs_time_scatter(rows, dataset_key: str, out_dir: Path) -> Path:
+    fig, ax = plt.subplots(figsize=(8, 5))
+    gaps = [r.bins_used - r.lower_bound for r in rows]
+    times = [r.elapsed_time for r in rows]
+    sizes = [max(25, r.num_items * 0.8) for r in rows]
+    sc = ax.scatter(
+        gaps, times, s=sizes, alpha=0.8, c=[r.num_items for r in rows], cmap="viridis"
+    )
+    cbar = fig.colorbar(sc, ax=ax)
+    cbar.set_label("Number of items (n)")
+    ax.set_xlabel("Gap (bins_used - lower_bound)")
+    ax.set_ylabel("Solve time (s)")
+    ax.set_title(f"Gap vs Solve Time — {dataset_key}")
+    _apply_common_style(ax)
+    fig.tight_layout()
+    return _save_figure(fig, out_dir, f"fig5_gap_vs_time_{dataset_key}.png")
 
 
 def _group_times_by_size(rows) -> dict[int, list[float]]:
@@ -194,7 +250,12 @@ def _build_time_by_size_chart(rows, dataset_key: str, out_dir: Path) -> Path | N
 
 
 def create_graphs(
-    csv_path: str | Path, out_dir: str | Path | None = None
+    csv_path: str | Path,
+    out_dir: str | Path | None = None,
+    *,
+    num_items: int | None = None,
+    min_items: int | None = None,
+    max_items: int | None = None,
 ) -> list[Path]:
     """Generate and save all benchmark graphs for the given CSV.
 
@@ -206,6 +267,9 @@ def create_graphs(
         Directory to write the PNG files into.  Defaults to a ``graphs/``
         subdirectory next to *csv_path*, so output is always co-located with
         the data it describes.
+    num_items / min_items / max_items:
+        Optional row filters by instance size. Use `num_items` for exact size,
+        or `min_items`/`max_items` for an inclusive range.
 
     Returns
     -------
@@ -219,7 +283,12 @@ def create_graphs(
     # Ensure we have a Path so the division operator works predictably.
     out_dir = Path(out_dir)
 
-    rows = _load_completed_rows(csv_path)
+    rows = _load_completed_rows(
+        csv_path,
+        num_items=num_items,
+        min_items=min_items,
+        max_items=max_items,
+    )
     # Place graphs alongside the CSV. The CSV is created in a timestamped
     # results folder by the benchmark runner, so adding another timestamp here
     # would be redundant.
@@ -232,6 +301,8 @@ def create_graphs(
     maybe_path = _build_time_by_size_chart(rows, dataset_key, output)
     if maybe_path is not None:
         paths.append(maybe_path)
+    paths.append(_build_fill_rate_chart(rows, dataset_key, output))
+    paths.append(_build_gap_vs_time_scatter(rows, dataset_key, output))
     return paths
 
 
@@ -316,6 +387,130 @@ def create_comparison_graphs(
             color="#f39c12",
         )
         paths.append(_save_figure(fig, output, "compare_success_rate_by_method.png"))
+
+    return paths
+
+
+def _dataset_colors(
+    dataset_keys: list[str],
+) -> dict[str, tuple[float, float, float, float]]:
+    n = len(dataset_keys)
+    if n <= 20:
+        cmap = plt.get_cmap("tab20", max(1, n))
+        return {k: cmap(i) for i, k in enumerate(dataset_keys)}
+    cmap = plt.get_cmap("hsv", max(1, n))
+    return {k: cmap(i) for i, k in enumerate(dataset_keys)}
+
+
+def create_multi_dataset_graphs(
+    csv_paths: Sequence[str | Path],
+    out_dir: str | Path | None = None,
+    *,
+    num_items: int | None = None,
+    min_items: int | None = None,
+    max_items: int | None = None,
+) -> list[Path]:
+    """Create specialized cross-dataset graphs from many benchmark CSV files.
+
+    The number of datasets is intentionally unbounded; colors are assigned
+    dynamically from a colormap for robustness and simplicity.
+    """
+    if not csv_paths:
+        raise ValueError("At least one CSV path must be provided.")
+
+    rows_all = []
+    for csv_path in csv_paths:
+        rows = filter_rows_by_items(
+            load_results(csv_path),
+            num_items=num_items,
+            min_items=min_items,
+            max_items=max_items,
+        )
+        rows_all.extend(rows)
+    completed = [r for r in rows_all if not r.timed_out]
+    if not completed:
+        raise ValueError("No completed rows found across provided CSV files.")
+
+    if out_dir is None:
+        out_dir = _PROJECT_ROOT / "results" / "multi_dataset_graphs"
+    output = _prepare_output_dir(
+        Path(out_dir) / datetime.now().strftime("%Y%m%d_%H%M%S")
+    )
+
+    dataset_keys = sorted({r.dataset_key for r in completed})
+    colors = _dataset_colors(dataset_keys)
+    paths: list[Path] = []
+
+    # 1) Solve-time distribution by dataset (boxplot + jitter, color-coded).
+    fig, ax = plt.subplots(figsize=(max(8, len(dataset_keys) * 0.8), 5))
+    data = [
+        [r.elapsed_time for r in completed if r.dataset_key == k] for k in dataset_keys
+    ]
+    bp = ax.boxplot(data, patch_artist=True)
+    for patch, key in zip(bp["boxes"], dataset_keys):
+        patch.set_facecolor(colors[key])
+        patch.set_alpha(0.5)
+    rng = np.random.default_rng(seed=0)
+    for i, key in enumerate(dataset_keys):
+        vals = [r.elapsed_time for r in completed if r.dataset_key == key]
+        jitter = rng.uniform(-0.12, 0.12, size=len(vals))
+        ax.scatter(
+            np.full(len(vals), i + 1) + jitter, vals, s=20, color=colors[key], alpha=0.8
+        )
+    ax.set_xticks(range(1, len(dataset_keys) + 1))
+    ax.set_xticklabels(dataset_keys, rotation=45, ha="right", fontsize=8)
+    ax.set_yscale("log")
+    ax.set_xlabel("Dataset")
+    ax.set_ylabel("Solve time (s) [log scale]")
+    ax.set_title("Solve Time Distribution by Dataset")
+    _apply_common_style(ax)
+    fig.tight_layout()
+    paths.append(_save_figure(fig, output, "multi_dataset_time_distribution.png"))
+
+    # 2) Average optimality gap by dataset.
+    avg_gap = {
+        key: float(
+            np.mean(
+                [r.bins_used - r.lower_bound for r in completed if r.dataset_key == key]
+            )
+        )
+        for key in dataset_keys
+    }
+    fig, ax = plt.subplots(figsize=(max(8, len(dataset_keys) * 0.8), 5))
+    ax.bar(
+        range(len(dataset_keys)),
+        [avg_gap[k] for k in dataset_keys],
+        color=[colors[k] for k in dataset_keys],
+    )
+    ax.set_xticks(range(len(dataset_keys)))
+    ax.set_xticklabels(dataset_keys, rotation=45, ha="right", fontsize=8)
+    ax.set_xlabel("Dataset")
+    ax.set_ylabel("Average gap (bins_used - lower_bound)")
+    ax.set_title("Average Gap by Dataset")
+    _apply_common_style(ax)
+    fig.tight_layout()
+    paths.append(_save_figure(fig, output, "multi_dataset_avg_gap.png"))
+
+    # 3) Size-vs-time scatter colored by dataset.
+    fig, ax = plt.subplots(figsize=(9, 5))
+    for key in dataset_keys:
+        subset = [r for r in completed if r.dataset_key == key]
+        ax.scatter(
+            [r.num_items for r in subset],
+            [r.elapsed_time for r in subset],
+            alpha=0.75,
+            s=24,
+            color=colors[key],
+            label=key,
+        )
+    ax.set_yscale("log")
+    ax.set_xlabel("Number of items (n)")
+    ax.set_ylabel("Solve time (s) [log scale]")
+    ax.set_title("Instance Size vs Solve Time by Dataset")
+    ax.legend(ncol=2, fontsize=8)
+    _apply_common_style(ax)
+    fig.tight_layout()
+    paths.append(_save_figure(fig, output, "multi_dataset_size_vs_time.png"))
 
     return paths
 
