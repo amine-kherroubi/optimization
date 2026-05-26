@@ -198,16 +198,29 @@ class Benchmark:
         method: str | None,
         method_args: dict[str, Any] | None = None,
         num_items: int | None = None,
+        min_items: int | None = None,
         max_items: int | None = None,
     ) -> None:
-        if num_items is not None and max_items is not None:
-            raise ValueError("num_items and max_items are mutually exclusive.")
+        if num_items is not None and (min_items is not None or max_items is not None):
+            raise ValueError(
+                "num_items is mutually exclusive with min_items and max_items."
+            )
+        if (
+            min_items is not None
+            and max_items is not None
+            and min_items > max_items
+        ):
+            raise ValueError("min_items cannot be greater than max_items.")
 
-        instances = self._load_instances(num_items, max_items)
+        instances = self._load_instances(num_items, min_items, max_items)
         if not instances:
             qualifier = ""
             if num_items is not None:
                 qualifier = f" with exactly {num_items} items"
+            elif min_items is not None and max_items is not None:
+                qualifier = f" with between {min_items} and {max_items} items"
+            elif min_items is not None:
+                qualifier = f" with at least {min_items} items"
             elif max_items is not None:
                 qualifier = f" with at most {max_items} items"
             raise FileNotFoundError(
@@ -377,6 +390,7 @@ class Benchmark:
     def _load_instances(
         self,
         num_items: int | None,
+        min_items: int | None,
         max_items: int | None,
     ) -> list[Instance]:
         instances: list[Instance] = []
@@ -386,6 +400,8 @@ class Benchmark:
             except (ValueError, IndexError):
                 continue
             if num_items is not None and inst.num_items != num_items:
+                continue
+            if min_items is not None and inst.num_items < min_items:
                 continue
             if max_items is not None and inst.num_items > max_items:
                 continue
