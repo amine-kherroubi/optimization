@@ -200,6 +200,7 @@ class Benchmark:
         num_items: int | None = None,
         min_items: int | None = None,
         max_items: int | None = None,
+        max_instances: int | None = None,
     ) -> None:
         if num_items is not None and (min_items is not None or max_items is not None):
             raise ValueError(
@@ -207,8 +208,12 @@ class Benchmark:
             )
         if min_items is not None and max_items is not None and min_items > max_items:
             raise ValueError("min_items cannot be greater than max_items.")
+        if max_instances is not None and max_instances <= 0:
+            raise ValueError("max_instances must be greater than zero.")
 
         instances = self._load_instances(num_items, min_items, max_items)
+        if max_instances is not None:
+            instances = instances[:max_instances]
         if not instances:
             qualifier = ""
             if num_items is not None:

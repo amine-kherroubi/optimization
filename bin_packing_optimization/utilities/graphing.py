@@ -311,8 +311,8 @@ def create_comparison_graphs(
 ) -> list[Path]:
     """Create comparative graphs across multiple benchmark CSV files.
 
-    Produces: (1) boxplot of solve times per method, (2) average bins per
-    method bar chart, and (3) success rate per method bar chart.
+    Produces: (1) boxplot of solve times per method and (2) average bins per
+    method bar chart.
     """
     if not csv_paths:
         raise ValueError("At least one CSV path must be provided.")
@@ -331,10 +331,6 @@ def create_comparison_graphs(
     }
     bins_by_method: dict[str, list[int]] = {
         m: [r.bins_used for r in rs if not r.timed_out] for m, rs in methods.items()
-    }
-    success_rate_by_method: dict[str, float] = {
-        m: (len([r for r in rs if not r.timed_out]) / len(rs) * 100) if rs else 0.0
-        for m, rs in methods.items()
     }
 
     if out_dir is None:
@@ -374,19 +370,6 @@ def create_comparison_graphs(
             color="#9b59b6",
         )
         paths.append(_save_figure(fig, output, "compare_avg_bins_by_method.png"))
-
-    # success rate per method
-    sr_labels = list(success_rate_by_method.keys())
-    sr_vals = [success_rate_by_method[k] for k in sr_labels]
-    if sr_labels:
-        fig = _plot_bar_by_instance(
-            sr_labels,
-            sr_vals,
-            ylabel="Success rate (%)",
-            title="Success Rate by Method",
-            color="#f39c12",
-        )
-        paths.append(_save_figure(fig, output, "compare_success_rate_by_method.png"))
 
     return paths
 
@@ -522,12 +505,58 @@ def _caption_from_graph_name(path: Path) -> str:
         return "Fig 2 — Bins used vs continuous lower bound"
     if path.name.startswith("fig3_"):
         return "Fig 3 — Solve time distribution by instance size"
+    if path.name == "compare_time_by_method.png":
+        return "Comparison — Solve time distribution by method"
+    if path.name == "compare_avg_bins_by_method.png":
+        return "Comparison — Average bins used by method"
+    if path.name == "multi_dataset_time_distribution.png":
+        return "Cross-dataset — Solve time distribution"
+    if path.name == "multi_dataset_avg_gap.png":
+        return "Cross-dataset — Average gap"
+    if path.name == "multi_dataset_size_vs_time.png":
+        return "Cross-dataset — Instance size vs solve time"
     return f"Figure — {path.stem}"
 
 
 def display_graphs(csv_path: str | Path) -> list[Path]:
     """Create benchmark graphs and display each with an automatic caption."""
     graph_paths = create_graphs(csv_path)
+    for path in graph_paths:
+        print(_caption_from_graph_name(path))
+        display(Image(filename=str(path)))
+        print()
+    return graph_paths
+
+
+def display_comparison_graphs(
+    csv_paths: Sequence[str | Path],
+    out_dir: str | Path | None = None,
+) -> list[Path]:
+    """Create comparison graphs and display each figure inline."""
+    graph_paths = create_comparison_graphs(csv_paths, out_dir=out_dir)
+    for path in graph_paths:
+        print(_caption_from_graph_name(path))
+        display(Image(filename=str(path)))
+        print()
+    return graph_paths
+
+
+def display_multi_dataset_graphs(
+    csv_paths: Sequence[str | Path],
+    out_dir: str | Path | None = None,
+    *,
+    num_items: int | None = None,
+    min_items: int | None = None,
+    max_items: int | None = None,
+) -> list[Path]:
+    """Create cross-dataset graphs and display each figure inline."""
+    graph_paths = create_multi_dataset_graphs(
+        csv_paths,
+        out_dir=out_dir,
+        num_items=num_items,
+        min_items=min_items,
+        max_items=max_items,
+    )
     for path in graph_paths:
         print(_caption_from_graph_name(path))
         display(Image(filename=str(path)))
