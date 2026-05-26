@@ -35,10 +35,10 @@ from bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns.hybrid_
     LinUCBBandit,
     WarmStartLinUCBBandit,
 )
-from bin_packing_optimization.datasets.Falkenauer_T.configure import DATASET_CONFIG as FALK_T
-from bin_packing_optimization.datasets.Scholl_1.configure import DATASET_CONFIG as SCHOLL1
-from bin_packing_optimization.datasets.Scholl_2.configure import DATASET_CONFIG as SCHOLL2
-from bin_packing_optimization.datasets.Scholl_3.configure import DATASET_CONFIG as SCHOLL3
+from bin_packing_optimization.datasets.Falkenauer.Falkenauer_T.configure import DATASET_CONFIG as FALK_T
+from bin_packing_optimization.datasets.Scholl.Scholl_1.configure import DATASET_CONFIG as SCHOLL1
+from bin_packing_optimization.datasets.Scholl.Scholl_2.configure import DATASET_CONFIG as SCHOLL2
+from bin_packing_optimization.datasets.Scholl.Scholl_3.configure import DATASET_CONFIG as SCHOLL3
 
 
 # ── Chargement du modèle GBT ─────────────────────────────────────────────────

@@ -88,22 +88,27 @@ class _FastPredictor:
         try:
             from sklearn.ensemble import GradientBoostingClassifier
             from sklearn.preprocessing import StandardScaler
-            if isinstance(model, GradientBoostingClassifier) and isinstance(scaler, StandardScaler):
-                self._mean  = scaler.mean_.astype(np.float64)
+
+            if isinstance(model, GradientBoostingClassifier) and isinstance(
+                scaler, StandardScaler
+            ):
+                self._mean = scaler.mean_.astype(np.float64)
                 self._scale = scaler.scale_.astype(np.float64)
-                self._fast  = True
+                self._fast = True
         except Exception:
             pass
         if not self._fast:
-            self._mean  = None
+            self._mean = None
             self._scale = None
 
     def predict_proba_col1(self, X: np.ndarray) -> np.ndarray:
         """Return P(class=1) for each row of X — fast path or safe fallback."""
         if self._fast:
-            X_scaled = ((X - self._mean) / self._scale).astype(np.float32)  # GBT needs float32
-            raw = self._model._raw_predict(X_scaled)            # shape (n, 1)
-            return 1.0 / (1.0 + np.exp(-raw[:, 0]))            # sigmoid → P(1)
+            X_scaled = ((X - self._mean) / self._scale).astype(
+                np.float32
+            )  # GBT needs float32
+            raw = self._model._raw_predict(X_scaled)  # shape (n, 1)
+            return 1.0 / (1.0 + np.exp(-raw[:, 0]))  # sigmoid → P(1)
         # fallback: standard sklearn path
         scaler = getattr(self, "_scaler_fallback", None)
         if scaler is not None:
@@ -146,8 +151,8 @@ class LinUCBBandit:
     def update(self, arm: int, context: np.ndarray, reward: float) -> None:
         """Update arm k using Sherman-Morrison rank-1 inverse update (O(d²))."""
         A_inv = self._A_inv[arm]
-        Ax = A_inv @ context                          # d-vector, O(d²)
-        denom = 1.0 + context @ Ax                    # scalar
+        Ax = A_inv @ context  # d-vector, O(d²)
+        denom = 1.0 + context @ Ax  # scalar
         self._A_inv[arm] = A_inv - np.outer(Ax, Ax) / denom  # rank-1 update
         self._b[arm] += reward * context
 
@@ -169,13 +174,16 @@ class WarmStartLinUCBBandit:
 
     __slots__ = ("_linucb", "_ts_alpha", "_ts_beta", "_rng", "_calls", "_warmup_calls")
 
-    def __init__(self, n_arms: int, n_features: int, alpha: float = 0.3,
-                 warmup_calls: int = 200):
+    def __init__(
+        self, n_arms: int, n_features: int, alpha: float = 0.3, warmup_calls: int = 200
+    ):
         # Use _LinUCBBanditImpl (private, not monkey-patchable) to avoid infinite
         # recursion when the benchmark replaces the module-level LinUCBBandit name.
-        self._linucb = _LinUCBBanditImpl(n_arms=n_arms, n_features=n_features, alpha=alpha)
+        self._linucb = _LinUCBBanditImpl(
+            n_arms=n_arms, n_features=n_features, alpha=alpha
+        )
         self._ts_alpha = np.ones(n_arms, dtype=np.float64)
-        self._ts_beta  = np.ones(n_arms, dtype=np.float64)
+        self._ts_beta = np.ones(n_arms, dtype=np.float64)
         self._rng = np.random.default_rng(42)
         self._calls = 0
         self._warmup_calls = int(warmup_calls)
@@ -402,7 +410,9 @@ class BinPackingSolver:
         # Previously this removed whole bins, which could displace 6–30× k_items
         # when a randomly chosen bin happened to be large.
         k_effective = min(k_items, len(all_items) - 1)
-        to_remove = [int(x) for x in self._rng.choice(all_items, size=k_effective, replace=False)]
+        to_remove = [
+            int(x) for x in self._rng.choice(all_items, size=k_effective, replace=False)
+        ]
         return self._remove_items(sol, to_remove)
 
     def _destroy_worst(self, sol: _WorkingSolution, k_items: int) -> list[int]:

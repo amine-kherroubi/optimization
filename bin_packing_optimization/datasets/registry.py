@@ -12,11 +12,21 @@ def register_dataset(config: DatasetConfig) -> None:
     DATASET_REGISTRY[config.key] = config
 
 
-from bin_packing_optimization.datasets.Falkenauer_T import DATASET_CONFIG as FALKENAUER_T_CONFIG
-from bin_packing_optimization.datasets.Falkenauer_U import DATASET_CONFIG as FALKENAUER_U_CONFIG
-from bin_packing_optimization.datasets.Scholl_1 import DATASET_CONFIG as SCHOLL_1_CONFIG
-from bin_packing_optimization.datasets.Scholl_2 import DATASET_CONFIG as SCHOLL_2_CONFIG
-from bin_packing_optimization.datasets.Scholl_3 import DATASET_CONFIG as SCHOLL_3_CONFIG
+from bin_packing_optimization.datasets.Falkenauer.Falkenauer_T import (
+    DATASET_CONFIG as FALKENAUER_T_CONFIG,
+)
+from bin_packing_optimization.datasets.Falkenauer.Falkenauer_U import (
+    DATASET_CONFIG as FALKENAUER_U_CONFIG,
+)
+from bin_packing_optimization.datasets.Scholl.Scholl_1 import (
+    DATASET_CONFIG as SCHOLL_1_CONFIG,
+)
+from bin_packing_optimization.datasets.Scholl.Scholl_2 import (
+    DATASET_CONFIG as SCHOLL_2_CONFIG,
+)
+from bin_packing_optimization.datasets.Scholl.Scholl_3 import (
+    DATASET_CONFIG as SCHOLL_3_CONFIG,
+)
 
 for config in (
     FALKENAUER_T_CONFIG,
