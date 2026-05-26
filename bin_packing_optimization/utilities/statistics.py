@@ -368,6 +368,38 @@ def print_benchmark_report(
     return summary, by_size
 
 
+def print_method_comparison_report(
+    csv_paths: Sequence[str | Path],
+) -> dict[str, dict[str, float | int]]:
+    """Print one summary row per method from multiple benchmark CSV files."""
+    if not csv_paths:
+        raise ValueError("At least one CSV path must be provided.")
+
+    summary = summarize_by_method(load_results_many(csv_paths))
+    _print_section("METHOD COMPARISON")
+    print(
+        f"{'method':<18} │ {'done/total':>12} │ {'avg_bins':>10} │ "
+        f"{'avg_gap':>10} │ {'avg_fill(%)':>12} │ {'avg_time(s)':>12}"
+    )
+    print("─" * 86)
+    for method, metrics in summary.items():
+        completed = int(metrics.get("completed", 0))
+        instances = int(metrics.get("instances", 0))
+        avg_bins = metrics.get("avg_bins_completed", 0.0)
+        avg_gap = metrics.get("avg_gap_completed", 0.0)
+        avg_fill = metrics.get("avg_fill_rate_completed_pct", 0.0)
+        avg_time = metrics.get("avg_time_completed_s", 0.0)
+        print(
+            f"{method:<18} │ {f'{completed}/{instances}':>12} │ "
+            f"{_fmt_float(float(avg_bins)):>10} │ "
+            f"{_fmt_float(float(avg_gap)):>10} │ "
+            f"{_fmt_float(float(avg_fill)):>12} │ "
+            f"{_fmt_float(float(avg_time)):>12}"
+        )
+
+    return summary
+
+
 def print_multi_benchmark_report(
     csv_paths: Sequence[str | Path],
     *,
