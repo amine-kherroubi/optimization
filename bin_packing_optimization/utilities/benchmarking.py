@@ -16,6 +16,7 @@ from typing import Any
 
 from bin_packing_optimization.datasets.types import Instance, DatasetConfig
 from bin_packing_optimization.datasets.registry import DATASET_REGISTRY
+from bin_packing_optimization.datasets.solutions import get_instance_solution
 
 
 @dataclass(slots=True)
@@ -62,6 +63,10 @@ class TableWidths:
             + self.state
             + (8 * 3)
         )
+
+
+def _format_float(value: float, decimals: int = 4) -> str:
+    return f"{value:.{decimals}f}"
 
 
 def _solver_worker(
@@ -193,16 +198,25 @@ class Benchmark:
         method: str | None,
         method_args: dict[str, Any] | None = None,
         num_items: int | None = None,
+        min_items: int | None = None,
         max_items: int | None = None,
     ) -> None:
-        if num_items is not None and max_items is not None:
-            raise ValueError("num_items and max_items are mutually exclusive.")
+        if num_items is not None and (min_items is not None or max_items is not None):
+            raise ValueError(
+                "num_items is mutually exclusive with min_items and max_items."
+            )
+        if min_items is not None and max_items is not None and min_items > max_items:
+            raise ValueError("min_items cannot be greater than max_items.")
 
-        instances = self._load_instances(num_items, max_items)
+        instances = self._load_instances(num_items, min_items, max_items)
         if not instances:
             qualifier = ""
             if num_items is not None:
                 qualifier = f" with exactly {num_items} items"
+            elif min_items is not None and max_items is not None:
+                qualifier = f" with between {min_items} and {max_items} items"
+            elif min_items is not None:
+                qualifier = f" with at least {min_items} items"
             elif max_items is not None:
                 qualifier = f" with at most {max_items} items"
             raise FileNotFoundError(
@@ -372,6 +386,7 @@ class Benchmark:
     def _load_instances(
         self,
         num_items: int | None,
+        min_items: int | None,
         max_items: int | None,
     ) -> list[Instance]:
         instances: list[Instance] = []
@@ -381,6 +396,8 @@ class Benchmark:
             except (ValueError, IndexError):
                 continue
             if num_items is not None and inst.num_items != num_items:
+                continue
+            if min_items is not None and inst.num_items < min_items:
                 continue
             if max_items is not None and inst.num_items > max_items:
                 continue
@@ -396,7 +413,13 @@ class Benchmark:
         stop_flag: threading.Event | None = None,
     ) -> BenchmarkResult:
         total_weight = sum(instance.sizes)
-        lower_bound = ceil(total_weight / instance.bin_capacity)
+        fallback_lower_bound = ceil(total_weight / instance.bin_capacity)
+        reference_solution = get_instance_solution(instance.dataset_key, instance.name)
+        lower_bound = (
+            reference_solution.best_lb
+            if reference_solution is not None
+            else fallback_lower_bound
+        )
         solver_method = "branch and bound" if method == "b&b" else method
         method_label = method if method is not None else "<default>"
 
@@ -507,7 +530,10 @@ class Benchmark:
         else:
             raise ValueError("Either instances or results must be provided.")
 
-        time_w = max(len("Time (s)"), 10)
+        time_candidates = []
+        if results is not None:
+            time_candidates = [_format_float(r.elapsed_time) for r in results]
+        time_w = max(len("Time (s)"), 10, *(len(t) for t in time_candidates))
         method_w = max(
             len("Method"),
             20,  # minimum width
@@ -538,7 +564,7 @@ class Benchmark:
 
     def _print_row(self, result: BenchmarkResult, widths: TableWidths) -> None:
         gap = result.bins_used - result.lower_bound
-        time_str = f"{result.elapsed_time:.4f}"
+        time_str = _format_float(result.elapsed_time)
 
         raw_state = "T.O." if result.timed_out else "Done"
         padded_state = f"{raw_state:<{widths.state}}"
@@ -563,36 +589,7 @@ class Benchmark:
     def _print_footer(self, widths: TableWidths) -> None:
         separator = "\033[90m" + "\u2500" * widths.total_width + "\033[0m"
         print(separator)
-
-        print(f"\n\033[1;36m{chr(0x2550) * widths.total_width}\033[0m")
-        print(f"\033[1;36m{'BENCHMARK STATISTICS':^{widths.total_width}}\033[0m")
-        print(f"\033[1;36m{chr(0x2550) * widths.total_width}\033[0m")
-
-        if not self._results:
-            print(" No results to display.")
-            return
-
-        completed = self._completed
-        timeout_count = len(self._results) - len(completed)
-        total_time = sum(r.elapsed_time for r in self._results)
-
-        print(f"\033[1mInstances processed      :\033[0m {len(self._results)}")
-
-        if completed:
-            average_time = sum(r.elapsed_time for r in completed) / len(completed)
-            average_bins = sum(r.bins_used for r in completed) / len(completed)
-            print(f"\033[1mAverage time (completed) :\033[0m {average_time:.4f} s")
-            print(f"\033[1mAverage bins (completed) :\033[0m {average_bins:.2f}")
-
-        print(f"\033[1mTotal elapsed time       :\033[0m {total_time:.4f} s")
-
-        if timeout_count:
-            print(
-                f"\033[1mTimeouts                 :\033[0m "
-                f"\033[91m{timeout_count} / {len(self._results)}\033[0m"
-            )
-
-        print(f"\033[1;36m{chr(0x2550) * widths.total_width}\033[0m\n")
+        print()
 
 
 def create_benchmark(
