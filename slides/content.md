@@ -2,15 +2,6 @@
 marp: true
 ---
 
-# Introduction: why this project matters
-
-- The repository studies the one-dimensional Bin Packing Problem, where industrial logistics, cutting-stock, scheduling, and cloud-allocation decisions are abstracted as packing positive-size items into the fewest identical bins.
-- The implemented solver treats the problem as a large-scale combinatorial optimization task where exact methods are not the practical focus, and the active implementation is a hybrid ALNS pipeline under `hybrid_learning_metaheuristics/hybrid_alns`.
-- The core project idea is to keep a classical destroy--repair ALNS backbone while adding two learning decisions: an offline learned repair model and an online RL-style destroy-operator selector.
-- Artifact anchor: `article/main.tex`, `approach_explanation.md`, and `hybrid_alns_solver.py` jointly define the paper narrative, mathematical framing, and executable solver.
-
----
-
 # Introduction: dual-learning ALNS in one sentence
 
 - The implemented system begins from a Best-Fit Decreasing warm start, repeatedly destroys and repairs the incumbent solution, accepts candidates through simulated annealing, and returns the best packing found.
