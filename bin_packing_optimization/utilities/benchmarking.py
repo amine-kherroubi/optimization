@@ -74,15 +74,22 @@ def _solver_worker(
     bin_capacity: int,
     method: str | None,
     method_args: dict[str, Any],
-    solver_module: ModuleType,
+    solver_module_name: str,
     out_queue: mp.Queue[tuple[int | None, float | None, str | None]],
 ) -> None:
-    """Run the solver in an isolated subprocess and report (bins, elapsed, error)."""
+    """Run the solver in an isolated subprocess and report (bins, elapsed, error).
+
+    The solver module is passed by name and re-imported here rather than as a
+    module object: module objects are not picklable, so passing one would break
+    the ``spawn`` start method used on Windows (and macOS by default).
+    """
+    import importlib
     import signal
     import time
 
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     try:
+        solver_module = importlib.import_module(solver_module_name)
         BinPackingSolver = solver_module.BinPackingSolver
         start: float = time.perf_counter()
         solver = BinPackingSolver(sizes, bin_capacity)
@@ -457,7 +464,7 @@ class Benchmark:
                 instance.bin_capacity,
                 solver_method,
                 dict(method_args or {}),
-                self._solver_module,
+                self._solver_module.__name__,
                 out_queue,
             ),
             daemon=True,
