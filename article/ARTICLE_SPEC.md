@@ -79,12 +79,12 @@ gradient boosting, hyper-heuristics, machine learning.
 
   Aligned run on i9-13950HX (current solver + no-learning bug fix):
 
-  | Method | avg_bins | avg_gap | fill% | time(s) |
-  |---|---|---|---|---|
-  | no-learning | 18.2 | 0.20 | 92.76 | 0.153 |
-  | online-only | 18.0 | 0.00 | 93.76 | 0.186 |
-  | offline-only | 18.2 | 0.20 | 92.76 | 0.353 |
-  | both-combined | 18.2 | 0.20 | 92.76 | 0.362 |
+  | Method        | avg_bins | avg_gap | fill% | time(s) |
+  | ------------- | -------- | ------- | ----- | ------- |
+  | no-learning   | 18.2     | 0.20    | 92.76 | 0.153   |
+  | online-only   | 18.0     | 0.00    | 93.76 | 0.186   |
+  | offline-only  | 18.2     | 0.20    | 92.76 | 0.353   |
+  | both-combined | 18.2     | 0.20    | 92.76 | 0.362   |
 
   Findings: online RL alone reaches gap 0 (best config); offline repair adds
   runtime without quality gain on this slice (slightly degrades online-only).

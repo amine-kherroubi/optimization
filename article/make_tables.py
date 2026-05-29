@@ -4,6 +4,7 @@ Runs every configuration and baseline on the same Scholl-2 50-item x5 slice in o
 process on the documented hardware, so the hybrid's numbers are identical across
 both tables and all runtimes are directly comparable.
 """
+
 import statistics as st
 import warnings
 
@@ -19,7 +20,11 @@ import bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns.hybri
 warnings.filterwarnings("ignore")
 
 DATASET, NUM_ITEMS, MAX = "scholl-2", 50, 5
-BASE = {"max_iterations": 300, "initial_temperature": 1.4426950408889634, "alpha_cool": 0.9995}
+BASE = {
+    "max_iterations": 300,
+    "initial_temperature": 1.4426950408889634,
+    "alpha_cool": 0.9995,
+}
 
 
 def run(module, method, args=None):
@@ -39,10 +44,48 @@ def model():
 
 def main():
     abl = [
-        ("No learning", run(hybrid, "no-learning", {**BASE, "use_offline_model": False, "use_online_rl": False})),
-        ("Online only", run(hybrid, "online-only", {**BASE, "use_offline_model": False, "use_online_rl": True})),
-        ("Offline only", run(hybrid, "offline-only", {**BASE, "use_offline_model": True, "use_online_rl": False, "model_bundle": model()})),
-        ("Both combined", run(hybrid, "both-combined", {**BASE, "use_offline_model": True, "use_online_rl": True, "model_bundle": model()})),
+        (
+            "No learning",
+            run(
+                hybrid,
+                "no-learning",
+                {**BASE, "use_offline_model": False, "use_online_rl": False},
+            ),
+        ),
+        (
+            "Online only",
+            run(
+                hybrid,
+                "online-only",
+                {**BASE, "use_offline_model": False, "use_online_rl": True},
+            ),
+        ),
+        (
+            "Offline only",
+            run(
+                hybrid,
+                "offline-only",
+                {
+                    **BASE,
+                    "use_offline_model": True,
+                    "use_online_rl": False,
+                    "model_bundle": model(),
+                },
+            ),
+        ),
+        (
+            "Both combined",
+            run(
+                hybrid,
+                "both-combined",
+                {
+                    **BASE,
+                    "use_offline_model": True,
+                    "use_online_rl": True,
+                    "model_bundle": model(),
+                },
+            ),
+        ),
     ]
     cmp = [
         ("FFD", run(heur, "first fit decreasing")),
@@ -51,7 +94,19 @@ def main():
         ("Tabu search", run(traj, "tabu search")),
         ("Genetic algorithm", run(pop, "genetic algorithm")),
         ("Ant colony", run(pop, "ant colony optimization")),
-        ("Dual-learning ALNS", run(hybrid, "combined", {**BASE, "use_offline_model": True, "use_online_rl": True, "model_bundle": model()})),
+        (
+            "Dual-learning ALNS",
+            run(
+                hybrid,
+                "combined",
+                {
+                    **BASE,
+                    "use_offline_model": True,
+                    "use_online_rl": True,
+                    "model_bundle": model(),
+                },
+            ),
+        ),
     ]
 
     print("\n\n===== TABLE II (ablation) =====")

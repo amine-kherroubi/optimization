@@ -15,39 +15,39 @@
 \begin{document}
 
 \title{Dual-Learning Adaptive Large Neighborhood Search for One-Dimensional Bin Packing:\\
-Online Operator Selection and Offline Learned Repair}
+	Online Operator Selection and Offline Learned Repair}
 
 \author{
-\IEEEauthorblockN{Mohamed El Amine Kherroubi, Rayan Boukakiou, Idriss Yacine Ziadi, Idris Himeur, Adem Abdelhafidh Diar}
-\IEEEauthorblockA{\textit{Higher National School of Computer Science (ESI)}\\
-Algiers, Algeria}
+	\IEEEauthorblockN{Mohamed El Amine Kherroubi, Rayan Boukakiou, Idriss Yacine Ziadi, Idris Himeur, Adem Abdelhafidh Diar}
+	\IEEEauthorblockA{\textit{Higher National School of Computer Science (ESI)}\\
+		Algiers, Algeria}
 }
 
 \maketitle
 
 \begin{abstract}
-The one-dimensional bin packing problem (1D-BPP) is a strongly NP-hard
-combinatorial optimization problem in which a set of weighted items must be
-packed into the fewest identical capacity-limited bins. Metaheuristics scale to
-large instances but rely on hand-designed operators and fixed policies that do
-not adapt to the state of the search. We present a dual-learning Adaptive Large
-Neighborhood Search (ALNS) that injects machine learning at two distinct decision
-points of a single search loop: an \emph{online} warm-start contextual bandit
-(LinUCB) selects the destroy operator from a five-dimensional search-state
-context, while an \emph{offline} gradient-boosted-trees model, trained by
-behavioral cloning of Best-Fit Decreasing, ranks feasible bins during repair. An
-ablation study isolates the contribution of each learning component, and a
-multi-dataset evaluation on standard benchmarks (Scholl, Falkenauer, W\"ascher,
-Hard28) characterizes the combined method. On the Scholl-2 slice, online operator
-selection alone closes the mean optimality gap (from $0.20$ to $0.00$ bins) at
-negligible cost, whereas the offline repair model adds computation without
-improving quality on this easy slice---an ablation finding that motivates learned
-repair for harder instances.
+	The one-dimensional bin packing problem (1D-BPP) is a strongly NP-hard
+	combinatorial optimization problem in which a set of weighted items must be
+	packed into the fewest identical capacity-limited bins. Metaheuristics scale to
+	large instances but rely on hand-designed operators and fixed policies that do
+	not adapt to the state of the search. We present a dual-learning Adaptive Large
+	Neighborhood Search (ALNS) that injects machine learning at two distinct decision
+	points of a single search loop: an \emph{online} warm-start contextual bandit
+	(LinUCB) selects the destroy operator from a five-dimensional search-state
+	context, while an \emph{offline} gradient-boosted-trees model, trained by
+	behavioral cloning of Best-Fit Decreasing, ranks feasible bins during repair. An
+	ablation study isolates the contribution of each learning component, and a
+	multi-dataset evaluation on standard benchmarks (Scholl, Falkenauer, W\"ascher,
+	Hard28) characterizes the combined method. On the Scholl-2 slice, online operator
+	selection alone closes the mean optimality gap (from $0.20$ to $0.00$ bins) at
+	negligible cost, whereas the offline repair model adds computation without
+	improving quality on this easy slice---an ablation finding that motivates learned
+	repair for harder instances.
 \end{abstract}
 
 \begin{IEEEkeywords}
-bin packing, adaptive large neighborhood search, contextual bandit, LinUCB,
-gradient boosting, hyper-heuristics, machine learning, combinatorial optimization
+	bin packing, adaptive large neighborhood search, contextual bandit, LinUCB,
+	gradient boosting, hyper-heuristics, machine learning, combinatorial optimization
 \end{IEEEkeywords}
 
 \section{Introduction}\label{sec:intro}
@@ -123,17 +123,17 @@ $C\in\mathbb{Z}_{>0}$ with $s_i\le C$ for all $i$. Using binary variables
 $x_{ij}=1$ iff item $i$ is placed in bin $j$, and $y_j=1$ iff bin $j$ is used
 (with $j\in\{1,\dots,n\}$), the problem is:
 \begin{align}
-\min \quad & \sum_{j=1}^{n} y_j \label{eq:obj}\\
-\text{s.t.}\quad & \sum_{j=1}^{n} x_{ij}=1, && \forall i\in\mathcal{I} \label{eq:assign}\\
-& \sum_{i=1}^{n} s_i\,x_{ij}\le C\,y_j, && \forall j \label{eq:cap}\\
-& x_{ij}\le y_j,\; x_{ij},y_j\in\{0,1\}. && \label{eq:link}
+	\min \quad       & \sum_{j=1}^{n} y_j \label{eq:obj}                                                     \\
+	\text{s.t.}\quad & \sum_{j=1}^{n} x_{ij}=1,               &  & \forall i\in\mathcal{I} \label{eq:assign} \\
+	                 & \sum_{i=1}^{n} s_i\,x_{ij}\le C\,y_j,  &  & \forall j \label{eq:cap}                  \\
+	                 & x_{ij}\le y_j,\; x_{ij},y_j\in\{0,1\}. &  & \label{eq:link}
 \end{align}
 Constraint~\eqref{eq:assign} assigns each item to exactly one bin,
 \eqref{eq:cap} enforces capacity and links assignment to bin usage, and the
 objective~\eqref{eq:obj} minimizes the number of bins used. A standard continuous
 lower bound is
 \begin{equation}
-\mathrm{LB}_1=\left\lceil \frac{\sum_{i=1}^{n} s_i}{C} \right\rceil ,\label{eq:lb}
+	\mathrm{LB}_1=\left\lceil \frac{\sum_{i=1}^{n} s_i}{C} \right\rceil ,\label{eq:lb}
 \end{equation}
 which is valid because the total item volume $\sum_i s_i$ must be distributed over
 bins of capacity $C$, requiring at least $\sum_i s_i / C$ of them; integrality
@@ -145,28 +145,28 @@ used throughout this work. 1D-BPP is strongly NP-hard by reduction from
 \section{Proposed Dual-Learning ALNS}\label{sec:approach}
 
 \begin{figure}[t]
-\centering
-\begin{tikzpicture}[
-  node distance=3.2mm,
-  box/.style={draw, rounded corners, align=center, font=\scriptsize,
-              minimum height=5.5mm, text width=3.0cm, inner sep=2pt},
-  ml/.style={box, fill=blue!12, very thick},
-  arr/.style={-{Latex[length=1.6mm]}}
-]
-\node[box] (start) {BFD warm start};
-\node[box, below=of start] (ctx) {Build 5-D context $\mathbf{x}$};
-\node[ml, below=of ctx] (bandit) {\textbf{LinUCB bandit} (online):\\ select destroy operator};
-\node[box, below=of bandit] (destroy) {Destroy: random / worst / related};
-\node[ml, below=of destroy] (repair) {\textbf{GBT repair} (offline):\\ rank feasible bins};
-\node[box, below=of repair] (sa) {Simulated-annealing\\ acceptance \& cooling};
-\node[box, below=of sa] (best) {Track best solution};
-\foreach \a/\b in {start/ctx, ctx/bandit, bandit/destroy, destroy/repair, repair/sa, sa/best}
-  \draw[arr] (\a)--(\b);
-\draw[arr] (sa.east) -- ++(3mm,0) |- (ctx.east);
-\end{tikzpicture}
-\caption{Architecture of the dual-learning hybrid ALNS. Shaded boxes mark the two
-machine-learning injection points; the right-hand arrow is the iteration loop.}
-\label{fig:arch}
+	\centering
+	\begin{tikzpicture}[
+		node distance=3.2mm,
+		box/.style={draw, rounded corners, align=center, font=\scriptsize,
+				minimum height=5.5mm, text width=3.0cm, inner sep=2pt},
+		ml/.style={box, fill=blue!12, very thick},
+		arr/.style={-{Latex[length=1.6mm]}}
+		]
+		\node[box] (start) {BFD warm start};
+		\node[box, below=of start] (ctx) {Build 5-D context $\mathbf{x}$};
+		\node[ml, below=of ctx] (bandit) {\textbf{LinUCB bandit} (online):\\ select destroy operator};
+		\node[box, below=of bandit] (destroy) {Destroy: random / worst / related};
+		\node[ml, below=of destroy] (repair) {\textbf{GBT repair} (offline):\\ rank feasible bins};
+		\node[box, below=of repair] (sa) {Simulated-annealing\\ acceptance \& cooling};
+		\node[box, below=of sa] (best) {Track best solution};
+		\foreach \a/\b in {start/ctx, ctx/bandit, bandit/destroy, destroy/repair, repair/sa, sa/best}
+		\draw[arr] (\a)--(\b);
+		\draw[arr] (sa.east) -- ++(3mm,0) |- (ctx.east);
+	\end{tikzpicture}
+	\caption{Architecture of the dual-learning hybrid ALNS. Shaded boxes mark the two
+		machine-learning injection points; the right-hand arrow is the iteration loop.}
+	\label{fig:arch}
 \end{figure}
 
 \subsection{Solution Encoding and Warm Start}
@@ -212,9 +212,9 @@ identifies promising operators, mitigating the cold-start of a linear bandit on
 short runs. Thereafter a disjoint LinUCB bandit~\cite{bChu} takes over: for a
 context vector $\mathbf{x}\in\mathbb{R}^5$ it selects the operator that maximizes
 \begin{equation}
-\hat{\boldsymbol{\theta}}_k^\top \mathbf{x}
-+ \alpha\sqrt{\mathbf{x}^\top A_k^{-1}\mathbf{x}},
-\qquad \hat{\boldsymbol{\theta}}_k=A_k^{-1}\mathbf{b}_k,\label{eq:ucb}
+	\hat{\boldsymbol{\theta}}_k^\top \mathbf{x}
+	+ \alpha\sqrt{\mathbf{x}^\top A_k^{-1}\mathbf{x}},
+	\qquad \hat{\boldsymbol{\theta}}_k=A_k^{-1}\mathbf{b}_k,\label{eq:ucb}
 \end{equation}
 with $\alpha=0.3$, updating $A_k^{-1}$ by the $O(d^2)$ Sherman--Morrison formula
 and $\mathbf{b}_k$ by $\mathbf{b}_k\leftarrow\mathbf{b}_k+r\,\mathbf{x}$. The
@@ -243,21 +243,21 @@ probabilities directly, avoiding per-call validation overhead. Algorithm~\ref{al
 summarizes the complete loop.
 
 \begin{figure}[t]
-\centering
-\begin{algorithmic}[1]
-\STATE $x \leftarrow \textsc{BFD-WarmStart}()$;\; $x^\star \leftarrow x$
-\FOR{$t=1$ \TO $\mathrm{max\_iter}$}
-  \STATE $\mathbf{x}_{\text{ctx}} \leftarrow \textsc{Context}(x,T,t)$
-  \STATE $a \leftarrow \textsc{Bandit.Select}(\mathbf{x}_{\text{ctx}})$
-  \STATE $(\hat{x},D) \leftarrow \textsc{Destroy}_a(x,k)$
-  \STATE $x' \leftarrow \textsc{RepairGBT}(\hat{x},D)$
-  \STATE accept $x'$ by simulated annealing; update $x^\star$
-  \STATE $\textsc{Bandit.Update}(a,\mathbf{x}_{\text{ctx}},r)$;\; cool/reheat $T$
-\ENDFOR
-\RETURN $x^\star$
-\end{algorithmic}
-\caption{Dual-learning hybrid ALNS.}
-\label{alg:alns}
+	\centering
+	\begin{algorithmic}[1]
+		\STATE $x \leftarrow \textsc{BFD-WarmStart}()$;\; $x^\star \leftarrow x$
+		\FOR{$t=1$ \TO $\mathrm{max\_iter}$}
+		\STATE $\mathbf{x}_{\text{ctx}} \leftarrow \textsc{Context}(x,T,t)$
+		\STATE $a \leftarrow \textsc{Bandit.Select}(\mathbf{x}_{\text{ctx}})$
+		\STATE $(\hat{x},D) \leftarrow \textsc{Destroy}_a(x,k)$
+		\STATE $x' \leftarrow \textsc{RepairGBT}(\hat{x},D)$
+		\STATE accept $x'$ by simulated annealing; update $x^\star$
+		\STATE $\textsc{Bandit.Update}(a,\mathbf{x}_{\text{ctx}},r)$;\; cool/reheat $T$
+		\ENDFOR
+		\RETURN $x^\star$
+	\end{algorithmic}
+	\caption{Dual-learning hybrid ALNS.}
+	\label{alg:alns}
 \end{figure}
 
 \section{Experiments, Results and Analysis}\label{sec:experiments}
@@ -283,20 +283,20 @@ contributes hard cutting-stock-style instances at capacity $10000$, and Hard28 a
 set of difficult $160$--$200$-item instances at capacity $1000$.
 
 \begin{table}[htbp]
-\caption{Benchmark datasets used in the evaluation.}
-\label{tab:datasets}
-\centering
-\begin{tabular}{l c c l}
-\hline
-\textbf{Dataset} & \textbf{Capacity} & \textbf{Items} & \textbf{Structure}\\
-\hline
-Scholl-2      & 1000  & 50--500   & uniform \\
-Falkenauer-T  & 1000  & 60--501   & triplets \\
-Falkenauer-U  & 150   & 120--1000 & uniform \\
-W\"ascher     & 10000 & varied    & cutting-stock \\
-Hard28        & 1000  & 160--200  & hard \\
-\hline
-\end{tabular}
+	\caption{Benchmark datasets used in the evaluation.}
+	\label{tab:datasets}
+	\centering
+	\begin{tabular}{l c c l}
+		\hline
+		\textbf{Dataset} & \textbf{Capacity} & \textbf{Items} & \textbf{Structure} \\
+		\hline
+		Scholl-2         & 1000              & 50--500        & uniform            \\
+		Falkenauer-T     & 1000              & 60--501        & triplets           \\
+		Falkenauer-U     & 150               & 120--1000      & uniform            \\
+		W\"ascher        & 10000             & varied         & cutting-stock      \\
+		Hard28           & 1000              & 160--200       & hard               \\
+		\hline
+	\end{tabular}
 \end{table}
 
 \subsection{Parameter Calibration}
@@ -321,28 +321,28 @@ online operator selection carries the quality gain here, whereas learned repair 
 expected to matter on harder instances with larger feasible-bin sets.
 
 \begin{table}[htbp]
-\caption{Ablation on Scholl-2 (50 items, 5 instances).}
-\label{tab:ablation}
-\centering
-\begin{tabular}{l c c c c}
-\hline
-\textbf{Configuration} & \textbf{Avg bins} & \textbf{Avg gap} & \textbf{Fill (\%)} & \textbf{Time (s)}\\
-\hline
-No learning   & 18.2 & 0.20 & 92.76 & 0.153 \\
-Online only   & 18.0 & 0.00 & 93.76 & 0.186 \\
-Offline only  & 18.2 & 0.20 & 92.76 & 0.353 \\
-Both combined & 18.2 & 0.20 & 92.76 & 0.362 \\
-\hline
-\end{tabular}
+	\caption{Ablation on Scholl-2 (50 items, 5 instances).}
+	\label{tab:ablation}
+	\centering
+	\begin{tabular}{l c c c c}
+		\hline
+		\textbf{Configuration} & \textbf{Avg bins} & \textbf{Avg gap} & \textbf{Fill (\%)} & \textbf{Time (s)} \\
+		\hline
+		No learning            & 18.2              & 0.20             & 92.76              & 0.153             \\
+		Online only            & 18.0              & 0.00             & 93.76              & 0.186             \\
+		Offline only           & 18.2              & 0.20             & 92.76              & 0.353             \\
+		Both combined          & 18.2              & 0.20             & 92.76              & 0.362             \\
+		\hline
+	\end{tabular}
 \end{table}
 
 \begin{figure}[t]
-\centering
-\includegraphics[width=0.92\linewidth]{figures/ablation.png}
-\caption{Ablation on Scholl-2: average optimality gap and solve time per
-configuration. Online operator selection removes the gap at no time cost; learned
-repair roughly doubles runtime.}
-\label{fig:ablation}
+	\centering
+	\includegraphics[width=0.92\linewidth]{figures/ablation.png}
+	\caption{Ablation on Scholl-2: average optimality gap and solve time per
+		configuration. Online operator selection removes the gap at no time cost; learned
+		repair roughly doubles runtime.}
+	\label{fig:ablation}
 \end{figure}
 
 \subsection{Multi-Dataset Results}
@@ -358,20 +358,20 @@ instances, reflecting the cost of model-guided repair over larger feasible-bin
 sets.
 
 \begin{table}[htbp]
-\caption{Combined method across datasets (gap to lower bound).}
-\label{tab:multi}
-\centering
-\begin{tabular}{l c c c}
-\hline
-\textbf{Dataset} & \textbf{Inst.} & \textbf{Avg gap} & \textbf{Time (s)}\\
-\hline
-Scholl-2 (50)      & 5 & 0.20 & 0.6--1.2 \\
-Falkenauer-T (60)  & 5 & 1.00 & 1.0--1.7 \\
-Falkenauer-U (120) & 5 & 0.20 & 4.3--5.8 \\
-W\"ascher          & 5 & 0.60 & 1.0--2.2 \\
-Hard28 (160)       & 3 & 0.67 & 13.5--15.1 \\
-\hline
-\end{tabular}
+	\caption{Combined method across datasets (gap to lower bound).}
+	\label{tab:multi}
+	\centering
+	\begin{tabular}{l c c c}
+		\hline
+		\textbf{Dataset}   & \textbf{Inst.} & \textbf{Avg gap} & \textbf{Time (s)} \\
+		\hline
+		Scholl-2 (50)      & 5              & 0.20             & 0.6--1.2          \\
+		Falkenauer-T (60)  & 5              & 1.00             & 1.0--1.7          \\
+		Falkenauer-U (120) & 5              & 0.20             & 4.3--5.8          \\
+		W\"ascher          & 5              & 0.60             & 1.0--2.2          \\
+		Hard28 (160)       & 3              & 0.67             & 13.5--15.1        \\
+		\hline
+	\end{tabular}
 \end{table}
 
 \subsection{Comparative Study}
@@ -392,21 +392,21 @@ cost. The metaheuristic baselines are stochastic, so their gaps vary across runs
 a single aligned run is reported.
 
 \begin{table}[htbp]
-\caption{Comparison on Scholl-2 (50 items, 5 instances): mean gap to $\mathrm{LB}_1$ and mean solve time.}
-\label{tab:compare}
-\centering
-\begin{tabular}{l c c}
-\hline
-\textbf{Method} & \textbf{Avg gap} & \textbf{Time (s)}\\
-\hline
-FFD / BFD            & 1.80 & $<0.01$ \\
-Simulated annealing  & 1.80 & 0.21 \\
-Tabu search          & 1.80 & 0.13 \\
-Genetic algorithm    & 1.00 & 0.82 \\
-Ant colony           & 0.00 & 3.03 \\
-\textbf{Dual-learning ALNS} & \textbf{0.20} & \textbf{0.36} \\
-\hline
-\end{tabular}
+	\caption{Comparison on Scholl-2 (50 items, 5 instances): mean gap to $\mathrm{LB}_1$ and mean solve time.}
+	\label{tab:compare}
+	\centering
+	\begin{tabular}{l c c}
+		\hline
+		\textbf{Method}             & \textbf{Avg gap} & \textbf{Time (s)} \\
+		\hline
+		FFD / BFD                   & 1.80             & $<0.01$           \\
+		Simulated annealing         & 1.80             & 0.21              \\
+		Tabu search                 & 1.80             & 0.13              \\
+		Genetic algorithm           & 1.00             & 0.82              \\
+		Ant colony                  & 0.00             & 3.03              \\
+		\textbf{Dual-learning ALNS} & \textbf{0.20}    & \textbf{0.36}     \\
+		\hline
+	\end{tabular}
 \end{table}
 
 \section{Conclusion and Perspectives}\label{sec:conclusion}
@@ -429,25 +429,25 @@ with a policy learned directly from search reward, and study the transfer of the
 learned components across instance families.
 
 \begin{thebibliography}{00}
-\bibitem{bCoffman} E. G. Coffman, M. R. Garey, and D. S. Johnson, ``Approximation algorithms for bin packing: a survey,'' in \textit{Approximation Algorithms for NP-Hard Problems}, 1996, pp. 46--93.
-\bibitem{bDelorme} M. Delorme, M. Iori, and S. Martello, ``Bin packing and cutting stock problems: Mathematical models and exact algorithms,'' \textit{Eur. J. Oper. Res.}, vol. 255, no. 1, pp. 1--20, 2016.
-\bibitem{bJohnson} D. S. Johnson, ``Near-optimal bin packing algorithms,'' Ph.D. dissertation, MIT, Cambridge, MA, 1973.
-\bibitem{bGarey} M. R. Garey and D. S. Johnson, \textit{Computers and Intractability: A Guide to the Theory of NP-Completeness}. San Francisco, CA: Freeman, 1979.
-\bibitem{bMartello} S. Martello and P. Toth, \textit{Knapsack Problems: Algorithms and Computer Implementations}. New York, NY: Wiley, 1990.
-\bibitem{bKirkpatrick} S. Kirkpatrick, C. D. Gelatt, and M. P. Vecchi, ``Optimization by simulated annealing,'' \textit{Science}, vol. 220, no. 4598, pp. 671--680, 1983.
-\bibitem{bGlover} F. Glover, ``Future paths for integer programming and links to artificial intelligence,'' \textit{Comput. Oper. Res.}, vol. 13, no. 5, pp. 533--549, 1986.
-\bibitem{bFalkenauer} E. Falkenauer, ``A hybrid grouping genetic algorithm for bin packing,'' \textit{J. Heuristics}, vol. 2, no. 1, pp. 5--30, 1996.
-\bibitem{bDorigo} M. Dorigo and T. St\"utzle, \textit{Ant Colony Optimization}. Cambridge, MA: MIT Press, 2004.
-\bibitem{bShaw} P. Shaw, ``Using constraint programming and local search methods to solve vehicle routing problems,'' in \textit{Proc. Int. Conf. Principles and Practice of Constraint Programming (CP)}, 1998, pp. 417--431.
-\bibitem{bRopke} S. Ropke and D. Pisinger, ``An adaptive large neighborhood search heuristic for the pickup and delivery problem with time windows,'' \textit{Transp. Sci.}, vol. 40, no. 4, pp. 455--472, 2006.
-\bibitem{bLi} L. Li, W. Chu, J. Langford, and R. E. Schapire, ``A contextual-bandit approach to personalized news article recommendation,'' in \textit{Proc. 19th Int. Conf. World Wide Web (WWW)}, 2010, pp. 661--670.
-\bibitem{bChu} W. Chu, L. Li, L. Reyzin, and R. E. Schapire, ``Contextual bandits with linear payoff functions,'' in \textit{Proc. 14th Int. Conf. Artificial Intelligence and Statistics (AISTATS)}, 2011, pp. 208--214.
-\bibitem{bFriedman} J. H. Friedman, ``Greedy function approximation: a gradient boosting machine,'' \textit{Ann. Statist.}, vol. 29, no. 5, pp. 1189--1232, 2001.
-\bibitem{bBengio} Y. Bengio, A. Lodi, and A. Prouvost, ``Machine learning for combinatorial optimization: a methodological tour d'horizon,'' \textit{Eur. J. Oper. Res.}, vol. 290, no. 2, pp. 405--421, 2021.
-\bibitem{bHottung} A. Hottung and K. Tierney, ``Neural large neighborhood search for the capacitated vehicle routing problem,'' in \textit{Proc. 24th Eur. Conf. Artificial Intelligence (ECAI)}, 2020, pp. 443--450.
-\bibitem{bScholl} A. Scholl, R. Klein, and C. J\"urgens, ``BISON: A fast hybrid procedure for exactly solving the one-dimensional bin packing problem,'' \textit{Comput. Oper. Res.}, vol. 24, no. 7, pp. 627--645, 1997.
-\bibitem{bSchwerin} P. Schwerin and G. W\"ascher, ``The bin-packing problem: A problem generator and some numerical experiments with FFD packing and MTP,'' \textit{Int. Trans. Oper. Res.}, vol. 4, no. 5--6, pp. 377--389, 1997.
-\bibitem{bPedregosa} F. Pedregosa \textit{et al.}, ``Scikit-learn: Machine learning in Python,'' \textit{J. Mach. Learn. Res.}, vol. 12, pp. 2825--2830, 2011.
+	\bibitem{bCoffman} E. G. Coffman, M. R. Garey, and D. S. Johnson, ``Approximation algorithms for bin packing: a survey,'' in \textit{Approximation Algorithms for NP-Hard Problems}, 1996, pp. 46--93.
+	\bibitem{bDelorme} M. Delorme, M. Iori, and S. Martello, ``Bin packing and cutting stock problems: Mathematical models and exact algorithms,'' \textit{Eur. J. Oper. Res.}, vol. 255, no. 1, pp. 1--20, 2016.
+	\bibitem{bJohnson} D. S. Johnson, ``Near-optimal bin packing algorithms,'' Ph.D. dissertation, MIT, Cambridge, MA, 1973.
+	\bibitem{bGarey} M. R. Garey and D. S. Johnson, \textit{Computers and Intractability: A Guide to the Theory of NP-Completeness}. San Francisco, CA: Freeman, 1979.
+	\bibitem{bMartello} S. Martello and P. Toth, \textit{Knapsack Problems: Algorithms and Computer Implementations}. New York, NY: Wiley, 1990.
+	\bibitem{bKirkpatrick} S. Kirkpatrick, C. D. Gelatt, and M. P. Vecchi, ``Optimization by simulated annealing,'' \textit{Science}, vol. 220, no. 4598, pp. 671--680, 1983.
+	\bibitem{bGlover} F. Glover, ``Future paths for integer programming and links to artificial intelligence,'' \textit{Comput. Oper. Res.}, vol. 13, no. 5, pp. 533--549, 1986.
+	\bibitem{bFalkenauer} E. Falkenauer, ``A hybrid grouping genetic algorithm for bin packing,'' \textit{J. Heuristics}, vol. 2, no. 1, pp. 5--30, 1996.
+	\bibitem{bDorigo} M. Dorigo and T. St\"utzle, \textit{Ant Colony Optimization}. Cambridge, MA: MIT Press, 2004.
+	\bibitem{bShaw} P. Shaw, ``Using constraint programming and local search methods to solve vehicle routing problems,'' in \textit{Proc. Int. Conf. Principles and Practice of Constraint Programming (CP)}, 1998, pp. 417--431.
+	\bibitem{bRopke} S. Ropke and D. Pisinger, ``An adaptive large neighborhood search heuristic for the pickup and delivery problem with time windows,'' \textit{Transp. Sci.}, vol. 40, no. 4, pp. 455--472, 2006.
+	\bibitem{bLi} L. Li, W. Chu, J. Langford, and R. E. Schapire, ``A contextual-bandit approach to personalized news article recommendation,'' in \textit{Proc. 19th Int. Conf. World Wide Web (WWW)}, 2010, pp. 661--670.
+	\bibitem{bChu} W. Chu, L. Li, L. Reyzin, and R. E. Schapire, ``Contextual bandits with linear payoff functions,'' in \textit{Proc. 14th Int. Conf. Artificial Intelligence and Statistics (AISTATS)}, 2011, pp. 208--214.
+	\bibitem{bFriedman} J. H. Friedman, ``Greedy function approximation: a gradient boosting machine,'' \textit{Ann. Statist.}, vol. 29, no. 5, pp. 1189--1232, 2001.
+	\bibitem{bBengio} Y. Bengio, A. Lodi, and A. Prouvost, ``Machine learning for combinatorial optimization: a methodological tour d'horizon,'' \textit{Eur. J. Oper. Res.}, vol. 290, no. 2, pp. 405--421, 2021.
+	\bibitem{bHottung} A. Hottung and K. Tierney, ``Neural large neighborhood search for the capacitated vehicle routing problem,'' in \textit{Proc. 24th Eur. Conf. Artificial Intelligence (ECAI)}, 2020, pp. 443--450.
+	\bibitem{bScholl} A. Scholl, R. Klein, and C. J\"urgens, ``BISON: A fast hybrid procedure for exactly solving the one-dimensional bin packing problem,'' \textit{Comput. Oper. Res.}, vol. 24, no. 7, pp. 627--645, 1997.
+	\bibitem{bSchwerin} P. Schwerin and G. W\"ascher, ``The bin-packing problem: A problem generator and some numerical experiments with FFD packing and MTP,'' \textit{Int. Trans. Oper. Res.}, vol. 4, no. 5--6, pp. 377--389, 1997.
+	\bibitem{bPedregosa} F. Pedregosa \textit{et al.}, ``Scikit-learn: Machine learning in Python,'' \textit{J. Mach. Learn. Res.}, vol. 12, pp. 2825--2830, 2011.
 \end{thebibliography}
 
 \end{document}
