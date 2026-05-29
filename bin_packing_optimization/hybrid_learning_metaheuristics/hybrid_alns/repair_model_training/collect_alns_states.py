@@ -311,22 +311,31 @@ def collect_alns_states(config: CollectAlnsStatesConfig) -> dict[str, Any]:
     model = bundle["model"]
     scaler = bundle["scaler"]
 
-    rng = np.random.default_rng(args.seed)
+    # Derive per-instance child seeds from the root seed so that results are
+    # reproducible regardless of instance ordering or future parallelisation.
+    seed_seq = np.random.SeedSequence(args.seed)
+    child_seeds = [
+        int(cs.generate_state(1, dtype=np.uint64)[0])
+        for cs in seed_seq.spawn(args.instances)
+    ]
+
     all_X: list[list[float]] = []
     all_y: list[int] = []
 
+    print(f"Seed          : {args.seed}")
     print(f"Running ALNS on {args.instances} instances to collect repair states...")
     for i in tqdm(
         range(args.instances), desc="Collecting ALNS states", total=args.instances
     ):
-        sizes = _generate_instance(rng, args.n_min, args.n_max)
+        inst_rng = np.random.default_rng(child_seeds[i])
+        sizes = _generate_instance(inst_rng, args.n_min, args.n_max)
         X_i, y_i = _run_alns_and_capture(
             sizes=sizes,
             model=model,
             scaler=scaler,
             max_iterations=args.iterations,
             max_negatives=args.max_negatives,
-            rng=rng,
+            rng=inst_rng,
         )
         all_X.extend(X_i)
         all_y.extend(y_i)
@@ -334,12 +343,37 @@ def collect_alns_states(config: CollectAlnsStatesConfig) -> dict[str, Any]:
     X_arr = np.asarray(all_X, dtype=np.float32)
     y_arr = np.asarray(all_y, dtype=np.int32)
     pos_rate = float(y_arr.mean()) if len(y_arr) > 0 else 0.0
-    print(f"Collected {len(all_X)} rows  (pos_rate={pos_rate:.3f})")
+    print(f"Collected {len(all_X):,} rows  (pos_rate={pos_rate:.3f})")
+
+    # Integrity check before saving
+    if X_arr.ndim == 2 and X_arr.shape[0] > 0:
+        if not np.isfinite(X_arr).all():
+            raise ValueError("Collected X_arr contains NaN/inf — aborting save.")
+        unique_labels = np.unique(y_arr)
+        if not np.all(np.isin(unique_labels, [0, 1])):
+            raise ValueError(f"Collected y_arr has unexpected labels: {unique_labels}")
 
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "X": X_arr,
+        "y": y_arr,
+        "feature_version": FEATURE_VERSION,
+        # "source" key allows train_repair_model._load_and_merge to reliably
+        # detect and count ALNS rows for the covariate-shift proportion report,
+        # regardless of what the output file is named.
+        "source": "alns_states",
+        "summary": {
+            "instances": args.instances,
+            "iterations": args.iterations,
+            "seed": args.seed,
+            "rows": int(X_arr.shape[0]) if X_arr.ndim == 2 else 0,
+            "positive_rate": pos_rate,
+        },
+    }
     with output_path.open("wb") as f:
-        pickle.dump({"X": X_arr, "y": y_arr, "feature_version": FEATURE_VERSION}, f)
-    print(f"Saved to: {output_path}")
+        pickle.dump(payload, f)
+    size_mb = output_path.stat().st_size / 1024 / 1024
+    print(f"Saved to: {output_path}  ({size_mb:.1f} MB)")
     print("Next step: retrain with additional training data from", output_path)
-    return {"X": X_arr, "y": y_arr, "feature_version": FEATURE_VERSION}
+    return payload

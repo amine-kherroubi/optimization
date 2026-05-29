@@ -58,6 +58,29 @@ N_FEATURES = features.N_FEATURES
 DEFAULT_OUTPUT_DIR = "training_data"
 
 
+def _validate_dataset_arrays(X: np.ndarray, y: np.ndarray, *, context: str) -> None:
+    """Validate dataset integrity before saving."""
+    if X.ndim != 2:
+        raise ValueError(f"{context}: X must be 2D, got shape={X.shape}")
+    if X.shape[1] != N_FEATURES:
+        raise ValueError(
+            f"{context}: X has {X.shape[1]} features; expected {N_FEATURES}"
+        )
+    if y.ndim != 1:
+        raise ValueError(f"{context}: y must be 1D, got shape={y.shape}")
+    if X.shape[0] != y.shape[0]:
+        raise ValueError(
+            f"{context}: X rows ({X.shape[0]}) != y rows ({y.shape[0]})"
+        )
+    if not np.isfinite(X).all():
+        raise ValueError(f"{context}: X contains NaN or inf values")
+    if not np.isfinite(y).all():
+        raise ValueError(f"{context}: y contains NaN or inf values")
+    labels = np.unique(y)
+    if not np.all(np.isin(labels, [0, 1])):
+        raise ValueError(f"{context}: y has invalid labels: {labels}")
+
+
 # ============================================================================
 # Config
 # ============================================================================
@@ -431,6 +454,8 @@ def generate_dataset(config: GenerateDatasetConfig) -> dict:
         workers=config.workers,
     )
 
+    _validate_dataset_arrays(X, y, context=str(config.output))
+
     print(f"\nDataset: {summary.rows:,} rows x {summary.cols} features")
     print(
         f"  Positive rate : {summary.positive_rate:.4f}"
@@ -447,6 +472,7 @@ def generate_dataset(config: GenerateDatasetConfig) -> dict:
         "X": X,
         "y": y,
         "feature_version": FEATURE_VERSION,
+        "source": "synthetic",
         "summary": {
             "instances": config.instances,
             "n_min": config.n_min,
