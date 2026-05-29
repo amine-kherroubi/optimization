@@ -407,9 +407,10 @@ class BinPackingSolver:
                 max_iterations,
                 temp_precision_floor,
             )
-            if force_uniform_random:
+            if force_uniform_random or bandit is None:
                 arm = int(self._rng.integers(0, 3))
-                bandit.arm_counts[arm] += 1
+                if bandit is not None:
+                    bandit.arm_counts[arm] += 1
             else:
                 arm = bandit.select_arm(_ctx)
 
