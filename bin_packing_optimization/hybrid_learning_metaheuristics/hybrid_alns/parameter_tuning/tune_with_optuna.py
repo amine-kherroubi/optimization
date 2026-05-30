@@ -3,15 +3,15 @@
 Usage:
     from tune_with_optuna import HybridALNSTuner
 
-    tuner = HybridALNSTuner(seed=42)
+    tuner = HybridALNSTuner()
     tuner.run_isolation_steps()                 # optional warm-up
-    tuner.run_stage1_coarse(n_trials=100)
-    tuner.run_stage2_fine(n_trials=50)
+    tuner.run_stage1_coarse()
+    tuner.run_stage2_fine()
     tuner.print_best_config()
 
 Or run directly:
     python tune_with_optuna.py --help
-    python tune_with_optuna.py --stage1-trials 30 --stage2-trials 20
+    python tune_with_optuna.py --stage1-trials 50 --stage2-trials 50
 """
 
 from __future__ import annotations
@@ -32,100 +32,48 @@ from tqdm import tqdm
 from bin_packing_optimization.datasets.registry import DATASET_REGISTRY
 from bin_packing_optimization.datasets.types import Instance
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 1.  PARAMETER DEFINITIONS
-# ─────────────────────────────────────────────────────────────────────────────
-
-# --- 9 Tunable metaheuristic parameters (the tuning target) ---
-DEFAULT_PARAMS: dict[str, Any] = {
-    "initial_temperature": 1.0 / math.log(2.0),  # ≈ 1.4427
-    "alpha_cool": 0.9995,
-    "k_min_frac": 0.05,
-    "k_max_frac": 0.25,
-    "bandit_alpha": 0.3,
-    "warmup_calls": 300,
-    "no_improve_frac": 0.05,
-    "reheat_soft_mult": 0.35,
-    "reheat_hard_mult": 0.20,
-}
-
-# --- Structural parameters (safety floors / design constants, held fixed) ---
-STRUCTURAL_DEFAULTS: dict[str, Any] = {
-    "min_no_improve_limit": 250,
-    "temp_precision_floor": 1e-12,
-    "reheat_check_interval_divisor": 4.0,
-    "reheat_check_min_interval": 50,
-    "hard_restart_min_limit": 100,
-    "patience_shrink_factor": 2.0 / 3.0,
-}
-
-# --- Pipeline-level configuration (not passed to the solver) ---
-PIPELINE_CONFIG: dict[str, Any] = {
-    "quality_weight": 0.9,
-    "time_weight": 0.1,
-    "time_limit": 60,
-}
-
-# --- Isolation-step small bank size ---
-# Isolation steps use a smaller bank (20 instances vs 100 for Optuna stages).
-# This keeps the grid coarse-and-fast before the expensive Optuna stages.
-ISOLATION_BANK_SIZE: int = 20
-
-# --- Isolation-step grid definitions ---
-# Each isolation step tests one group of params with uniform-random destruction
-# (bandit disabled) to measure the group's effect without confounding.
-# Grids are kept small (3 values per param) for speed — the goal is a rough
-# directional signal, not precise tuning.
-ISOLATION_GRIDS: dict[str, list[dict[str, Any]]] = {
-    "step1_sa_thermal": [
-        {
-            "initial_temperature": t,
-            "alpha_cool": a,
-            "reheat_soft_mult": s,
-            "reheat_hard_mult": h,
-        }
-        for t in [0.5, 1.44, 5.0]
-        for a in [0.99, 0.999, 0.9999]
-        for s in [0.10, 0.35, 0.70]
-        for h in [0.05, 0.20, 0.50]
-    ],  # 3×3×3×3 = 81 configs
-    "step2_destruction": [
-        {"k_min_frac": kmin, "k_max_frac": kmax, "no_improve_frac": ni}
-        for kmin in [0.01, 0.05, 0.20]
-        for kmax in [0.10, 0.25, 0.50]
-        for ni in [0.01, 0.05, 0.20]
-    ],  # 3×3×3 = 27 configs
-    "step3_bandit": [
-        {"bandit_alpha": a, "warmup_calls": w}
-        for a in [0.01, 0.30, 2.00]
-        for w in [0, 300, 1000]
-    ],  # 3×3 = 9 configs
-}
-
-# --- Default instance bank composition (total = 100) ---
-# Each entry: (dataset_key, proportional_weight)
-BANK_COMPOSITION: list[tuple[str, int]] = [
-    ("falkenauer-t", 5),
-    ("falkenauer-u", 40),
-    ("scholl-1", 10),
-    ("scholl-2", 35),
-    ("scholl-3", 10),
-]
-BANK_COMPOSITION_TOTAL = sum(w for _, w in BANK_COMPOSITION)
-
-# --- Optuna Stage 1 search ranges (tightened) ---
-STAGE1_RANGES: dict[str, dict[str, Any]] = {
-    "initial_temperature": {"low": 0.5, "high": 5.0, "log": True},
-    "alpha_cool": {"low": 0.998, "high": 0.9999},
-    "reheat_soft_mult": {"low": 0.10, "high": 0.90},
-    "reheat_hard_mult": {"low": 0.05, "high": 0.80},
-    "k_min_frac": {"low": 0.01, "high": 0.20},
-    "k_max_frac": {"low": 0.10, "high": 0.40},
-    "no_improve_frac": {"low": 0.01, "high": 0.20},
-    "bandit_alpha": {"low": 0.05, "high": 1.0, "log": True},
-    "warmup_calls": {"low": 50, "high": 600, "type": "int"},
-}
-
+from tuning_config import (
+    BANK_COMPOSITION,
+    BANK_COMPOSITION_TOTAL,
+    BASELINE_FILENAME,
+    BEST_EVAL_FILENAME,
+    DEFAULT_BANK_SIZE,
+    DEFAULT_MODEL,
+    DEFAULT_N_JOBS,
+    DEFAULT_OUTPUT_DIR,
+    DEFAULT_PARAMS,
+    DEFAULT_SEED,
+    DEFAULT_QUALITY_WEIGHT,
+    DEFAULT_TIME_WEIGHT,
+    DEFAULT_TIME_LIMIT,
+    ISOLATION_BANK_SIZE,
+    ISOLATION_GRIDS,
+    ISOLATION_MERGED_FILENAME,
+    ISOLATION_STEP_TEMPLATE,
+    ITER_BASELINE,
+    ITER_ISOLATION,
+    ITER_STAGE1,
+    ITER_STAGE2,
+    N_DESTROY_ARMS,
+    PIPELINE_SUMMARY_FILENAME,
+    QUICK_BANK_SIZE,
+    QUICK_ITER_STAGE1,
+    QUICK_ITER_STAGE2,
+    QUICK_STAGE1_TRIALS,
+    QUICK_STAGE2_TRIALS,
+    SECONDS_PER_HOUR,
+    SECONDS_PER_INST_2000ITER,
+    SECONDS_PER_INST_5000ITER,
+    STAGE1_RANGES,
+    STAGE1_STUDY_NAME,
+    STAGE1_TRIALS,
+    STAGE2_RANGE_OFFSETS,
+    STAGE2_STUDY_NAME,
+    STAGE2_TRIALS,
+    STRUCTURAL_DEFAULTS,
+    STUDY_FILENAME_TEMPLATE,
+    WARNING_HOURS_THRESHOLD,
+)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 2.  DATA CLASSES
@@ -185,6 +133,7 @@ def _worker_init(model_name: str) -> None:
     from bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns.models import (
         load_repair_model,
     )
+
     _WORKER_MODEL_CACHE["bundle"] = load_repair_model(model_name)
 
 
@@ -209,24 +158,26 @@ def _evaluate_one(
         from bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns.models import (
             load_repair_model,
         )
+
         model_bundle = load_repair_model(model_name)
         _WORKER_MODEL_CACHE["bundle"] = model_bundle
 
     sizes = list(inst_dict["sizes"])
     solver = BinPackingSolver(sizes, inst_dict["bin_capacity"], seed=seed)
 
-    kwargs["time_limit_seconds"] = time_limit
+    # Build a local copy so we never mutate the caller's shared kwargs dict.
+    call_kwargs = {**kwargs, "time_limit_seconds": time_limit}
     t0 = time.perf_counter()
-    solver.solve(model_bundle=model_bundle, max_iterations=max_iter, **kwargs)
+    solver.solve(model_bundle=model_bundle, max_iterations=max_iter, **call_kwargs)
     elapsed = time.perf_counter() - t0
 
     sol = solver.get_solution()
     lb = int(math.ceil(sum(sizes) / inst_dict["bin_capacity"]))
     relative_gap = (sol.total_bins_used - lb) / max(lb, 1)
 
-    arm_pulls = [0, 0, 0]
+    arm_pulls = [0] * N_DESTROY_ARMS
     if hasattr(solver, "_bandit"):
-        for arm_idx in range(3):
+        for arm_idx in range(N_DESTROY_ARMS):
             arm_pulls[arm_idx] = solver._bandit.arm_counts[arm_idx]
 
     normalized_time = elapsed / max(time_limit, 1e-9)
@@ -263,13 +214,13 @@ class HybridALNSTuner:
     def __init__(
         self,
         counts_per_key: dict[str, int] | None = None,
-        seed: int = 42,
-        model_name: str = "repair_model_v2.pkl",
-        output_dir: str = "tuning_results",
-        bank_size: int = 100,
-        quality_weight: float = 0.9,
-        time_weight: float = 0.1,
-        time_limit: float = 60,
+        seed: int = DEFAULT_SEED,
+        model_name: str = DEFAULT_MODEL,
+        output_dir: str = DEFAULT_OUTPUT_DIR,
+        bank_size: int = DEFAULT_BANK_SIZE,
+        quality_weight: float = DEFAULT_QUALITY_WEIGHT,
+        time_weight: float = DEFAULT_TIME_WEIGHT,
+        time_limit: float = DEFAULT_TIME_LIMIT,
     ):
         self.seed = seed
         self.output_dir = Path(output_dir)
@@ -285,9 +236,9 @@ class HybridALNSTuner:
         if counts_per_key is None:
             scale = bank_size / BANK_COMPOSITION_TOTAL
             counts_per_key = {
-                key: c for key, c in (
-                    (key, round(w * scale)) for key, w in BANK_COMPOSITION
-                ) if c > 0
+                key: c
+                for key, c in ((key, round(w * scale)) for key, w in BANK_COMPOSITION)
+                if c > 0
             }
         self.counts_per_key = counts_per_key
 
@@ -379,10 +330,10 @@ class HybridALNSTuner:
     def evaluate_config(
         self,
         solver_kwargs: dict[str, Any],
-        max_iter: int = 2000,
+        max_iter: int = ITER_BASELINE,
         force_uniform_random: bool = False,
         bank: list[Instance] | None = None,
-        n_jobs: int = 1,
+        n_jobs: int = DEFAULT_N_JOBS,
     ) -> TuningResult:
         """Run the solver on *bank* instances and return aggregate metrics.
 
@@ -425,9 +376,16 @@ class HybridALNSTuner:
         if n_jobs == 1:
             results = [
                 _evaluate_one(
-                    d, self.model_name, self.seed + idx, max_iter, self.time_limit, kwargs
+                    d,
+                    self.model_name,
+                    self.seed + idx,
+                    max_iter,
+                    self.time_limit,
+                    kwargs,
                 )
-                for idx, d in enumerate(tqdm(inst_dicts, desc="  Solving", leave=False, position=1))
+                for idx, d in enumerate(
+                    tqdm(inst_dicts, desc="  Solving", leave=False, position=1)
+                )
             ]
         else:
             with concurrent.futures.ProcessPoolExecutor(
@@ -462,7 +420,7 @@ class HybridALNSTuner:
         total_normalized_time = 0.0
         total_raw_time = 0.0
         per_ds_relative_gap: dict[str, list[float]] = {}
-        arm_pulls = [0, 0, 0]
+        arm_pulls = [0] * N_DESTROY_ARMS
 
         for r in results:
             total_relative_gap += r["relative_gap"]
@@ -471,7 +429,7 @@ class HybridALNSTuner:
             per_ds_relative_gap.setdefault(r["dataset_key"], []).append(
                 r["relative_gap"]
             )
-            for arm_idx in range(3):
+            for arm_idx in range(N_DESTROY_ARMS):
                 arm_pulls[arm_idx] += r["arm_pulls"][arm_idx]
 
         n = len(results)
@@ -498,6 +456,10 @@ class HybridALNSTuner:
         search_ranges: dict[str, dict[str, Any]] | None = None,
         baseline_params: dict[str, Any] | None = None,
         bank_size_override: int | None = None,
+        *,
+        max_iter: int | None = None,
+        n_jobs: int | None = None,
+        force_uniform_random: bool | None = None,
     ) -> None:
         """Save a structured JSON result.
 
@@ -519,12 +481,23 @@ class HybridALNSTuner:
         bank_size_override:
             If provided, overrides ``bank_size`` in the saved JSON
             (e.g. for isolation steps that use the smaller isolation bank).
+        max_iter:
+            ALNS iterations per instance used for this evaluation.
+        n_jobs:
+            Number of parallel workers used.
+        force_uniform_random:
+            Whether the bandit was forced to uniform random.
         """
         payload: dict[str, Any] = {
             "timestamp": time.time(),
             "run_type": run_type,
             "seed": self.seed,
-            "bank_size": bank_size_override if bank_size_override is not None else len(self.tuning_bank),
+            "model_name": self.model_name,
+            "bank_size": (
+                bank_size_override
+                if bank_size_override is not None
+                else len(self.tuning_bank)
+            ),
             "parameters": dict(params),
             "structural_defaults": dict(STRUCTURAL_DEFAULTS),
             "pipeline_config": {
@@ -546,6 +519,12 @@ class HybridALNSTuner:
             payload["search_ranges"] = search_ranges
         if baseline_params is not None:
             payload["changes_from_baseline"] = _params_diff(baseline_params, params)
+        if max_iter is not None:
+            payload["max_iter"] = max_iter
+        if n_jobs is not None:
+            payload["n_jobs"] = n_jobs
+        if force_uniform_random is not None:
+            payload["force_uniform_random"] = force_uniform_random
 
         path = self.output_dir / filename
         with open(path, "w") as f:
@@ -554,18 +533,22 @@ class HybridALNSTuner:
 
     # ── Baseline ───────────────────────────────────────────────────────────
 
-    def evaluate_defaults(self, max_iter: int = 2000, n_jobs: int = 1) -> TuningResult:
+    def evaluate_defaults(
+        self, max_iter: int = ITER_BASELINE, n_jobs: int = DEFAULT_N_JOBS
+    ) -> TuningResult:
         """Evaluate the default config as a baseline reference."""
         print("\n" + "=" * 70)
         print("  BASELINE  —  default parameters  ".center(70, " "))
         print("=" * 70)
         result = self.evaluate_config({}, max_iter=max_iter, n_jobs=n_jobs)
         self.save_log(
-            "baseline_defaults.json",
+            BASELINE_FILENAME,
             "baseline",
             DEFAULT_PARAMS,
             result,
             baseline_params=DEFAULT_PARAMS,
+            max_iter=max_iter,
+            n_jobs=n_jobs,
         )
         print(f"\n  mean_relative_gap  = {result.mean_relative_gap:.4f}")
         print(
@@ -577,8 +560,8 @@ class HybridALNSTuner:
 
     def run_isolation_steps(
         self,
-        max_iter: int = 2000,
-        n_jobs: int = 1,
+        max_iter: int = ITER_ISOLATION,
+        n_jobs: int = DEFAULT_N_JOBS,
     ) -> dict[str, Any]:
         """Grid-search each parameter group independently (uniform random bandit).
 
@@ -605,11 +588,14 @@ class HybridALNSTuner:
         all_step_logs: dict[str, Any] = {}
 
         for step_key, grid in ISOLATION_GRIDS.items():
-            label = step_key.replace("step", "Step ").replace("_", " ").title()
+            _ISOLATION_LABELS: dict[str, str] = {
+                "step1_sa_thermal": "Step 1 — SA Thermal",
+                "step2_destruction": "Step 2 — Destruction",
+                "step3_bandit": "Step 3 — Bandit",
+            }
+            label = _ISOLATION_LABELS.get(step_key, step_key)
             n_cfg = len(grid)
-            print(
-                f"\n  ── {label}  ({n_cfg} configs × {len(bank)} instances) ──"
-            )
+            print(f"\n  ── {label}  ({n_cfg} configs × {len(bank)} instances) ──")
 
             if step_key == "step3_bandit":
                 step_uniform = False  # bandit params need the bandit ON
@@ -646,13 +632,16 @@ class HybridALNSTuner:
             # Log best of this step — reuse cached best_result, avoid re-eval
             step_result = best_result
             self.save_log(
-                f"isolation_{step_key}.json",
+                ISOLATION_STEP_TEMPLATE.format(step_key=step_key),
                 f"isolation_{step_key}",
                 best_params,
                 step_result,
                 search_ranges={"grid": grid, "bank_size": len(bank)},
                 baseline_params=DEFAULT_PARAMS,
                 bank_size_override=len(bank),
+                max_iter=max_iter,
+                n_jobs=n_jobs,
+                force_uniform_random=step_uniform,
             )
             print(f"  >> Best {label}: gap={best_gap:.4f}")
             for k, v in best_params.items():
@@ -674,12 +663,14 @@ class HybridALNSTuner:
             n_jobs=n_jobs,
         )
         self.save_log(
-            "isolation_merged.json",
+            ISOLATION_MERGED_FILENAME,
             "isolation_merged",
             merged,
             merged_result,
             baseline_params=DEFAULT_PARAMS,
             bank_size_override=len(bank),
+            max_iter=max_iter,
+            n_jobs=n_jobs,
         )
         print(
             f"\n  >> Merged best from isolation: gap={merged_result.mean_relative_gap:.4f}"
@@ -692,11 +683,11 @@ class HybridALNSTuner:
 
     def run_stage1_coarse(
         self,
-        n_trials: int = 100,
-        max_iter: int = 2000,
-        study_name: str = "alns_stage1_coarse",
+        n_trials: int = STAGE1_TRIALS,
+        max_iter: int = ITER_STAGE1,
+        study_name: str = STAGE1_STUDY_NAME,
         anchor: dict[str, Any] | None = None,
-        n_jobs: int = 1,
+        n_jobs: int = DEFAULT_N_JOBS,
     ) -> optuna.Study:
         """Stage 1: wide-range Bayesian search over all 9 parameters.
 
@@ -734,6 +725,10 @@ class HybridALNSTuner:
                     params[k] = trial.suggest_float(k, lo, hi, log=log_)
             if params.get("k_min_frac", 0) >= params.get("k_max_frac", 1):
                 raise optuna.TrialPruned()
+            # hard restart uses a *smaller* temperature multiplier than soft reheat
+            # (hard = stronger cooldown).  Invert that constraint → invalid config.
+            if params.get("reheat_hard_mult", 0) >= params.get("reheat_soft_mult", 1):
+                raise optuna.TrialPruned()
             result = self.evaluate_config(params, max_iter=max_iter, n_jobs=_n_jobs)
             composite = (
                 _qw * result.mean_relative_gap + _tw * result.mean_normalized_time
@@ -761,9 +756,17 @@ class HybridALNSTuner:
         if anchor is not None:
             study.enqueue_trial(anchor)
 
+        t0 = time.perf_counter()
         study.optimize(objective, n_trials=n_trials)
+        elapsed = time.perf_counter() - t0
         self._report_study(study, "Stage 1 (coarse)")
-        self._save_study(study, study_name, search_ranges=STAGE1_RANGES)
+        self._save_study(
+            study, study_name,
+            search_ranges=STAGE1_RANGES,
+            elapsed=elapsed,
+            max_iter=max_iter,
+            n_jobs=n_jobs,
+        )
         return study
 
     # ── Stage 2: Fine ──────────────────────────────────────────────────────
@@ -771,10 +774,10 @@ class HybridALNSTuner:
     def run_stage2_fine(
         self,
         coarse_study: optuna.Study | None = None,
-        n_trials: int = 50,
-        max_iter: int = 5000,
-        study_name: str = "alns_stage2_fine",
-        n_jobs: int = 1,
+        n_trials: int = STAGE2_TRIALS,
+        max_iter: int = ITER_STAGE2,
+        study_name: str = STAGE2_STUDY_NAME,
+        n_jobs: int = DEFAULT_N_JOBS,
     ) -> optuna.Study:
         """Stage 2: narrow-range search anchored around the Stage-1 best.
 
@@ -787,47 +790,33 @@ class HybridALNSTuner:
         )
 
         # Build the narrow Stage-2 ranges (for logging)
-        STAGE2_RANGES = {
-            "initial_temperature": {
-                "low": max(1e-6, anchor["initial_temperature"] * 0.85),
-                "high": anchor["initial_temperature"] * 1.15,
-                "log": True,
-            },
-            "alpha_cool": {
-                "low": anchor["alpha_cool"] - 0.0005,
-                "high": anchor["alpha_cool"] + 0.0005,
-            },
-            "reheat_soft_mult": {
-                "low": anchor["reheat_soft_mult"] - 0.10,
-                "high": anchor["reheat_soft_mult"] + 0.10,
-            },
-            "reheat_hard_mult": {
-                "low": anchor["reheat_hard_mult"] - 0.08,
-                "high": anchor["reheat_hard_mult"] + 0.08,
-            },
-            "k_min_frac": {
-                "low": max(1e-6, anchor["k_min_frac"] * 0.75),
-                "high": anchor["k_min_frac"] * 1.25,
-            },
-            "k_max_frac": {
-                "low": max(1e-6, anchor["k_max_frac"] * 0.75),
-                "high": anchor["k_max_frac"] * 1.25,
-            },
-            "no_improve_frac": {
-                "low": max(1e-6, anchor["no_improve_frac"] * 0.75),
-                "high": anchor["no_improve_frac"] * 1.25,
-            },
-            "bandit_alpha": {
-                "low": max(1e-6, anchor["bandit_alpha"] * 0.80),
-                "high": anchor["bandit_alpha"] * 1.20,
-                "log": True,
-            },
-            "warmup_calls": {
-                "low": max(0, anchor["warmup_calls"] - 150),
-                "high": anchor["warmup_calls"] + 150,
-                "type": "int",
-            },
+        # Per-parameter hard ceilings: some params have strict solver-enforced upper
+        # bounds that the offset arithmetic could violate when the Stage-1 best sits
+        # near the edge of the Stage-1 range.  Clamp hi to stay inside valid bounds.
+        _PARAM_HARD_CEIL: dict[str, float] = {
+            "alpha_cool": 1.0 - 1e-7,  # solver requires alpha_cool < 1
         }
+        STAGE2_RANGES: dict[str, dict[str, Any]] = {}
+        for k, offsets in STAGE2_RANGE_OFFSETS.items():
+            anchor_val = anchor[k]
+            lo: float | int
+            hi: float | int
+            if "low_factor" in offsets:
+                lo = anchor_val * offsets["low_factor"]
+                hi = anchor_val * offsets["high_factor"]
+            else:
+                lo = anchor_val + offsets["low_offset"]
+                hi = anchor_val + offsets["high_offset"]
+            floor = 0 if offsets.get("type") == "int" else 1e-6
+            lo = max(floor, lo)
+            if k in _PARAM_HARD_CEIL:
+                hi = min(hi, _PARAM_HARD_CEIL[k])
+            spec: dict[str, Any] = {"low": lo, "high": hi}
+            if offsets.get("log"):
+                spec["log"] = True
+            if offsets.get("type"):
+                spec["type"] = offsets["type"]
+            STAGE2_RANGES[k] = spec
 
         print(f"\n{'=' * 70}")
         print("  STAGE 2  —  fine Bayesian search  ".center(70, " "))
@@ -859,9 +848,9 @@ class HybridALNSTuner:
                     params[k] = trial.suggest_float(k, lo, hi, log=log_)
             if params.get("k_min_frac", 0) >= params.get("k_max_frac", 1):
                 raise optuna.TrialPruned()
-            result = self.evaluate_config(
-                params, max_iter=max_iter, n_jobs=_n_jobs
-            )
+            if params.get("reheat_hard_mult", 0) >= params.get("reheat_soft_mult", 1):
+                raise optuna.TrialPruned()
+            result = self.evaluate_config(params, max_iter=max_iter, n_jobs=_n_jobs)
             composite = (
                 _qw * result.mean_relative_gap + _tw * result.mean_normalized_time
             )
@@ -884,9 +873,18 @@ class HybridALNSTuner:
         )
         study.enqueue_trial(anchor)
 
+        t0 = time.perf_counter()
         study.optimize(objective, n_trials=n_trials)
+        elapsed = time.perf_counter() - t0
         self._report_study(study, "Stage 2 (fine)")
-        self._save_study(study, study_name, search_ranges=STAGE2_RANGES)
+        self._save_study(
+            study, study_name,
+            search_ranges=STAGE2_RANGES,
+            elapsed=elapsed,
+            anchor_params=anchor,
+            max_iter=max_iter,
+            n_jobs=n_jobs,
+        )
         return study
 
     # ── Reporting helpers ──────────────────────────────────────────────────
@@ -903,7 +901,22 @@ class HybridALNSTuner:
         study: optuna.Study,
         name: str,
         search_ranges: dict[str, Any] | None = None,
+        *,
+        elapsed: float | None = None,
+        anchor_params: dict[str, Any] | None = None,
+        max_iter: int | None = None,
+        n_jobs: int | None = None,
     ) -> None:
+        sampler = study.sampler
+        sampler_info: dict[str, Any] = {"name": sampler.__class__.__name__}
+        if hasattr(sampler, "n_startup_trials"):
+            sampler_info["n_startup_trials"] = sampler.n_startup_trials
+        if hasattr(sampler, "seed"):
+            sampler_info["seed"] = sampler.seed
+
+        n_pruned = sum(1 for t in study.trials if t.state == optuna.trial.TrialState.PRUNED)
+        n_failed = sum(1 for t in study.trials if t.state == optuna.trial.TrialState.FAIL)
+
         trials_data = []
         for t in study.trials:
             if t.value is None:
@@ -918,14 +931,32 @@ class HybridALNSTuner:
             )
         payload: dict[str, Any] = {
             "study_name": name,
+            "direction": study.direction.name,
+            "sampler": sampler_info,
+            "timestamp": time.time(),
+            "seed": self.seed,
+            "pipeline_config": {
+                "quality_weight": self.quality_weight,
+                "time_weight": self.time_weight,
+                "time_limit": self.time_limit,
+                "max_iter": max_iter,
+                "n_jobs": n_jobs,
+            },
             "best_value": study.best_value,
             "best_params": study.best_params,
-            "n_trials": len(trials_data),
+            "n_trials_total": len(study.trials),
+            "n_trials_completed": len(trials_data),
+            "n_trials_pruned": n_pruned,
+            "n_trials_failed": n_failed,
             "trials": trials_data,
         }
+        if elapsed is not None:
+            payload["elapsed_s"] = elapsed
         if search_ranges is not None:
             payload["search_ranges"] = search_ranges
-        path = self.output_dir / f"{name}_study.json"
+        if anchor_params is not None:
+            payload["anchor_params"] = anchor_params
+        path = self.output_dir / STUDY_FILENAME_TEMPLATE.format(name=name)
         with open(path, "w") as f:
             json.dump(payload, f, indent=2)
         print(f"  -> {path}")
@@ -958,9 +989,8 @@ class HybridALNSTuner:
         print(f"  {header}")
         print(f"{'=' * 110}")
 
-        # Column headers
+        # Column headers — widths are fixed: 28 chars for param name, 24 per stage column.
         cols = ["Parameter"] + list(stages.keys()) + ["Search range (Stage 1)"]
-        col_w = max(len(c) for c in cols) + 2
         fmt = f"{{:<{28}}}" + "".join(f"{{:<{24}}}" for _ in stages) + "{{}}"
         print(fmt.format(*cols))
 
@@ -1005,8 +1035,58 @@ class HybridALNSTuner:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 5.  CLI ENTRY POINT
+# 6.  CLI ENTRY POINT
 # ─────────────────────────────────────────────────────────────────────────────
+
+
+def _save_pipeline_summary(
+    tuner: HybridALNSTuner,
+    args: Any,
+    timing: dict[str, float],
+    *,
+    baseline: TuningResult | None = None,
+    best_result: TuningResult | None = None,
+) -> None:
+    """Save a pipeline-summary JSON tying all steps together.
+
+    Written to ``{output_dir}/pipeline_summary.json``.
+    """
+    output_files: dict[str, str] = {
+        "baseline": BASELINE_FILENAME,
+        "isolation_step_template": ISOLATION_STEP_TEMPLATE,
+        "isolation_merged": ISOLATION_MERGED_FILENAME,
+        "stage1": STUDY_FILENAME_TEMPLATE.format(name=STAGE1_STUDY_NAME),
+        "stage2": STUDY_FILENAME_TEMPLATE.format(name=STAGE2_STUDY_NAME),
+        "best_eval": BEST_EVAL_FILENAME,
+    }
+    results_payload: dict[str, Any] = {}
+    if baseline is not None:
+        results_payload["baseline_mean_relative_gap"] = baseline.mean_relative_gap
+        results_payload["baseline_mean_normalized_time"] = baseline.mean_normalized_time
+    if best_result is not None:
+        results_payload["best_mean_relative_gap"] = best_result.mean_relative_gap
+        results_payload["best_mean_normalized_time"] = best_result.mean_normalized_time
+        impr = baseline.mean_relative_gap - best_result.mean_relative_gap if baseline else 0
+        results_payload["improvement_abs"] = round(impr, 6)
+        results_payload["improvement_pct"] = round(
+            impr / max(baseline.mean_relative_gap, 1e-9) * 100, 2
+        ) if baseline else None
+
+    cli_args = {
+        k: v for k, v in vars(args).items()
+        if k != "func"  # in case subparsers are added later
+    }
+    summary = {
+        "timestamp": time.time(),
+        "cli_args": cli_args,
+        "timing_seconds": timing,
+        "results": results_payload,
+        "output_files": output_files,
+    }
+    path = tuner.output_dir / PIPELINE_SUMMARY_FILENAME
+    with open(path, "w") as f:
+        json.dump(summary, f, indent=2)
+    print(f"  -> {path}")
 
 
 def main() -> None:
@@ -1023,58 +1103,61 @@ def main() -> None:
             "  python tune_with_optuna.py --quick --n-jobs 8\n\n"
             "  # Heavy run (~5 h on 8 cores):\n"
             "  python tune_with_optuna.py --bank-size 100 "
-            "--stage1-trials 60 --stage2-trials 40 --n-jobs 8\n\n"
+            "--stage1-trials 80 --stage2-trials 60 --n-jobs 8\n\n"
             "  # Baseline only:\n"
-            "  python tune_with_optuna.py --baseline-only\n"
+            "  python tune_with_optuna.py --baseline-only\n\n"
+            "  # Resume: skip to Stage 2 using a Stage-1 JSON on disk:\n"
+            "  python tune_with_optuna.py --stage2-only "
+            "--stage1-json tuning_results/alns_stage1_coarse_study.json\n"
         ),
     )
     parser.add_argument(
         "--stage1-trials",
         type=int,
-        default=30,
-        help="Stage 1 (coarse) trials (default: 30)",
+        default=STAGE1_TRIALS,
+        help=f"Stage 1 (coarse) trials (default: {STAGE1_TRIALS})",
     )
     parser.add_argument(
         "--stage2-trials",
         type=int,
-        default=20,
-        help="Stage 2 (fine) trials (default: 20)",
+        default=STAGE2_TRIALS,
+        help=f"Stage 2 (fine) trials (default: {STAGE2_TRIALS})",
     )
     parser.add_argument(
         "--iter-stage1",
         type=int,
-        default=5000,
-        help="ALNS iterations per instance in Stage 1 (default: 5000)",
+        default=ITER_STAGE1,
+        help=f"ALNS iterations per instance in Stage 1 (default: {ITER_STAGE1})",
     )
     parser.add_argument(
         "--iter-stage2",
         type=int,
-        default=5000,
-        help="ALNS iterations per instance in Stage 2 (default: 5000)",
+        default=ITER_STAGE2,
+        help=f"ALNS iterations per instance in Stage 2 (default: {ITER_STAGE2})",
     )
     parser.add_argument(
         "--bank-size",
         type=int,
-        default=100,
-        help="Instance bank size, proportionally sampled from 5 datasets (default: 100)",
+        default=DEFAULT_BANK_SIZE,
+        help=f"Instance bank size (default: {DEFAULT_BANK_SIZE})",
     )
     parser.add_argument(
         "--n-jobs",
         type=int,
-        default=1,
-        help="Parallel workers. -1 = all CPUs (default: 1)",
+        default=DEFAULT_N_JOBS,
+        help=f"Parallel workers. -1 = all CPUs (default: {DEFAULT_N_JOBS})",
     )
     parser.add_argument(
         "--seed",
         type=int,
-        default=42,
-        help="RNG seed (default: 42)",
+        default=DEFAULT_SEED,
+        help=f"RNG seed (default: {DEFAULT_SEED})",
     )
     parser.add_argument(
         "--output-dir",
         type=str,
-        default="tuning_results",
-        help="Output directory (default: tuning_results)",
+        default=DEFAULT_OUTPUT_DIR,
+        help=f"Output directory (default: {DEFAULT_OUTPUT_DIR})",
     )
     parser.add_argument(
         "--baseline-only",
@@ -1087,6 +1170,24 @@ def main() -> None:
         help="Skip isolation grid-search steps; go directly to Optuna",
     )
     parser.add_argument(
+        "--stage2-only",
+        action="store_true",
+        help=(
+            "Skip baseline, isolation, and Stage 1; run Stage 2 only. "
+            "Requires --stage1-json to load the Stage-1 best params."
+        ),
+    )
+    parser.add_argument(
+        "--stage1-json",
+        type=str,
+        default=None,
+        metavar="PATH",
+        help=(
+            "Path to a Stage-1 study JSON (produced by a previous run). "
+            "Used with --stage2-only to resume after an interrupted Stage 1."
+        ),
+    )
+    parser.add_argument(
         "--quick",
         action="store_true",
         help="Minimal: 5 trials S1, 3 trials S2, no isolation, bank=10",
@@ -1095,52 +1196,65 @@ def main() -> None:
     parser.add_argument(
         "--quality-weight",
         type=float,
-        default=0.9,
-        help="Quality coefficient in composite objective (default: 0.9)",
+        default=DEFAULT_QUALITY_WEIGHT,
+        help=f"Quality coefficient in composite objective (default: {DEFAULT_QUALITY_WEIGHT})",
     )
     parser.add_argument(
         "--time-weight",
         type=float,
-        default=0.1,
-        help="Time coefficient in composite objective (default: 0.1)",
+        default=DEFAULT_TIME_WEIGHT,
+        help=f"Time coefficient in composite objective (default: {DEFAULT_TIME_WEIGHT})",
     )
     parser.add_argument(
         "--time-limit",
         type=float,
-        default=60,
-        help="Time normaliser in seconds for elapsed / time_limit (default: 60)",
+        default=DEFAULT_TIME_LIMIT,
+        help=f"Time normaliser in seconds for elapsed / time_limit (default: {DEFAULT_TIME_LIMIT})",
+    )
+    parser.add_argument(
+        "--model-name",
+        type=str,
+        default=DEFAULT_MODEL,
+        help=f"Repair model filename loaded by the solver (default: {DEFAULT_MODEL})",
     )
 
     args = parser.parse_args()
 
     # Apply --quick override
     if args.quick:
-        args.stage1_trials = 5
-        args.stage2_trials = 3
+        args.stage1_trials = QUICK_STAGE1_TRIALS
+        args.stage2_trials = QUICK_STAGE2_TRIALS
         args.no_isolation = True
-        args.iter_stage1 = 500
-        args.iter_stage2 = 1000
-        args.bank_size = 10
+        args.iter_stage1 = QUICK_ITER_STAGE1
+        args.iter_stage2 = QUICK_ITER_STAGE2
+        args.bank_size = QUICK_BANK_SIZE
 
-    # Build tuner with specified bank sizes
-    counts_per_key = None
+    # Build proportional per-dataset counts from the requested bank size
     scale = args.bank_size / BANK_COMPOSITION_TOTAL
-    counts_per_key = {key: c for key, c in (
-        (key, round(w * scale)) for key, w in BANK_COMPOSITION
-    ) if c > 0}
+    counts_per_key = {
+        key: c
+        for key, c in ((key, round(w * scale)) for key, w in BANK_COMPOSITION)
+        if c > 0
+    }
 
     tuner = HybridALNSTuner(
         seed=args.seed,
+        model_name=args.model_name,
         output_dir=args.output_dir,
         counts_per_key=counts_per_key,
         quality_weight=args.quality_weight,
         time_weight=args.time_weight,
         time_limit=args.time_limit,
     )
+    # ── 1. Validate mutually exclusive mode flags ──────────────────────────
+    if args.stage2_only and args.baseline_only:
+        parser.error("--stage2-only and --baseline-only are mutually exclusive.")
+    if args.stage2_only and args.stage1_json is None:
+        parser.error("--stage2-only requires --stage1-json <path>.")
+
     n_inst = len(tuner.tuning_bank)
-    # 5 s/inst at 2000 iter. Optuna stages: 5000 iter → 12.5 s.
-    # Isolation: capped at 2000 iter → 5 s.
-    bank_s = n_inst * 12.5
+    # ~5 s/inst at 2000 iter (baseline / isolation); ~12.5 s/inst at 5000 iter (Optuna stages)
+    bank_s = n_inst * SECONDS_PER_INST_5000ITER
     n_workers = args.n_jobs if args.n_jobs > 0 else (os.cpu_count() or 1)
     speedup = min(n_workers, os.cpu_count() or 1)
     print(f"\n{'─' * 60}")
@@ -1151,68 +1265,139 @@ def main() -> None:
     )
     print(f"{'─' * 60}")
     total_est_h = 0.0
-    baseline_h = 1 * bank_s / 3600 / speedup
-    total_est_h += baseline_h
-    print(f"  Baseline (1 eval × {n_inst} inst)               {baseline_h:.2f} h")
 
-    if not args.no_isolation:
-        iso_n = len(tuner.isolation_bank)
-        iso_total = sum(len(g) for g in ISOLATION_GRIDS.values())
-        iso_h = iso_total * iso_n * 5.0 / 3600 / speedup
-        total_est_h += iso_h
-        print(f"  Isolation ({iso_total} cfgs × {iso_n} inst)         {iso_h:.1f} h")
+    if not args.stage2_only:
+        baseline_h = bank_s / SECONDS_PER_HOUR / speedup
+        total_est_h += baseline_h
+        print(f"  Baseline (1 eval × {n_inst} inst)               {baseline_h:.2f} h")
 
-    s1_h = args.stage1_trials * bank_s / 3600 / speedup
-    total_est_h += s1_h
-    print(
-        f"  Stage 1 ({args.stage1_trials} trials × {n_inst} inst)          {s1_h:.1f} h"
-    )
+        if not args.no_isolation:
+            iso_n = len(tuner.isolation_bank)
+            iso_total = sum(len(g) for g in ISOLATION_GRIDS.values())
+            iso_h = (
+                iso_total
+                * iso_n
+                * SECONDS_PER_INST_2000ITER
+                / SECONDS_PER_HOUR
+                / speedup
+            )
+            total_est_h += iso_h
+            print(
+                f"  Isolation ({iso_total} cfgs × {iso_n} inst)         {iso_h:.1f} h"
+            )
 
-    s2_h = args.stage2_trials * bank_s / 3600 / speedup
+        if not args.baseline_only:
+            s1_h = args.stage1_trials * bank_s / SECONDS_PER_HOUR / speedup
+            total_est_h += s1_h
+            print(
+                f"  Stage 1 ({args.stage1_trials} trials × {n_inst} inst)          {s1_h:.1f} h"
+            )
+
+    s2_h = args.stage2_trials * bank_s / SECONDS_PER_HOUR / speedup
     total_est_h += s2_h
-    print(f"  Stage 2 ({args.stage2_trials} trials × {n_inst} inst)          {s2_h:.1f} h")
+    print(
+        f"  Stage 2 ({args.stage2_trials} trials × {n_inst} inst)          {s2_h:.1f} h"
+    )
     print(f"{'─' * 60}")
     print(
         f"  TOTAL ESTIMATED                        {total_est_h:.1f} h  ({total_est_h/24:.1f} days)"
     )
     print(f"{'─' * 60}")
-    if total_est_h > 3 and n_workers == 1:
+    if total_est_h > WARNING_HOURS_THRESHOLD and n_workers == 1:
         print("  Use --n-jobs N to parallelize across N CPU cores.")
         print("  Or use --quick for a fast smoke-test (~30 min).")
     print()
 
+    # ── --stage2-only: load Stage-1 results from disk and jump straight to S2 ──
+    if args.stage2_only:
+        stage1_path = Path(args.stage1_json)
+        if not stage1_path.exists():
+            parser.error(f"--stage1-json path not found: {stage1_path}")
+        with open(stage1_path) as f:
+            stage1_data = json.load(f)
+        stage1_best_params: dict[str, Any] = stage1_data.get("best_params", {})
+        print(
+            f"  Loaded Stage-1 best params from {stage1_path}  "
+            f"(best_value={stage1_data.get('best_value', 'n/a')})"
+        )
+
+        # Reconstruct a minimal Optuna study so run_stage2_fine receives the
+        # standard coarse_study argument without any special-casing inside the method.
+        _s1_stub = optuna.create_study(
+            direction="minimize", study_name="stage1_stub_from_json"
+        )
+        _s1_stub.add_trial(
+            optuna.trial.create_trial(
+                params=stage1_best_params,
+                distributions={
+                    k: optuna.distributions.FloatDistribution(0.0, 1.0)
+                    for k in stage1_best_params
+                },
+                value=stage1_data.get("best_value", 0.0),
+            )
+        )
+
+        _timing: dict[str, float] = {}
+        t0 = time.perf_counter()
+        stage2 = tuner.run_stage2_fine(
+            coarse_study=_s1_stub,
+            n_trials=args.stage2_trials,
+            max_iter=args.iter_stage2,
+            n_jobs=args.n_jobs,
+        )
+        _timing["stage2_s"] = round(time.perf_counter() - t0, 3)
+        tuner.print_best_config(stage2=stage2)
+        _save_pipeline_summary(tuner, args, _timing)
+        print(f"\n  All results saved in:  {tuner.output_dir}/")
+        return
+
+    # ── Track actual execution time for each stage ────────────────────────
+    timing: dict[str, float] = {}
+
     # ── 1. Baseline ────────────────────────────────────────────────────────
+    t0 = time.perf_counter()
     baseline = tuner.evaluate_defaults(
-        max_iter=min(2000, args.iter_stage1), n_jobs=args.n_jobs
+        max_iter=min(ITER_BASELINE, args.iter_stage1), n_jobs=args.n_jobs
     )
+    timing["baseline_s"] = round(time.perf_counter() - t0, 3)
 
     if args.baseline_only:
         tuner.print_best_config()
+        # Save minimal summary
+        _save_pipeline_summary(
+            tuner, args, timing, baseline=baseline, best_result=None,
+        )
         return
 
     # ── 2. Isolation steps (optional) ──────────────────────────────────────
     isolation_best: dict[str, Any] | None = None
     if not args.no_isolation:
+        t0 = time.perf_counter()
         isolation_best = tuner.run_isolation_steps(
-            max_iter=min(2000, args.iter_stage1),
+            max_iter=min(ITER_ISOLATION, args.iter_stage1),
             n_jobs=args.n_jobs,
         )
+        timing["isolation_s"] = round(time.perf_counter() - t0, 3)
 
     # ── 3. Stage 1: coarse ─────────────────────────────────────────────────
+    t0 = time.perf_counter()
     stage1 = tuner.run_stage1_coarse(
         n_trials=args.stage1_trials,
         max_iter=args.iter_stage1,
         anchor=isolation_best,
         n_jobs=args.n_jobs,
     )
+    timing["stage1_s"] = round(time.perf_counter() - t0, 3)
 
     # ── 4. Stage 2: fine ───────────────────────────────────────────────────
+    t0 = time.perf_counter()
     stage2 = tuner.run_stage2_fine(
         coarse_study=stage1,
         n_trials=args.stage2_trials,
         max_iter=args.iter_stage2,
         n_jobs=args.n_jobs,
     )
+    timing["stage2_s"] = round(time.perf_counter() - t0, 3)
 
     # ── 5. Final comparison ────────────────────────────────────────────────
     tuner.print_best_config(
@@ -1224,18 +1409,22 @@ def main() -> None:
     print("\n  Re-evaluating best config...")
     best_params = {**DEFAULT_PARAMS, **stage2.best_params}
     # Evaluate best on the same tuning bank as baseline for apples-to-apples
+    t0 = time.perf_counter()
     best_result = tuner.evaluate_config(
         best_params,
         max_iter=args.iter_stage2,
         n_jobs=args.n_jobs,
     )
+    timing["best_eval_s"] = round(time.perf_counter() - t0, 3)
     tuner.save_log(
-        "best_config_evaluation.json",
+        BEST_EVAL_FILENAME,
         "best_final",
         best_params,
         best_result,
         search_ranges=STAGE1_RANGES,
         baseline_params=DEFAULT_PARAMS,
+        max_iter=args.iter_stage2,
+        n_jobs=args.n_jobs,
     )
     print(f"\n  {'=' * 45}")
     print(
@@ -1254,6 +1443,13 @@ def main() -> None:
         )
     print(f"  {'=' * 45}")
     print(f"\n  All results saved in:  {tuner.output_dir}/")
+
+    # ── Save pipeline summary ──────────────────────────────────────────────
+    _save_pipeline_summary(
+        tuner, args, timing,
+        baseline=baseline,
+        best_result=best_result,
+    )
 
 
 if __name__ == "__main__":
