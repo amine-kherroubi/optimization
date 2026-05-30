@@ -281,7 +281,9 @@ class HybridALNSTuner:
         if counts_per_key is None:
             scale = bank_size / BANK_COMPOSITION_TOTAL
             counts_per_key = {
-                key: max(1, round(w * scale)) for key, w in BANK_COMPOSITION
+                key: c for key, c in (
+                    (key, round(w * scale)) for key, w in BANK_COMPOSITION
+                ) if c > 0
             }
         self.counts_per_key = counts_per_key
 
@@ -422,9 +424,9 @@ class HybridALNSTuner:
         if n_jobs == 1:
             results = [
                 _evaluate_one(
-                    d, self.model_name, self.seed, max_iter, self.time_limit, kwargs
+                    d, self.model_name, self.seed + idx, max_iter, self.time_limit, kwargs
                 )
-                for d in tqdm(inst_dicts, desc="  Solving", leave=False)
+                for idx, d in enumerate(tqdm(inst_dicts, desc="  Solving", leave=False))
             ]
         else:
             with concurrent.futures.ProcessPoolExecutor(max_workers=n_jobs) as ex:
@@ -433,12 +435,12 @@ class HybridALNSTuner:
                         _evaluate_one,
                         d,
                         self.model_name,
-                        self.seed,
+                        self.seed + idx,
                         max_iter,
                         self.time_limit,
                         kwargs,
                     )
-                    for d in inst_dicts
+                    for idx, d in enumerate(inst_dicts)
                 ]
                 results = [
                     f.result()
@@ -723,6 +725,8 @@ class HybridALNSTuner:
                     params[k] = trial.suggest_int(k, int(lo), int(hi))
                 else:
                     params[k] = trial.suggest_float(k, lo, hi, log=log_)
+            if params.get("k_min_frac", 0) >= params.get("k_max_frac", 1):
+                raise optuna.TrialPruned()
             result = self.evaluate_config(params, max_iter=max_iter, n_jobs=_n_jobs)
             composite = (
                 _qw * result.mean_relative_gap + _tw * result.mean_normalized_time
@@ -856,6 +860,8 @@ class HybridALNSTuner:
                     params[k] = trial.suggest_int(k, int(lo), int(hi))
                 else:
                     params[k] = trial.suggest_float(k, lo, hi, log=log_)
+            if params.get("k_min_frac", 0) >= params.get("k_max_frac", 1):
+                raise optuna.TrialPruned()
             result = self.evaluate_config(
                 params, max_iter=max_iter, n_jobs=_n_jobs
             )
@@ -1040,14 +1046,14 @@ def main() -> None:
     parser.add_argument(
         "--iter-stage1",
         type=int,
-        default=2000,
-        help="ALNS iterations per instance in Stage 1 (default: 2000)",
+        default=5000,
+        help="ALNS iterations per instance in Stage 1 (default: 5000)",
     )
     parser.add_argument(
         "--iter-stage2",
         type=int,
-        default=3000,
-        help="ALNS iterations per instance in Stage 2 (default: 3000)",
+        default=5000,
+        help="ALNS iterations per instance in Stage 2 (default: 5000)",
     )
     parser.add_argument(
         "--bank-size",
@@ -1122,7 +1128,9 @@ def main() -> None:
     # Build tuner with specified bank sizes
     counts_per_key = None
     scale = args.bank_size / BANK_COMPOSITION_TOTAL
-    counts_per_key = {key: max(1, round(w * scale)) for key, w in BANK_COMPOSITION}
+    counts_per_key = {key: c for key, c in (
+        (key, round(w * scale)) for key, w in BANK_COMPOSITION
+    ) if c > 0}
 
     tuner = HybridALNSTuner(
         seed=args.seed,
@@ -1137,10 +1145,9 @@ def main() -> None:
         n_jobs = os.cpu_count() or 1
 
     n_inst = len(tuner.tuning_bank)
-    # ~5 s / inst at 2000 iter — same estimate for all stages (single unified bank)
-    bank_s = n_inst * 5.0
-
-    # Print time budget upfront
+    # 5 s/inst at 2000 iter. Optuna stages: 5000 iter → 12.5 s.
+    # Isolation: capped at 2000 iter → 5 s.
+    bank_s = n_inst * 12.5
     speedup = min(n_jobs, os.cpu_count() or 1)
     print(f"\n{'─' * 60}")
     print(
