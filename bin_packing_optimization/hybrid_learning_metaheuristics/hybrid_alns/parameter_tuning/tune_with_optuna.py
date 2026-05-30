@@ -261,8 +261,7 @@ class HybridALNSTuner:
         seed: int = 42,
         model_name: str = "repair_model_v2.pkl",
         output_dir: str = "tuning_results",
-        bank_size: int = 20,
-        stage2_bank_size: int = 40,
+        bank_size: int = 100,
         quality_weight: float = 0.9,
         time_weight: float = 0.1,
         time_limit: float = 60,
@@ -286,17 +285,9 @@ class HybridALNSTuner:
             }
         self.counts_per_key = counts_per_key
 
-        # Stage 2 uses a separate (larger) composition
-        scale2 = stage2_bank_size / BANK_COMPOSITION_TOTAL
-        self.counts_per_key_stage2: dict[str, int] = {
-            key: max(1, round(w * scale2)) for key, w in BANK_COMPOSITION
-        }
-
+        # Main evaluation bank — used by baseline, Stage 1, Stage 2, and final
         self.tuning_bank: list[Instance] = self._build_bank()
-        print(
-            f"\nTuning bank: {len(self.tuning_bank)} instances  "
-            f"(isolation + Stage 1)"
-        )
+        print(f"\nTuning bank: {len(self.tuning_bank)} instances")
         self._log_bank_summary()
 
         # Smaller bank for fast isolation steps — stratified across datasets
@@ -305,10 +296,6 @@ class HybridALNSTuner:
             f"  Isolation bank: {len(self.isolation_bank)} instances "
             f"(stratified subset, for fast grid search)"
         )
-
-        # Larger bank for Stage 2 (more robust evaluation)
-        self.stage2_bank: list[Instance] = self._build_bank(self.counts_per_key_stage2)
-        print(f"  Stage 2 bank: {len(self.stage2_bank)} instances")
 
     # ── Instance bank ──────────────────────────────────────────────────────
 
@@ -776,7 +763,6 @@ class HybridALNSTuner:
         n_trials: int = 50,
         max_iter: int = 5000,
         study_name: str = "alns_stage2_fine",
-        bank: list[Instance] | None = None,
         n_jobs: int = 1,
     ) -> optuna.Study:
         """Stage 2: narrow-range search anchored around the Stage-1 best.
@@ -857,7 +843,6 @@ class HybridALNSTuner:
             print(f"    {k:25s}  [{lo:.6g}, {hi:.6g}]{log_str}")
 
         # ── Objective ──────────────────────────────────────────────────────
-        _bank = bank or self.stage2_bank
         _n_jobs = n_jobs  # capture for closure
         _qw = self.quality_weight
         _tw = self.time_weight
@@ -872,7 +857,7 @@ class HybridALNSTuner:
                 else:
                     params[k] = trial.suggest_float(k, lo, hi, log=log_)
             result = self.evaluate_config(
-                params, max_iter=max_iter, bank=_bank, n_jobs=_n_jobs
+                params, max_iter=max_iter, n_jobs=_n_jobs
             )
             composite = (
                 _qw * result.mean_relative_gap + _tw * result.mean_normalized_time
@@ -1034,7 +1019,7 @@ def main() -> None:
             "  # Quick smoke test (~30 min on 8 cores):\n"
             "  python tune_with_optuna.py --quick --n-jobs 8\n\n"
             "  # Heavy run (~5 h on 8 cores):\n"
-            "  python tune_with_optuna.py --bank-size 40 --stage2-bank-size 80 "
+            "  python tune_with_optuna.py --bank-size 100 "
             "--stage1-trials 60 --stage2-trials 40 --n-jobs 8\n\n"
             "  # Baseline only:\n"
             "  python tune_with_optuna.py --baseline-only\n"
@@ -1067,14 +1052,8 @@ def main() -> None:
     parser.add_argument(
         "--bank-size",
         type=int,
-        default=20,
-        help="Instance bank size for isolation + Stage 1, proportionally sampled (default: 20)",
-    )
-    parser.add_argument(
-        "--stage2-bank-size",
-        type=int,
-        default=40,
-        help="Instance bank size for Stage 2 (default: 40)",
+        default=100,
+        help="Instance bank size, proportionally sampled from 5 datasets (default: 100)",
     )
     parser.add_argument(
         "--n-jobs",
@@ -1107,7 +1086,7 @@ def main() -> None:
     parser.add_argument(
         "--quick",
         action="store_true",
-        help="Minimal: 5 trials S1, 3 trials S2, no isolation, bank=10, stage2-bank=20",
+        help="Minimal: 5 trials S1, 3 trials S2, no isolation, bank=10",
     )
 
     parser.add_argument(
@@ -1139,7 +1118,6 @@ def main() -> None:
         args.iter_stage1 = 500
         args.iter_stage2 = 1000
         args.bank_size = 10
-        args.stage2_bank_size = 20
 
     # Build tuner with specified bank sizes
     counts_per_key = None
@@ -1150,7 +1128,6 @@ def main() -> None:
         seed=args.seed,
         output_dir=args.output_dir,
         counts_per_key=counts_per_key,
-        stage2_bank_size=args.stage2_bank_size,
         quality_weight=args.quality_weight,
         time_weight=args.time_weight,
         time_limit=args.time_limit,
@@ -1160,9 +1137,8 @@ def main() -> None:
         n_jobs = os.cpu_count() or 1
 
     n_inst = len(tuner.tuning_bank)
-    n_s2 = len(tuner.stage2_bank)
-    bank_s = n_inst * 5.0  # ~5 s / inst at 2000 iter
-    bank_s2 = n_s2 * 15.0  # ~15 s / inst at 3000 iter
+    # ~5 s / inst at 2000 iter — same estimate for all stages (single unified bank)
+    bank_s = n_inst * 5.0
 
     # Print time budget upfront
     speedup = min(n_jobs, os.cpu_count() or 1)
@@ -1191,9 +1167,9 @@ def main() -> None:
         f"  Stage 1 ({args.stage1_trials} trials × {n_inst} inst)          {s1_h:.1f} h"
     )
 
-    s2_h = args.stage2_trials * bank_s2 / 3600 / speedup
+    s2_h = args.stage2_trials * bank_s / 3600 / speedup
     total_est_h += s2_h
-    print(f"  Stage 2 ({args.stage2_trials} trials × {n_s2} inst)         {s2_h:.1f} h")
+    print(f"  Stage 2 ({args.stage2_trials} trials × {n_inst} inst)          {s2_h:.1f} h")
     print(f"{'─' * 60}")
     print(
         f"  TOTAL ESTIMATED                        {total_est_h:.1f} h  ({total_est_h/24:.1f} days)"
@@ -1234,7 +1210,6 @@ def main() -> None:
         coarse_study=stage1,
         n_trials=args.stage2_trials,
         max_iter=args.iter_stage2,
-        bank=tuner.stage2_bank,
         n_jobs=n_jobs,
     )
 
@@ -1245,12 +1220,12 @@ def main() -> None:
         isolation_best=isolation_best,
     )
 
-    print("\n  Re-evaluating best config on stage-2 bank...")
+    print("\n  Re-evaluating best config...")
     best_params = {**DEFAULT_PARAMS, **stage2.best_params}
+    # Evaluate best on the same tuning bank as baseline for apples-to-apples
     best_result = tuner.evaluate_config(
         best_params,
         max_iter=args.iter_stage2,
-        bank=tuner.stage2_bank,
         n_jobs=n_jobs,
     )
     tuner.save_log(
@@ -1261,27 +1236,20 @@ def main() -> None:
         search_ranges=STAGE1_RANGES,
         baseline_params=DEFAULT_PARAMS,
     )
-    # Also evaluate on the tuning bank for apples-to-apples against baseline
-    best_result_tb = tuner.evaluate_config(
-        best_params,
-        max_iter=args.iter_stage1,
-        bank=tuner.tuning_bank,
-        n_jobs=n_jobs,
-    )
     print(f"\n  {'=' * 45}")
     print(
-        f"    Baseline relative gap:  {baseline.mean_relative_gap:.4f}  ({len(tuner.tuning_bank)} inst)"
+        f"    Baseline relative gap:  {baseline.mean_relative_gap:.4f}  ({n_inst} inst)"
     )
     print(
-        f"    Best     relative gap:  {best_result_tb.mean_relative_gap:.4f}  ({len(tuner.tuning_bank)} inst)"
+        f"    Best     relative gap:  {best_result.mean_relative_gap:.4f}  ({n_inst} inst)"
     )
-    if best_result_tb.mean_relative_gap < baseline.mean_relative_gap:
-        impr = baseline.mean_relative_gap - best_result_tb.mean_relative_gap
+    if best_result.mean_relative_gap < baseline.mean_relative_gap:
+        impr = baseline.mean_relative_gap - best_result.mean_relative_gap
         pct = impr / max(baseline.mean_relative_gap, 1e-9) * 100
         print(f"    Improvement:   {impr:+.4f}  ({pct:+.1f}%)")
     else:
         print(
-            f"    Change:        {baseline.mean_relative_gap - best_result_tb.mean_relative_gap:+.4f}"
+            f"    Change:        {baseline.mean_relative_gap - best_result.mean_relative_gap:+.4f}"
         )
     print(f"  {'=' * 45}")
     print(f"\n  All results saved in:  {tuner.output_dir}/")
