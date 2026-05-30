@@ -1,4 +1,4 @@
-"""Generate the ablation figure (Fig. 2) from the executed v0 numbers."""
+"""Generate the ablation figure (Fig. 2) from the aligned 5000-iter i9 run."""
 
 import matplotlib
 
@@ -7,8 +7,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 methods = ["No\nlearning", "Online\nonly", "Offline\nonly", "Both\ncombined"]
-avg_gap = [0.20, 0.00, 0.20, 0.20]
-avg_time = [0.153, 0.186, 0.353, 0.362]
+avg_gap = [0.05, 0.05, 0.05, 0.05]
+avg_time = [3.136, 3.208, 8.954, 8.950]
 
 x = np.arange(len(methods))
 w = 0.38
@@ -40,7 +40,7 @@ ax.tick_params(axis="y", labelsize=8)
 ax.legend(fontsize=7, frameon=False, loc="upper left")
 ax.spines["top"].set_visible(False)
 ax.spines["right"].set_visible(False)
-ax.set_ylim(0, 1.1)
+ax.set_ylim(0, 10.0)
 
 for bars in (b1, b2):
     for bar in bars:

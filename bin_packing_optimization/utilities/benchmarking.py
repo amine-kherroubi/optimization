@@ -69,6 +69,102 @@ def _format_float(value: float, decimals: int = 4) -> str:
     return f"{value:.{decimals}f}"
 
 
+def _bfd_bins(sizes: list[int], capacity: int) -> int:
+    """Return the bin count produced by Best-Fit Decreasing.
+
+    Used as an honest upper bound on solver quality when an instance is killed
+    by the time limit: the ALNS solver always warm-starts from BFD, so the
+    reported bin count cannot be worse than what it would have ended with.
+    """
+    bins_load: list[int] = []
+    for size in sorted(sizes, reverse=True):
+        best_j = -1
+        best_remaining = capacity + 1
+        for j, load in enumerate(bins_load):
+            remaining = capacity - load - size
+            if 0 <= remaining < best_remaining:
+                best_remaining = remaining
+                best_j = j
+        if best_j >= 0:
+            bins_load[best_j] += size
+        else:
+            bins_load.append(size)
+    return len(bins_load)
+
+
+_POOL_MODEL_BUNDLE: Any = None
+
+
+def _init_pool_worker(model_bundle: Any) -> None:
+    """Pool initializer: stash the (heavy) model bundle in a worker-local global
+    so each task only carries the lightweight per-instance args."""
+    global _POOL_MODEL_BUNDLE
+    _POOL_MODEL_BUNDLE = model_bundle
+
+
+def _run_one_instance_parallel(
+    sizes: list[int],
+    bin_capacity: int,
+    instance_name: str,
+    dataset_key: str,
+    num_items: int,
+    total_weight: int,
+    lower_bound: int,
+    method: str | None,
+    method_args: dict[str, Any],
+    solver_module_name: str,
+    time_limit_seconds: float | None,
+) -> dict[str, Any]:
+    """Run one instance in a pool worker for parallel benchmarking.
+
+    Uses the solver's *cooperative* time-budget parameter
+    (``time_limit_seconds``) rather than the harness's hard subprocess kill, so
+    the solver returns its best-so-far on deadline instead of being killed.
+    The solver module is imported by name (modules are not picklable under the
+    ``spawn`` start method used on Windows/macOS). The model bundle, if any, is
+    read from the worker-local global set by :func:`_init_pool_worker` so it is
+    pickled once per worker rather than once per task.
+    """
+    import importlib
+    import time
+
+    try:
+        module = importlib.import_module(solver_module_name)
+        BinPackingSolver = module.BinPackingSolver
+        args = dict(method_args or {})
+        if "model_bundle" not in args and _POOL_MODEL_BUNDLE is not None:
+            args["model_bundle"] = _POOL_MODEL_BUNDLE
+        if time_limit_seconds is not None:
+            args["time_limit_seconds"] = float(time_limit_seconds)
+        start = time.perf_counter()
+        solver = BinPackingSolver(list(sizes), bin_capacity)
+        _invoke_solver_safely(solver, method, args)
+        elapsed = time.perf_counter() - start
+        solution = solver.get_solution()
+        timed_out = (
+            time_limit_seconds is not None
+            and elapsed >= 0.97 * float(time_limit_seconds)
+        )
+        return {
+            "ok": True,
+            "instance_name": instance_name,
+            "dataset_key": dataset_key,
+            "num_items": num_items,
+            "bin_capacity": bin_capacity,
+            "bins_used": int(solution.total_bins_used),
+            "lower_bound": int(lower_bound),
+            "total_weight": int(total_weight),
+            "elapsed_time": float(elapsed),
+            "timed_out": bool(timed_out),
+        }
+    except Exception as exc:
+        return {
+            "ok": False,
+            "instance_name": instance_name,
+            "error": f"{type(exc).__name__}: {exc}",
+        }
+
+
 def _solver_worker(
     sizes: list[int],
     bin_capacity: int,
@@ -208,6 +304,7 @@ class Benchmark:
         min_items: int | None = None,
         max_items: int | None = None,
         max_instances: int | None = None,
+        workers: int = 1,
     ) -> None:
         if num_items is not None and (min_items is not None or max_items is not None):
             raise ValueError(
@@ -240,6 +337,11 @@ class Benchmark:
 
         print(f"\n\033[1;36mStarting Benchmark:\033[0m {self._dataset.label}")
         self._print_header(widths)
+
+        if workers > 1:
+            self._run_parallel(instances, method, method_args, workers, widths)
+            self._print_footer(widths)
+            return
 
         old_terminal_settings = None
         if sys.stdin.isatty():
@@ -482,7 +584,10 @@ class Benchmark:
         if timed_out:
             process.terminate()
             process.join()
-            bins_used = lower_bound
+            # Honest fallback: report Best-Fit Decreasing on this instance
+            # rather than the lower bound (which would lie that the timed-out
+            # run reached the optimum).
+            bins_used = _bfd_bins(instance.sizes, instance.bin_capacity)
             elapsed = self._time_limit
         else:
             try:
@@ -512,6 +617,99 @@ class Benchmark:
             method=method_label,
             timed_out=timed_out,
         )
+
+    def _run_parallel(
+        self,
+        instances: list[Instance],
+        method: str | None,
+        method_args: dict[str, Any] | None,
+        workers: int,
+        widths: TableWidths,
+    ) -> None:
+        """Parallel benchmarking via a process pool.
+
+        Each instance is solved in a pool worker using the solver's *cooperative*
+        ``time_limit_seconds`` parameter (the harness's ``time_limit`` becomes
+        the per-instance budget). This avoids hard subprocess kills, returns the
+        solver's best-so-far on deadline, and lets ``workers`` instances run
+        concurrently.
+        """
+        from concurrent.futures import ProcessPoolExecutor, as_completed
+
+        solver_method = "branch and bound" if method == "b&b" else method
+        method_label = method if method is not None else "<default>"
+        solver_module_name = self._solver_module.__name__
+
+        # Hoist the model bundle out of method_args so it is pickled once per
+        # worker (via initializer) instead of once per submitted task.
+        task_args = dict(method_args or {})
+        model_bundle = task_args.pop("model_bundle", None)
+
+        future_to_instance: dict[Any, Instance] = {}
+        with ProcessPoolExecutor(
+            max_workers=workers,
+            initializer=_init_pool_worker,
+            initargs=(model_bundle,),
+        ) as executor:
+            for instance in instances:
+                total_weight = sum(instance.sizes)
+                reference_solution = get_instance_solution(
+                    instance.dataset_key, instance.name
+                )
+                lower_bound = (
+                    reference_solution.best_lb
+                    if reference_solution is not None
+                    else ceil(total_weight / instance.bin_capacity)
+                )
+                future = executor.submit(
+                    _run_one_instance_parallel,
+                    list(instance.sizes),
+                    instance.bin_capacity,
+                    instance.name,
+                    instance.dataset_key,
+                    instance.num_items,
+                    total_weight,
+                    lower_bound,
+                    solver_method,
+                    task_args,
+                    solver_module_name,
+                    self._time_limit,
+                )
+                future_to_instance[future] = instance
+
+            for future in as_completed(future_to_instance):
+                instance = future_to_instance[future]
+                try:
+                    data = future.result()
+                except Exception as exc:
+                    print(
+                        f"\033[91m[!] Skipping '{instance.name}': {exc}\033[0m"
+                    )
+                    continue
+                if not data.get("ok"):
+                    print(
+                        f"\033[91m[!] Skipping '{instance.name}': "
+                        f"{data.get('error', 'unknown')}\033[0m"
+                    )
+                    continue
+                result = BenchmarkResult(
+                    instance_name=data["instance_name"],
+                    dataset_key=data["dataset_key"],
+                    num_items=data["num_items"],
+                    bin_capacity=data["bin_capacity"],
+                    bins_used=data["bins_used"],
+                    lower_bound=data["lower_bound"],
+                    total_weight=data["total_weight"],
+                    elapsed_time=data["elapsed_time"],
+                    method=method_label,
+                    timed_out=data["timed_out"],
+                )
+                self._results.append(result)
+                self._print_row(result, widths)
+
+        # Restore the (num_items, name) ordering used by the sequential path so
+        # CSV output and downstream stats are stable across modes.
+        self._results.sort(key=lambda r: (r.num_items, r.instance_name))
 
     def _calculate_widths(
         self,
