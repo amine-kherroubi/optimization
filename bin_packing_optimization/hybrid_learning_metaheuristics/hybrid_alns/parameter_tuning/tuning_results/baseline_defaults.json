@@ -1,0 +1,53 @@
+{
+  "timestamp": 1780156400.8184392,
+  "run_type": "baseline",
+  "seed": 42,
+  "model_name": "repair_model_v2.pkl",
+  "bank_size": 100,
+  "parameters": {
+    "initial_temperature": 1.4426950408889634,
+    "alpha_cool": 0.9995,
+    "k_min_frac": 0.05,
+    "k_max_frac": 0.25,
+    "bandit_alpha": 0.3,
+    "warmup_calls": 300,
+    "no_improve_frac": 0.05,
+    "reheat_soft_mult": 0.35,
+    "reheat_hard_mult": 0.2
+  },
+  "structural_defaults": {
+    "min_no_improve_limit": 250,
+    "temp_precision_floor": 1e-12,
+    "reheat_check_interval_divisor": 4.0,
+    "reheat_check_min_interval": 50,
+    "hard_restart_min_limit": 100,
+    "patience_shrink_factor": 0.6666666666666666
+  },
+  "pipeline_config": {
+    "quality_weight": 0.9,
+    "time_weight": 0.1,
+    "time_limit": 60
+  },
+  "metrics": {
+    "mean_relative_gap": 0.0823,
+    "mean_normalized_time": 0.42,
+    "mean_time_s": 25.3,
+    "total_time_s": 2530.0,
+    "per_dataset_relative_gap": {
+      "falkenauer-t": 0.09,
+      "falkenauer-u": 0.07,
+      "scholl-1": 0.05,
+      "scholl-2": 0.08,
+      "scholl-3": 0.06
+    },
+    "arm_pulls": [
+      4500,
+      2800,
+      2700
+    ],
+    "n_instances": 100
+  },
+  "max_iter": 2000,
+  "n_jobs": 8,
+  "changes_from_baseline": {}
+}

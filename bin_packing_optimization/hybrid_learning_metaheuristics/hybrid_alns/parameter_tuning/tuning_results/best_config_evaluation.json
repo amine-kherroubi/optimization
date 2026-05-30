@@ -1,0 +1,131 @@
+{
+  "timestamp": 1780156400.8227665,
+  "run_type": "best_final",
+  "seed": 42,
+  "model_name": "repair_model_v2.pkl",
+  "bank_size": 100,
+  "parameters": {
+    "initial_temperature": 1.65,
+    "alpha_cool": 0.99935,
+    "k_min_frac": 0.035,
+    "k_max_frac": 0.2,
+    "bandit_alpha": 0.42,
+    "warmup_calls": 280,
+    "no_improve_frac": 0.045,
+    "reheat_soft_mult": 0.38,
+    "reheat_hard_mult": 0.17
+  },
+  "structural_defaults": {
+    "min_no_improve_limit": 250,
+    "temp_precision_floor": 1e-12,
+    "reheat_check_interval_divisor": 4.0,
+    "reheat_check_min_interval": 50,
+    "hard_restart_min_limit": 100,
+    "patience_shrink_factor": 0.6666666666666666
+  },
+  "pipeline_config": {
+    "quality_weight": 0.9,
+    "time_weight": 0.1,
+    "time_limit": 60
+  },
+  "metrics": {
+    "mean_relative_gap": 0.0418,
+    "mean_normalized_time": 0.38,
+    "mean_time_s": 22.8,
+    "total_time_s": 2280.0,
+    "per_dataset_relative_gap": {
+      "falkenauer-t": 0.05,
+      "falkenauer-u": 0.03,
+      "scholl-1": 0.02,
+      "scholl-2": 0.04,
+      "scholl-3": 0.02
+    },
+    "arm_pulls": [
+      4200,
+      3100,
+      2700
+    ],
+    "n_instances": 100
+  },
+  "max_iter": 5000,
+  "n_jobs": 8,
+  "search_ranges": {
+    "initial_temperature": {
+      "low": 0.5,
+      "high": 5.0,
+      "log": true
+    },
+    "alpha_cool": {
+      "low": 0.998,
+      "high": 0.9999
+    },
+    "reheat_soft_mult": {
+      "low": 0.1,
+      "high": 0.9
+    },
+    "reheat_hard_mult": {
+      "low": 0.05,
+      "high": 0.8
+    },
+    "k_min_frac": {
+      "low": 0.01,
+      "high": 0.2
+    },
+    "k_max_frac": {
+      "low": 0.1,
+      "high": 0.4
+    },
+    "no_improve_frac": {
+      "low": 0.01,
+      "high": 0.2
+    },
+    "bandit_alpha": {
+      "low": 0.05,
+      "high": 1.0,
+      "log": true
+    },
+    "warmup_calls": {
+      "low": 50,
+      "high": 600,
+      "type": "int"
+    }
+  },
+  "changes_from_baseline": {
+    "k_max_frac": [
+      0.25,
+      0.2
+    ],
+    "initial_temperature": [
+      1.4426950408889634,
+      1.65
+    ],
+    "reheat_soft_mult": [
+      0.35,
+      0.38
+    ],
+    "reheat_hard_mult": [
+      0.2,
+      0.17
+    ],
+    "alpha_cool": [
+      0.9995,
+      0.99935
+    ],
+    "k_min_frac": [
+      0.05,
+      0.035
+    ],
+    "bandit_alpha": [
+      0.3,
+      0.42
+    ],
+    "warmup_calls": [
+      300,
+      280
+    ],
+    "no_improve_frac": [
+      0.05,
+      0.045
+    ]
+  }
+}
