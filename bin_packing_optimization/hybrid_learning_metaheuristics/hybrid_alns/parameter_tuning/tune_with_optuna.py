@@ -39,7 +39,6 @@ from bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns.models 
     load_repair_model,
 )
 
-
 # ─────────────────────────────────────────────────────────────────────────────
 # 1.  PARAMETER DEFINITIONS
 # ─────────────────────────────────────────────────────────────────────────────
@@ -57,14 +56,21 @@ DEFAULT_PARAMS: dict[str, Any] = {
     "reheat_hard_mult": 0.20,
 }
 
-# --- 6 Structural parameters (safety floors / design constants, held fixed) ---
+# --- Structural parameters (safety floors / design constants, held fixed) ---
 STRUCTURAL_DEFAULTS: dict[str, Any] = {
-    "min_no_improve_limit": 250,          # minimum iter before hard restart possible
-    "temp_precision_floor": 1e-12,        # division guard for T/T0 context feature
-    "reheat_check_interval_divisor": 4.0,  # soft-reheat frequency = no_improve_limit // 4
-    "reheat_check_min_interval": 50,       # minimum gap between soft reheats
-    "hard_restart_min_limit": 100,         # floor for no_improve_limit after shrinkage
-    "patience_shrink_factor": 2.0 / 3.0,   # shrink multiplier on hard restart (was 0.5)
+    "min_no_improve_limit": 250,
+    "temp_precision_floor": 1e-12,
+    "reheat_check_interval_divisor": 4.0,
+    "reheat_check_min_interval": 50,
+    "hard_restart_min_limit": 100,
+    "patience_shrink_factor": 2.0 / 3.0,
+}
+
+# --- Pipeline-level configuration (not passed to the solver) ---
+PIPELINE_CONFIG: dict[str, Any] = {
+    "quality_weight": 0.9,
+    "time_weight": 0.1,
+    "time_limit": 60,
 }
 
 # --- Isolation-step small bank size ---
@@ -79,7 +85,12 @@ ISOLATION_BANK_SIZE: int = 20
 # directional signal, not precise tuning.
 ISOLATION_GRIDS: dict[str, list[dict[str, Any]]] = {
     "step1_sa_thermal": [
-        {"initial_temperature": t, "alpha_cool": a, "reheat_soft_mult": s, "reheat_hard_mult": h}
+        {
+            "initial_temperature": t,
+            "alpha_cool": a,
+            "reheat_soft_mult": s,
+            "reheat_hard_mult": h,
+        }
         for t in [0.5, 1.44, 5.0]
         for a in [0.99, 0.999, 0.9999]
         for s in [0.10, 0.35, 0.70]
@@ -89,7 +100,7 @@ ISOLATION_GRIDS: dict[str, list[dict[str, Any]]] = {
         {"k_min_frac": kmin, "k_max_frac": kmax, "no_improve_frac": ni}
         for kmin in [0.01, 0.05, 0.20]
         for kmax in [0.10, 0.25, 0.50]
-        for ni   in [0.01, 0.05, 0.20]
+        for ni in [0.01, 0.05, 0.20]
     ],  # 3×3×3 = 27 configs
     "step3_bandit": [
         {"bandit_alpha": a, "warmup_calls": w}
@@ -112,14 +123,14 @@ BANK_COMPOSITION_TOTAL = sum(w for _, w in BANK_COMPOSITION)
 # --- Optuna Stage 1 search ranges (tightened) ---
 STAGE1_RANGES: dict[str, dict[str, Any]] = {
     "initial_temperature": {"low": 0.5, "high": 5.0, "log": True},
-    "alpha_cool":          {"low": 0.998, "high": 0.9999},
-    "reheat_soft_mult":    {"low": 0.10, "high": 0.90},
-    "reheat_hard_mult":    {"low": 0.05, "high": 0.80},
-    "k_min_frac":          {"low": 0.01, "high": 0.20},
-    "k_max_frac":          {"low": 0.10, "high": 0.40},
-    "no_improve_frac":     {"low": 0.01, "high": 0.20},
-    "bandit_alpha":        {"low": 0.05, "high": 1.0, "log": True},
-    "warmup_calls":        {"low": 50, "high": 600, "type": "int"},
+    "alpha_cool": {"low": 0.998, "high": 0.9999},
+    "reheat_soft_mult": {"low": 0.10, "high": 0.90},
+    "reheat_hard_mult": {"low": 0.05, "high": 0.80},
+    "k_min_frac": {"low": 0.01, "high": 0.20},
+    "k_max_frac": {"low": 0.10, "high": 0.40},
+    "no_improve_frac": {"low": 0.01, "high": 0.20},
+    "bandit_alpha": {"low": 0.05, "high": 1.0, "log": True},
+    "warmup_calls": {"low": 50, "high": 600, "type": "int"},
 }
 
 
@@ -127,22 +138,24 @@ STAGE1_RANGES: dict[str, dict[str, Any]] = {
 # 2.  DATA CLASSES
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 @dataclass
 class TuningResult:
     """Metrics collected from evaluating a parameter configuration on the bank."""
 
-    mean_gap: float
+    mean_relative_gap: float
+    mean_normalized_time: float
     mean_time_s: float
     total_time_s: float
-    per_dataset_gap: dict[str, float]
+    per_dataset_relative_gap: dict[str, float]
     arm_pulls: list[int]
     n_instances: int
-    n_completed: int
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 3.  HELPERS
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def _make_solver_kwargs(
     user_params: dict[str, Any], include_structural: bool = False
@@ -165,18 +178,22 @@ def _params_diff(
     base: dict[str, Any], changed: dict[str, Any]
 ) -> dict[str, tuple[Any, Any]]:
     """Return ``{param: (base_val, changed_val)}`` for keys that differ."""
-    return {k: (base[k], changed[k]) for k in changed if k in base and base[k] != changed[k]}
+    return {
+        k: (base[k], changed[k]) for k in changed if k in base and base[k] != changed[k]
+    }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 4.  PARALLEL WORKER (module-level for multiprocessing pickling)
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def _evaluate_one(
     inst_dict: dict[str, Any],
     model_name: str,
     seed: int,
     max_iter: int,
+    time_limit: float,
     kwargs: dict[str, Any],
 ) -> dict[str, Any]:
     """Evaluate one instance. Module-level so ProcessPoolExecutor can pickle it."""
@@ -200,16 +217,19 @@ def _evaluate_one(
 
     sol = solver.get_solution()
     lb = int(math.ceil(sum(sizes) / inst_dict["bin_capacity"]))
-    gap = sol.total_bins_used - lb
+    relative_gap = (sol.total_bins_used - lb) / max(lb, 1)
 
     arm_pulls = [0, 0, 0]
     if hasattr(solver, "_bandit"):
         for arm_idx in range(3):
             arm_pulls[arm_idx] = solver._bandit.arm_counts[arm_idx]
 
+    normalized_time = elapsed / max(time_limit, 1e-9)
+
     return {
         "dataset_key": inst_dict["dataset_key"],
-        "gap": gap,
+        "relative_gap": relative_gap,
+        "normalized_time": normalized_time,
         "elapsed": elapsed,
         "arm_pulls": arm_pulls,
     }
@@ -218,6 +238,7 @@ def _evaluate_one(
 # ─────────────────────────────────────────────────────────────────────────────
 # 5.  TUNER CLASS
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class HybridALNSTuner:
     """Optuna-based hyperparameter tuner for the Hybrid ALNS 1D-BPP solver.
@@ -242,6 +263,9 @@ class HybridALNSTuner:
         output_dir: str = "tuning_results",
         bank_size: int = 20,
         stage2_bank_size: int = 40,
+        quality_weight: float = 0.9,
+        time_weight: float = 0.1,
+        time_limit: float = 60,
     ):
         self.seed = seed
         self.output_dir = Path(output_dir)
@@ -250,31 +274,37 @@ class HybridALNSTuner:
         self.model_name = model_name
         self.model_bundle = load_repair_model(model_name)
 
+        self.quality_weight = quality_weight
+        self.time_weight = time_weight
+        self.time_limit = time_limit
+
         # Build instance bank proportionally from BANK_COMPOSITION
         if counts_per_key is None:
             scale = bank_size / BANK_COMPOSITION_TOTAL
             counts_per_key = {
-                key: max(1, round(w * scale))
-                for key, w in BANK_COMPOSITION
+                key: max(1, round(w * scale)) for key, w in BANK_COMPOSITION
             }
         self.counts_per_key = counts_per_key
 
         # Stage 2 uses a separate (larger) composition
         scale2 = stage2_bank_size / BANK_COMPOSITION_TOTAL
         self.counts_per_key_stage2: dict[str, int] = {
-            key: max(1, round(w * scale2))
-            for key, w in BANK_COMPOSITION
+            key: max(1, round(w * scale2)) for key, w in BANK_COMPOSITION
         }
 
         self.tuning_bank: list[Instance] = self._build_bank()
-        print(f"\nTuning bank: {len(self.tuning_bank)} instances  "
-              f"(isolation + Stage 1)")
+        print(
+            f"\nTuning bank: {len(self.tuning_bank)} instances  "
+            f"(isolation + Stage 1)"
+        )
         self._log_bank_summary()
 
         # Smaller bank for fast isolation steps — stratified across datasets
         self.isolation_bank: list[Instance] = self._build_isolation_bank()
-        print(f"  Isolation bank: {len(self.isolation_bank)} instances "
-              f"(stratified subset, for fast grid search)")
+        print(
+            f"  Isolation bank: {len(self.isolation_bank)} instances "
+            f"(stratified subset, for fast grid search)"
+        )
 
         # Larger bank for Stage 2 (more robust evaluation)
         self.stage2_bank: list[Instance] = self._build_bank(self.counts_per_key_stage2)
@@ -283,7 +313,8 @@ class HybridALNSTuner:
     # ── Instance bank ──────────────────────────────────────────────────────
 
     def _build_bank(
-        self, counts_per_key: dict[str, int] | None = None,
+        self,
+        counts_per_key: dict[str, int] | None = None,
     ) -> list[Instance]:
         """Build a size-stratified instance bank from the dataset registry.
 
@@ -331,7 +362,9 @@ class HybridALNSTuner:
             pool = [inst for inst in self.tuning_bank if inst.dataset_key == key]
             if not pool:
                 continue
-            picked = rng.choice(pool, size=min(n_per, len(pool)), replace=False).tolist()
+            picked = rng.choice(
+                pool, size=min(n_per, len(pool)), replace=False
+            ).tolist()
             bank.extend(picked)
         # Shuffle so training order doesn't bias per-trial timing
         rng.shuffle(bank)
@@ -391,51 +424,72 @@ class HybridALNSTuner:
 
         # Prepare serializable instance dicts for the worker
         inst_dicts = [
-            {"sizes": list(i.sizes), "bin_capacity": i.bin_capacity,
-             "dataset_key": i.dataset_key}
+            {
+                "sizes": list(i.sizes),
+                "bin_capacity": i.bin_capacity,
+                "dataset_key": i.dataset_key,
+            }
             for i in bank
         ]
 
         if n_jobs == 1:
             results = [
-                _evaluate_one(d, self.model_name, self.seed, max_iter, kwargs)
+                _evaluate_one(
+                    d, self.model_name, self.seed, max_iter, self.time_limit, kwargs
+                )
                 for d in tqdm(inst_dicts, desc="  Solving", leave=False)
             ]
         else:
             with concurrent.futures.ProcessPoolExecutor(max_workers=n_jobs) as ex:
                 futures = [
-                    ex.submit(_evaluate_one, d, self.model_name, self.seed,
-                              max_iter, kwargs)
+                    ex.submit(
+                        _evaluate_one,
+                        d,
+                        self.model_name,
+                        self.seed,
+                        max_iter,
+                        self.time_limit,
+                        kwargs,
+                    )
                     for d in inst_dicts
                 ]
                 results = [
-                    f.result() for f in tqdm(
+                    f.result()
+                    for f in tqdm(
                         concurrent.futures.as_completed(futures),
-                        total=len(futures), desc="  Solving", leave=False,
+                        total=len(futures),
+                        desc="  Solving",
+                        leave=False,
                     )
                 ]
 
-        total_gap = 0.0
-        total_time = 0.0
-        per_ds_gap: dict[str, list[float]] = {}
+        total_relative_gap = 0.0
+        total_normalized_time = 0.0
+        total_raw_time = 0.0
+        per_ds_relative_gap: dict[str, list[float]] = {}
         arm_pulls = [0, 0, 0]
 
         for r in results:
-            total_gap += r["gap"]
-            total_time += r["elapsed"]
-            per_ds_gap.setdefault(r["dataset_key"], []).append(r["gap"])
+            total_relative_gap += r["relative_gap"]
+            total_normalized_time += r["normalized_time"]
+            total_raw_time += r["elapsed"]
+            per_ds_relative_gap.setdefault(r["dataset_key"], []).append(
+                r["relative_gap"]
+            )
             for arm_idx in range(3):
                 arm_pulls[arm_idx] += r["arm_pulls"][arm_idx]
 
         n = len(results)
         return TuningResult(
-            mean_gap=total_gap / max(n, 1),
-            mean_time_s=total_time / max(n, 1),
-            total_time_s=total_time,
-            per_dataset_gap={k: float(np.mean(v)) for k, v in per_ds_gap.items()},
+            mean_relative_gap=total_relative_gap / max(n, 1),
+            mean_normalized_time=total_normalized_time / max(n, 1),
+            mean_time_s=total_raw_time / max(n, 1),
+            total_time_s=total_raw_time,
+            per_dataset_relative_gap={
+                k: float(np.mean(v)) for k, v in per_ds_relative_gap.items()
+            },
             arm_pulls=arm_pulls,
             n_instances=n,
-            n_completed=n,
         )
 
     # ── Logging ────────────────────────────────────────────────────────────
@@ -474,14 +528,19 @@ class HybridALNSTuner:
             "bank_size": len(self.tuning_bank),
             "parameters": dict(params),
             "structural_defaults": dict(STRUCTURAL_DEFAULTS),
+            "pipeline_config": {
+                "quality_weight": self.quality_weight,
+                "time_weight": self.time_weight,
+                "time_limit": self.time_limit,
+            },
             "metrics": {
-                "mean_gap": result.mean_gap,
+                "mean_relative_gap": result.mean_relative_gap,
+                "mean_normalized_time": result.mean_normalized_time,
                 "mean_time_s": result.mean_time_s,
                 "total_time_s": result.total_time_s,
-                "per_dataset_gap": result.per_dataset_gap,
+                "per_dataset_relative_gap": result.per_dataset_relative_gap,
                 "arm_pulls": result.arm_pulls,
                 "n_instances": result.n_instances,
-                "n_completed": result.n_completed,
             },
         }
         if search_ranges is not None:
@@ -503,11 +562,16 @@ class HybridALNSTuner:
         print("=" * 70)
         result = self.evaluate_config({}, max_iter=max_iter, n_jobs=n_jobs)
         self.save_log(
-            "baseline_defaults.json", "baseline", DEFAULT_PARAMS, result,
+            "baseline_defaults.json",
+            "baseline",
+            DEFAULT_PARAMS,
+            result,
             baseline_params=DEFAULT_PARAMS,
         )
-        print(f"\n  mean_gap  = {result.mean_gap:.4f}")
-        print(f"  mean_time = {result.mean_time_s:.3f} s")
+        print(f"\n  mean_relative_gap  = {result.mean_relative_gap:.4f}")
+        print(
+            f"  mean_normalized_time = {result.mean_normalized_time:.4f}  ({result.mean_time_s:.3f} s / {self.time_limit} s)"
+        )
         return result
 
     # ── Isolation steps ────────────────────────────────────────────────────
@@ -531,7 +595,11 @@ class HybridALNSTuner:
         bank = self.isolation_bank
         print(f"\n{'=' * 70}")
         print("  ISOLATION STEPS  —  group-wise grid search  ".center(70, " "))
-        print(f"  Bank: {len(bank)} instances  (subset of main tuning bank)".center(70, " "))
+        print(
+            f"  Bank: {len(bank)} instances  (subset of main tuning bank)".center(
+                70, " "
+            )
+        )
         print(f"{'=' * 70}")
 
         best_merged: dict[str, Any] = {}
@@ -541,12 +609,14 @@ class HybridALNSTuner:
             label = step_key.replace("step", "Step ").replace("_", " ").title()
             n_cfg = len(grid)
             est_h = n_cfg * len(bank) * 5 / 3600
-            print(f"\n  ── {label}  ({n_cfg} configs × {len(bank)} instances ~ {est_h:.1f}h) ──")
+            print(
+                f"\n  ── {label}  ({n_cfg} configs × {len(bank)} instances ~ {est_h:.1f}h) ──"
+            )
 
             if step_key == "step3_bandit":
-                step_uniform = False   # bandit params need the bandit ON
+                step_uniform = False  # bandit params need the bandit ON
             else:
-                step_uniform = True    # disable bandit confounding
+                step_uniform = True  # disable bandit confounding
 
             best_gap = float("inf")
             best_params = {}
@@ -555,25 +625,31 @@ class HybridALNSTuner:
                 tqdm(grid, desc=f"  {label}", leave=False)
             ):
                 result = self.evaluate_config(
-                    candidate, max_iter=max_iter, force_uniform_random=step_uniform,
-                    bank=bank, n_jobs=n_jobs,
+                    candidate,
+                    max_iter=max_iter,
+                    force_uniform_random=step_uniform,
+                    bank=bank,
+                    n_jobs=n_jobs,
                 )
-                if result.mean_gap < best_gap:
-                    best_gap = result.mean_gap
+                if result.mean_relative_gap < best_gap:
+                    best_gap = result.mean_relative_gap
                     best_params = dict(candidate)
 
                 n_save = max(1, len(grid) // 3)
                 if trial_idx % n_save == 0 or trial_idx == len(grid) - 1:
                     tqdm.write(
-                        f"    gap={result.mean_gap:.4f}  "
+                        f"    gap={result.mean_relative_gap:.4f}  "
                         f"best={best_gap:.4f}  |  "
                         + ", ".join(f"{k}={v}" for k, v in candidate.items())
                     )
 
             # Log best of this step
             step_result = self.evaluate_config(
-                best_params, max_iter=max_iter, force_uniform_random=step_uniform,
-                bank=bank, n_jobs=n_jobs,
+                best_params,
+                max_iter=max_iter,
+                force_uniform_random=step_uniform,
+                bank=bank,
+                n_jobs=n_jobs,
             )
             self.save_log(
                 f"isolation_{step_key}.json",
@@ -596,8 +672,11 @@ class HybridALNSTuner:
         # Log the merged config
         merged = {**DEFAULT_PARAMS, **best_merged}
         merged_result = self.evaluate_config(
-            best_merged, max_iter=max_iter, force_uniform_random=False,
-            bank=bank, n_jobs=n_jobs,
+            best_merged,
+            max_iter=max_iter,
+            force_uniform_random=False,
+            bank=bank,
+            n_jobs=n_jobs,
         )
         self.save_log(
             "isolation_merged.json",
@@ -606,7 +685,9 @@ class HybridALNSTuner:
             merged_result,
             baseline_params=DEFAULT_PARAMS,
         )
-        print(f"\n  >> Merged best from isolation: gap={merged_result.mean_gap:.4f}")
+        print(
+            f"\n  >> Merged best from isolation: gap={merged_result.mean_relative_gap:.4f}"
+        )
         print(f"\n{'=' * 70}")
 
         return merged
@@ -643,6 +724,9 @@ class HybridALNSTuner:
 
         # ── Objective ──────────────────────────────────────────────────────
         _n_jobs = n_jobs  # capture for closure
+        _qw = self.quality_weight
+        _tw = self.time_weight
+
         def objective(trial: optuna.Trial) -> float:
             params = {}
             for k, spec in STAGE1_RANGES.items():
@@ -653,12 +737,20 @@ class HybridALNSTuner:
                 else:
                     params[k] = trial.suggest_float(k, lo, hi, log=log_)
             result = self.evaluate_config(params, max_iter=max_iter, n_jobs=_n_jobs)
-            trial.set_user_attr("metrics", {
-                "mean_time_s": result.mean_time_s,
-                "per_dataset_gap": result.per_dataset_gap,
-                "arm_pulls": result.arm_pulls,
-            })
-            return result.mean_gap
+            composite = (
+                _qw * result.mean_relative_gap + _tw * result.mean_normalized_time
+            )
+            trial.set_user_attr(
+                "metrics",
+                {
+                    "mean_relative_gap": result.mean_relative_gap,
+                    "mean_normalized_time": result.mean_normalized_time,
+                    "mean_time_s": result.mean_time_s,
+                    "per_dataset_relative_gap": result.per_dataset_relative_gap,
+                    "arm_pulls": result.arm_pulls,
+                },
+            )
+            return composite
 
         study = optuna.create_study(
             direction="minimize",
@@ -767,6 +859,9 @@ class HybridALNSTuner:
         # ── Objective ──────────────────────────────────────────────────────
         _bank = bank or self.stage2_bank
         _n_jobs = n_jobs  # capture for closure
+        _qw = self.quality_weight
+        _tw = self.time_weight
+
         def objective(trial: optuna.Trial) -> float:
             params = {}
             for k, spec in STAGE2_RANGES.items():
@@ -776,13 +871,23 @@ class HybridALNSTuner:
                     params[k] = trial.suggest_int(k, int(lo), int(hi))
                 else:
                     params[k] = trial.suggest_float(k, lo, hi, log=log_)
-            result = self.evaluate_config(params, max_iter=max_iter, bank=_bank, n_jobs=_n_jobs)
-            trial.set_user_attr("metrics", {
-                "mean_time_s": result.mean_time_s,
-                "per_dataset_gap": result.per_dataset_gap,
-                "arm_pulls": result.arm_pulls,
-            })
-            return result.mean_gap
+            result = self.evaluate_config(
+                params, max_iter=max_iter, bank=_bank, n_jobs=_n_jobs
+            )
+            composite = (
+                _qw * result.mean_relative_gap + _tw * result.mean_normalized_time
+            )
+            trial.set_user_attr(
+                "metrics",
+                {
+                    "mean_relative_gap": result.mean_relative_gap,
+                    "mean_normalized_time": result.mean_normalized_time,
+                    "mean_time_s": result.mean_time_s,
+                    "per_dataset_relative_gap": result.per_dataset_relative_gap,
+                    "arm_pulls": result.arm_pulls,
+                },
+            )
+            return composite
 
         study = optuna.create_study(
             direction="minimize",
@@ -800,7 +905,7 @@ class HybridALNSTuner:
 
     def _report_study(self, study: optuna.Study, label: str) -> None:
         print(f"\n{'=' * 70}")
-        print(f"  {label}  —  best gap: {study.best_value:.4f}")
+        print(f"  {label}  —  best objective: {study.best_value:.4f}")
         print(f"{'=' * 70}")
         for k, v in study.best_params.items():
             print(f"    {k:25s} = {v}")
@@ -815,12 +920,14 @@ class HybridALNSTuner:
         for t in study.trials:
             if t.value is None:
                 continue
-            trials_data.append({
-                "number": t.number,
-                "value": t.value,
-                "params": t.params,
-                "metrics": t.user_attrs.get("metrics"),
-            })
+            trials_data.append(
+                {
+                    "number": t.number,
+                    "value": t.value,
+                    "params": t.params,
+                    "metrics": t.user_attrs.get("metrics"),
+                }
+            )
         payload: dict[str, Any] = {
             "study_name": name,
             "best_value": study.best_value,
@@ -851,11 +958,12 @@ class HybridALNSTuner:
         if stage1 is not None:
             stages["after Stage 1 (coarse)"] = {**DEFAULT_PARAMS, **stage1.best_params}
         if src is not None:
-            stages["after Stage 2 (fine, final)"] = {**DEFAULT_PARAMS, **src.best_params}
+            stages["after Stage 2 (fine, final)"] = {
+                **DEFAULT_PARAMS,
+                **src.best_params,
+            }
 
-        all_params = sorted(
-            set(k for s in stages.values() for k in s)
-        )
+        all_params = sorted(set(k for s in stages.values() for k in s))
 
         print(f"\n{'=' * 110}")
         header = "PARAMETER EVOLUTION  —  every stage tracked  ".center(110)
@@ -888,13 +996,17 @@ class HybridALNSTuner:
                 lo, hi = rng.get("low", "?"), rng.get("high", "?")
                 log_ = "log" if rng.get("log") else ""
                 range_str = f"[{lo}, {hi}] {log_}".strip()
-            print(f"  {p:25s}  " + "  ".join(f"{v:>22s}" for v in vals) + f"    {range_str}")
+            print(
+                f"  {p:25s}  "
+                + "  ".join(f"{v:>22s}" for v in vals)
+                + f"    {range_str}"
+            )
 
         print("=" * 110)
 
         # Final best merged
         if src is not None:
-            best = {**DEFAULT_PARAMS, **STRUCTURAL_DEFAULTS, **src.best_params}
+            best = {**DEFAULT_PARAMS, **STRUCTURAL_DEFAULTS, **PIPELINE_CONFIG, **src.best_params}
             print(f"\n  Best configuration found:")
             print(f"  {'=' * 45}")
             for k, v in best.items():
@@ -907,6 +1019,7 @@ class HybridALNSTuner:
 # ─────────────────────────────────────────────────────────────────────────────
 # 5.  CLI ENTRY POINT
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def main() -> None:
     import argparse
@@ -928,52 +1041,92 @@ def main() -> None:
         ),
     )
     parser.add_argument(
-        "--stage1-trials", type=int, default=30,
+        "--stage1-trials",
+        type=int,
+        default=30,
         help="Stage 1 (coarse) trials (default: 30)",
     )
     parser.add_argument(
-        "--stage2-trials", type=int, default=20,
+        "--stage2-trials",
+        type=int,
+        default=20,
         help="Stage 2 (fine) trials (default: 20)",
     )
     parser.add_argument(
-        "--iter-stage1", type=int, default=2000,
+        "--iter-stage1",
+        type=int,
+        default=2000,
         help="ALNS iterations per instance in Stage 1 (default: 2000)",
     )
     parser.add_argument(
-        "--iter-stage2", type=int, default=3000,
+        "--iter-stage2",
+        type=int,
+        default=3000,
         help="ALNS iterations per instance in Stage 2 (default: 3000)",
     )
     parser.add_argument(
-        "--bank-size", type=int, default=20,
+        "--bank-size",
+        type=int,
+        default=20,
         help="Instance bank size for isolation + Stage 1, proportionally sampled (default: 20)",
     )
     parser.add_argument(
-        "--stage2-bank-size", type=int, default=40,
+        "--stage2-bank-size",
+        type=int,
+        default=40,
         help="Instance bank size for Stage 2 (default: 40)",
     )
     parser.add_argument(
-        "--n-jobs", type=int, default=1,
+        "--n-jobs",
+        type=int,
+        default=1,
         help="Parallel workers. -1 = all CPUs (default: 1)",
     )
     parser.add_argument(
-        "--seed", type=int, default=42,
+        "--seed",
+        type=int,
+        default=42,
         help="RNG seed (default: 42)",
     )
     parser.add_argument(
-        "--output-dir", type=str, default="tuning_results",
+        "--output-dir",
+        type=str,
+        default="tuning_results",
         help="Output directory (default: tuning_results)",
     )
     parser.add_argument(
-        "--baseline-only", action="store_true",
+        "--baseline-only",
+        action="store_true",
         help="Only evaluate defaults, skip tuning",
     )
     parser.add_argument(
-        "--no-isolation", action="store_true",
+        "--no-isolation",
+        action="store_true",
         help="Skip isolation grid-search steps; go directly to Optuna",
     )
     parser.add_argument(
-        "--quick", action="store_true",
+        "--quick",
+        action="store_true",
         help="Minimal: 5 trials S1, 3 trials S2, no isolation, bank=10, stage2-bank=20",
+    )
+
+    parser.add_argument(
+        "--quality-weight",
+        type=float,
+        default=0.9,
+        help="Quality coefficient in composite objective (default: 0.9)",
+    )
+    parser.add_argument(
+        "--time-weight",
+        type=float,
+        default=0.1,
+        help="Time coefficient in composite objective (default: 0.1)",
+    )
+    parser.add_argument(
+        "--time-limit",
+        type=float,
+        default=60,
+        help="Time normaliser in seconds for elapsed / time_limit (default: 60)",
     )
 
     args = parser.parse_args()
@@ -991,15 +1144,16 @@ def main() -> None:
     # Build tuner with specified bank sizes
     counts_per_key = None
     scale = args.bank_size / BANK_COMPOSITION_TOTAL
-    counts_per_key = {
-        key: max(1, round(w * scale))
-        for key, w in BANK_COMPOSITION
-    }
+    counts_per_key = {key: max(1, round(w * scale)) for key, w in BANK_COMPOSITION}
 
     tuner = HybridALNSTuner(
-        seed=args.seed, output_dir=args.output_dir,
+        seed=args.seed,
+        output_dir=args.output_dir,
         counts_per_key=counts_per_key,
         stage2_bank_size=args.stage2_bank_size,
+        quality_weight=args.quality_weight,
+        time_weight=args.time_weight,
+        time_limit=args.time_limit,
     )
     n_jobs = args.n_jobs
     if n_jobs == -1 or n_jobs is None:
@@ -1007,13 +1161,17 @@ def main() -> None:
 
     n_inst = len(tuner.tuning_bank)
     n_s2 = len(tuner.stage2_bank)
-    bank_s = n_inst * 5.0         # ~5 s / inst at 2000 iter
-    bank_s2 = n_s2 * 15.0         # ~15 s / inst at 3000 iter
+    bank_s = n_inst * 5.0  # ~5 s / inst at 2000 iter
+    bank_s2 = n_s2 * 15.0  # ~15 s / inst at 3000 iter
 
     # Print time budget upfront
     speedup = min(n_jobs, os.cpu_count() or 1)
     print(f"\n{'─' * 60}")
-    print(f"  TIME BUDGET ESTIMATE  ({n_jobs} worker{'s' if n_jobs > 1 else ''})".center(60))
+    print(
+        f"  TIME BUDGET ESTIMATE  ({n_jobs} worker{'s' if n_jobs > 1 else ''})".center(
+            60
+        )
+    )
     print(f"{'─' * 60}")
     total_est_h = 0.0
     baseline_h = 1 * bank_s / 3600 / speedup
@@ -1029,13 +1187,17 @@ def main() -> None:
 
     s1_h = args.stage1_trials * bank_s / 3600 / speedup
     total_est_h += s1_h
-    print(f"  Stage 1 ({args.stage1_trials} trials × {n_inst} inst)          {s1_h:.1f} h")
+    print(
+        f"  Stage 1 ({args.stage1_trials} trials × {n_inst} inst)          {s1_h:.1f} h"
+    )
 
     s2_h = args.stage2_trials * bank_s2 / 3600 / speedup
     total_est_h += s2_h
     print(f"  Stage 2 ({args.stage2_trials} trials × {n_s2} inst)         {s2_h:.1f} h")
     print(f"{'─' * 60}")
-    print(f"  TOTAL ESTIMATED                        {total_est_h:.1f} h  ({total_est_h/24:.1f} days)")
+    print(
+        f"  TOTAL ESTIMATED                        {total_est_h:.1f} h  ({total_est_h/24:.1f} days)"
+    )
     print(f"{'─' * 60}")
     if total_est_h > 3 and n_jobs == 1:
         print("  Use --n-jobs N to parallelize across N CPU cores.")
@@ -1043,7 +1205,9 @@ def main() -> None:
     print()
 
     # ── 1. Baseline ────────────────────────────────────────────────────────
-    baseline = tuner.evaluate_defaults(max_iter=min(2000, args.iter_stage1), n_jobs=n_jobs)
+    baseline = tuner.evaluate_defaults(
+        max_iter=min(2000, args.iter_stage1), n_jobs=n_jobs
+    )
 
     if args.baseline_only:
         tuner.print_best_config()
@@ -1053,7 +1217,8 @@ def main() -> None:
     isolation_best: dict[str, Any] | None = None
     if not args.no_isolation:
         isolation_best = tuner.run_isolation_steps(
-            max_iter=min(2000, args.iter_stage1), n_jobs=n_jobs,
+            max_iter=min(2000, args.iter_stage1),
+            n_jobs=n_jobs,
         )
 
     # ── 3. Stage 1: coarse ─────────────────────────────────────────────────
@@ -1083,7 +1248,10 @@ def main() -> None:
     print("\n  Re-evaluating best config on stage-2 bank...")
     best_params = {**DEFAULT_PARAMS, **stage2.best_params}
     best_result = tuner.evaluate_config(
-        best_params, max_iter=args.iter_stage2, bank=tuner.stage2_bank, n_jobs=n_jobs,
+        best_params,
+        max_iter=args.iter_stage2,
+        bank=tuner.stage2_bank,
+        n_jobs=n_jobs,
     )
     tuner.save_log(
         "best_config_evaluation.json",
@@ -1095,17 +1263,26 @@ def main() -> None:
     )
     # Also evaluate on the tuning bank for apples-to-apples against baseline
     best_result_tb = tuner.evaluate_config(
-        best_params, max_iter=args.iter_stage1, bank=tuner.tuning_bank, n_jobs=n_jobs,
+        best_params,
+        max_iter=args.iter_stage1,
+        bank=tuner.tuning_bank,
+        n_jobs=n_jobs,
     )
     print(f"\n  {'=' * 45}")
-    print(f"    Baseline gap:  {baseline.mean_gap:.4f}  ({len(tuner.tuning_bank)} inst)")
-    print(f"    Best     gap:  {best_result_tb.mean_gap:.4f}  ({len(tuner.tuning_bank)} inst)")
-    if best_result_tb.mean_gap < baseline.mean_gap:
-        impr = baseline.mean_gap - best_result_tb.mean_gap
-        pct = impr / max(baseline.mean_gap, 1e-9) * 100
+    print(
+        f"    Baseline relative gap:  {baseline.mean_relative_gap:.4f}  ({len(tuner.tuning_bank)} inst)"
+    )
+    print(
+        f"    Best     relative gap:  {best_result_tb.mean_relative_gap:.4f}  ({len(tuner.tuning_bank)} inst)"
+    )
+    if best_result_tb.mean_relative_gap < baseline.mean_relative_gap:
+        impr = baseline.mean_relative_gap - best_result_tb.mean_relative_gap
+        pct = impr / max(baseline.mean_relative_gap, 1e-9) * 100
         print(f"    Improvement:   {impr:+.4f}  ({pct:+.1f}%)")
     else:
-        print(f"    Change:        {baseline.mean_gap - best_result_tb.mean_gap:+.4f}")
+        print(
+            f"    Change:        {baseline.mean_relative_gap - best_result_tb.mean_relative_gap:+.4f}"
+        )
     print(f"  {'=' * 45}")
     print(f"\n  All results saved in:  {tuner.output_dir}/")
 
