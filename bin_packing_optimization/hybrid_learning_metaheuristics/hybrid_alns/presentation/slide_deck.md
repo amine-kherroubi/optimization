@@ -81,8 +81,9 @@ style: |
   }
 
   /* ── Tables ── */
-  table {
-    width: 100%;
+  section table {
+    width: 100% !important;
+    min-width: 100% !important;
     border-collapse: collapse;
     font-size: 0.8em;
     margin-top: 0.5em;
@@ -104,9 +105,8 @@ style: |
     padding: 6px 13px;
     border-bottom: 1px solid var(--rule);
     vertical-align: top;
+    background: transparent;
   }
-
-  tr:nth-child(even) td { background: #ede7db; }
 
   /* ── Code ── */
   code {
@@ -602,7 +602,7 @@ Five families covering structurally distinct regimes:
 
 **Key finding:** the online RL selector is the **decisive contributor** — it closes the gap to 0 alone. The offline GBT repair model adds approximately **2× runtime** with no quality gain on this small-instance slice; its benefit is expected to emerge at larger scale.
 
-> ⚠ Conclusions are bounded by a 5-instance evaluation slice at a single instance size. Large-instance behaviour is an open empirical question.
+> Conclusions are bounded by a 5-instance evaluation slice at a single instance size. Large-instance behaviour is an open empirical question.
 
 ---
 
@@ -639,7 +639,7 @@ Five families covering structurally distinct regimes:
 
 The dual-learning ALNS reaches near-optimal quality at **8× lower runtime** than ACO, dominating every other metaheuristic tested on both dimensions.
 
-> ⚠ Stochastic baselines are single-run results; multi-seed averaging may alter relative rankings.
+> Stochastic baselines are single-run results; multi-seed averaging may alter relative rankings.
 
 ---
 
