@@ -136,7 +136,7 @@ style: |
   section::after {
     font-family: 'Jost', sans-serif;
     font-size: 0.62em;
-    color: var(--muted);
+    color: var(--navy);
   }
 
   /* ── Title slide ── */
@@ -329,7 +329,7 @@ operate on implicitly exponential neighborhoods by partially destroying and then
 
 Each iteration consists of two phases:
 
-**Destroy** — remove a subset $D$ of items from their assigned bins, producing a partial solution $\hat{x}$ and a displaced item set $D$.
+**Destroy** — remove a subset $D$ of items from their assigned bins, producing a partial solution $\hat{x}$.
 
 **Repair** — reinsert every item in $D$ into $\hat{x}$, restoring feasibility and yielding a new complete solution $x'$.
 
@@ -466,13 +466,13 @@ $$A_{k^*}^{-1} \leftarrow A_{k^*}^{-1} - \frac{(A_{k^*}^{-1}\mathbf{x})(A_{k^*}^
 
 The 5-dimensional feature $\mathbf{x}$ encodes the current search state:
 
-| Index | Feature                                | Description                                         |
-| ----- | -------------------------------------- | --------------------------------------------------- |
-| 0     | $T / T_0$                              | Normalised temperature; 1 = start (hot), 0 = cold   |
-| 1     | `iter_no_improve` / `no_improve_limit` | Stagnation progress toward the next restart         |
-| 2     | $f(x) / \mathrm{LB}_1$                 | Ratio of current cost to lower bound; 1.0 = optimal |
-| 3     | $k / n$                                | Current destruction radius as a fraction of $n$     |
-| 4     | `iteration` / `max_iterations`         | Overall search progress (0 to 1)                    |
+| Index | Feature                                | Description                                       |
+| ----- | -------------------------------------- | ------------------------------------------------- |
+| 0     | $T / T_0$                              | Normalised temperature; 1 = start (hot), 0 = cold |
+| 1     | `iter_no_improve` / `no_improve_limit` | Stagnation progress toward the next restart       |
+| 2     | $\mathrm{LB}_1 / f(x)$                 | Lower-bound-to-cost ratio; 1.0 = optimal          |
+| 3     | $k / n$                                | Current destruction radius as a fraction of $n$   |
+| 4     | `iteration` / `max_iterations`         | Overall search progress (0 to 1)                  |
 
 All features lie in $[0,1]$, enabling the UCB exploration term to be comparable across dimensions without additional normalisation.
 
@@ -637,7 +637,7 @@ Five families covering structurally distinct regimes:
 | **Dual-learning ALNS**   | **0.20** | **0.36** |
 | Ant Colony Optimization  | 0.00     | 3.03     |
 
-The dual-learning ALNS reaches near-optimal quality at **8× lower runtime** than ACO, dominating every other metaheuristic tested on both dimensions.
+The dual-learning ALNS achieves a mean gap of **0.20** — the lowest of any tested method except ACO — while running **8× faster**. No other method in the comparison achieves both a lower gap and a lower runtime.
 
 > Stochastic baselines are single-run results; multi-seed averaging may alter relative rankings.
 
