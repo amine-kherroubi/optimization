@@ -17,7 +17,6 @@ Or run directly:
 from __future__ import annotations
 
 import concurrent.futures
-import itertools
 import json
 import math
 import os
@@ -32,12 +31,6 @@ from tqdm import tqdm
 
 from bin_packing_optimization.datasets.registry import DATASET_REGISTRY
 from bin_packing_optimization.datasets.types import Instance
-from bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns.hybrid_alns_solver import (
-    BinPackingSolver,
-)
-from bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns.models import (
-    load_repair_model,
-)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 1.  PARAMETER DEFINITIONS
@@ -74,7 +67,7 @@ PIPELINE_CONFIG: dict[str, Any] = {
 }
 
 # --- Isolation-step small bank size ---
-# Isolation steps use a smaller bank (20 instances vs 20+40 for Optuna stages).
+# Isolation steps use a smaller bank (20 instances vs 100 for Optuna stages).
 # This keeps the grid coarse-and-fast before the expensive Optuna stages.
 ISOLATION_BANK_SIZE: int = 20
 
@@ -169,11 +162,6 @@ def _make_solver_kwargs(
     return kwargs
 
 
-def _lower_bound(inst: Instance) -> int:
-    """Continuous lower bound LB = ceil(sum(sizes) / bin_capacity)."""
-    return int(math.ceil(sum(inst.sizes) / inst.bin_capacity))
-
-
 def _params_diff(
     base: dict[str, Any], changed: dict[str, Any]
 ) -> dict[str, tuple[Any, Any]]:
@@ -265,7 +253,7 @@ class HybridALNSTuner:
     1. **Baseline** — evaluate default config →  :file:`baseline_defaults.json`
     2. **Isolation steps** (optional) — grid-search each param group independently
        with uniform-random bandit →  :file:`isolation_step*.json`
-    3. **Stage 1 (coarse)** — wide-range Bayesian search (2 000 iter/inst)
+    3. **Stage 1 (coarse)** — wide-range Bayesian search (5 000 iter/inst)
        →  :file:`alns_stage1_coarse_study.json`
     4. **Stage 2 (fine)** — narrow-range search anchored on Stage-1 best
        (5 000 iter/inst) →  :file:`alns_stage2_fine_study.json`
@@ -288,7 +276,6 @@ class HybridALNSTuner:
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         self.model_name = model_name
-        self.model_bundle = load_repair_model(model_name)
 
         self.quality_weight = quality_weight
         self.time_weight = time_weight
@@ -393,7 +380,6 @@ class HybridALNSTuner:
         self,
         solver_kwargs: dict[str, Any],
         max_iter: int = 2000,
-        time_limit: float | None = None,
         force_uniform_random: bool = False,
         bank: list[Instance] | None = None,
         n_jobs: int = 1,
@@ -407,8 +393,6 @@ class HybridALNSTuner:
             Missing params are filled from ``DEFAULT_PARAMS``.
         max_iter:
             ALNS iterations per instance.
-        time_limit:
-            Optional per-instance wall-clock limit in seconds.
         force_uniform_random:
             If True, the bandit is bypassed and destroy operators are chosen
             uniformly at random.
@@ -513,6 +497,7 @@ class HybridALNSTuner:
         result: TuningResult,
         search_ranges: dict[str, dict[str, Any]] | None = None,
         baseline_params: dict[str, Any] | None = None,
+        bank_size_override: int | None = None,
     ) -> None:
         """Save a structured JSON result.
 
@@ -531,12 +516,15 @@ class HybridALNSTuner:
         baseline_params:
             If provided, records what changed relative to this reference
             (usually ``DEFAULT_PARAMS``).
+        bank_size_override:
+            If provided, overrides ``bank_size`` in the saved JSON
+            (e.g. for isolation steps that use the smaller isolation bank).
         """
         payload: dict[str, Any] = {
             "timestamp": time.time(),
             "run_type": run_type,
             "seed": self.seed,
-            "bank_size": len(self.tuning_bank),
+            "bank_size": bank_size_override if bank_size_override is not None else len(self.tuning_bank),
             "parameters": dict(params),
             "structural_defaults": dict(STRUCTURAL_DEFAULTS),
             "pipeline_config": {
@@ -619,9 +607,8 @@ class HybridALNSTuner:
         for step_key, grid in ISOLATION_GRIDS.items():
             label = step_key.replace("step", "Step ").replace("_", " ").title()
             n_cfg = len(grid)
-            est_h = n_cfg * len(bank) * 5 / 3600
             print(
-                f"\n  ── {label}  ({n_cfg} configs × {len(bank)} instances ~ {est_h:.1f}h) ──"
+                f"\n  ── {label}  ({n_cfg} configs × {len(bank)} instances) ──"
             )
 
             if step_key == "step3_bandit":
@@ -665,6 +652,7 @@ class HybridALNSTuner:
                 step_result,
                 search_ranges={"grid": grid, "bank_size": len(bank)},
                 baseline_params=DEFAULT_PARAMS,
+                bank_size_override=len(bank),
             )
             print(f"  >> Best {label}: gap={best_gap:.4f}")
             for k, v in best_params.items():
@@ -691,6 +679,7 @@ class HybridALNSTuner:
             merged,
             merged_result,
             baseline_params=DEFAULT_PARAMS,
+            bank_size_override=len(bank),
         )
         print(
             f"\n  >> Merged best from isolation: gap={merged_result.mean_relative_gap:.4f}"
@@ -1005,7 +994,7 @@ class HybridALNSTuner:
 
         # Final best merged
         if src is not None:
-            best = {**DEFAULT_PARAMS, **STRUCTURAL_DEFAULTS, **PIPELINE_CONFIG, **src.best_params}
+            best = {**DEFAULT_PARAMS, **STRUCTURAL_DEFAULTS, **src.best_params}
             print(f"\n  Best configuration found:")
             print(f"  {'=' * 45}")
             for k, v in best.items():
@@ -1187,7 +1176,7 @@ def main() -> None:
         f"  TOTAL ESTIMATED                        {total_est_h:.1f} h  ({total_est_h/24:.1f} days)"
     )
     print(f"{'─' * 60}")
-    if total_est_h > 3 and n_jobs == 1:
+    if total_est_h > 3 and n_workers == 1:
         print("  Use --n-jobs N to parallelize across N CPU cores.")
         print("  Or use --quick for a fast smoke-test (~30 min).")
     print()
