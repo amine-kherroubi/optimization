@@ -253,7 +253,7 @@ A solver combining metaheuristic large-neighborhood search, adaptive bandit-base
 
 ---
 
-## I. Problem Definition
+## I.1 Problem Definition
 
 **Given:** item set $\mathcal{I} = \{1, \ldots, n\}$ with integer sizes $s_i \in \mathbb{Z}_{>0}$; identical bins of integer capacity $C \in \mathbb{Z}_{>0}$, with $s_i \le C$ for all $i$.
 
@@ -273,7 +273,7 @@ $$\mathrm{LB}_1 = \left\lceil \frac{\displaystyle\sum_{i=1}^{n} s_i}{C} \right\r
 
 **Proof.** Any feasible packing must hold all item volume. With $m$ bins each contributing at most $C$ units, we need $mC \ge \sum_i s_i$, giving $m \ge \sum_i s_i / C$. Integer rounding yields the ceiling. $\square$
 
-> Tighter bounds exist (e.g. the Martello-Toth $L_2$ bound, which accounts for large items that cannot coexist). $\mathrm{LB}_1$ is sufficient as a progress indicator in this implementation.
+> Tighter bounds exist (e.g. the Martello–Toth $L_2$ bound, which accounts for large items that cannot coexist). $\mathrm{LB}_1$ is sufficient as a progress indicator in this implementation.
 
 ---
 
@@ -321,7 +321,7 @@ Classical local search applies small moves within a neighborhood $\mathcal{N}(x)
 - No bounded sequence of single-item relocations can reliably escape them
 
 **Solution — Large-Neighborhood Search (Shaw, 1998):**
-operate on implicitly exponential neighborhoods by partially destroying and then repairing the current solution.
+Operate on implicitly exponential neighborhoods by partially destroying and then repairing the current solution.
 
 ---
 
@@ -666,7 +666,7 @@ The dual-learning ALNS achieves a mean gap of **0.20** — the lowest of any tes
 
 ---
 
-## VII.2 Conclusion
+## VII.2 Conclusions
 
 **Three contributions:**
 
