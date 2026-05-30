@@ -187,6 +187,18 @@ def _params_diff(
 # 4.  PARALLEL WORKER (module-level for multiprocessing pickling)
 # ─────────────────────────────────────────────────────────────────────────────
 
+# Global model cache shared across worker processes — avoids reloading
+# the repair model from disk for every single instance evaluation.
+_WORKER_MODEL_CACHE: dict[str, Any] = {}
+
+
+def _worker_init(model_name: str) -> None:
+    """Load the repair model once per worker process."""
+    from bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns.models import (
+        load_repair_model,
+    )
+    _WORKER_MODEL_CACHE["bundle"] = load_repair_model(model_name)
+
 
 def _evaluate_one(
     inst_dict: dict[str, Any],
@@ -203,14 +215,19 @@ def _evaluate_one(
     from bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns.hybrid_alns_solver import (
         BinPackingSolver,
     )
-    from bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns.models import (
-        load_repair_model,
-    )
 
-    model_bundle = load_repair_model(model_name)
+    model_bundle = _WORKER_MODEL_CACHE.get("bundle")
+    if model_bundle is None:
+        from bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns.models import (
+            load_repair_model,
+        )
+        model_bundle = load_repair_model(model_name)
+        _WORKER_MODEL_CACHE["bundle"] = model_bundle
+
     sizes = list(inst_dict["sizes"])
     solver = BinPackingSolver(sizes, inst_dict["bin_capacity"], seed=seed)
 
+    kwargs["time_limit_seconds"] = time_limit
     t0 = time.perf_counter()
     solver.solve(model_bundle=model_bundle, max_iterations=max_iter, **kwargs)
     elapsed = time.perf_counter() - t0
@@ -426,10 +443,14 @@ class HybridALNSTuner:
                 _evaluate_one(
                     d, self.model_name, self.seed + idx, max_iter, self.time_limit, kwargs
                 )
-                for idx, d in enumerate(tqdm(inst_dicts, desc="  Solving", leave=False))
+                for idx, d in enumerate(tqdm(inst_dicts, desc="  Solving", leave=False, position=1))
             ]
         else:
-            with concurrent.futures.ProcessPoolExecutor(max_workers=n_jobs) as ex:
+            with concurrent.futures.ProcessPoolExecutor(
+                max_workers=n_jobs,
+                initializer=_worker_init,
+                initargs=(self.model_name,),
+            ) as ex:
                 futures = [
                     ex.submit(
                         _evaluate_one,
@@ -449,6 +470,7 @@ class HybridALNSTuner:
                         total=len(futures),
                         desc="  Solving",
                         leave=False,
+                        position=1,
                     )
                 ]
 
@@ -609,9 +631,10 @@ class HybridALNSTuner:
 
             best_gap = float("inf")
             best_params = {}
+            best_result: TuningResult | None = None
 
             for trial_idx, candidate in enumerate(
-                tqdm(grid, desc=f"  {label}", leave=False)
+                tqdm(grid, desc=f"  {label}", leave=False, position=0)
             ):
                 result = self.evaluate_config(
                     candidate,
@@ -623,6 +646,7 @@ class HybridALNSTuner:
                 if result.mean_relative_gap < best_gap:
                     best_gap = result.mean_relative_gap
                     best_params = dict(candidate)
+                    best_result = result
 
                 n_save = max(1, len(grid) // 3)
                 if trial_idx % n_save == 0 or trial_idx == len(grid) - 1:
@@ -632,14 +656,8 @@ class HybridALNSTuner:
                         + ", ".join(f"{k}={v}" for k, v in candidate.items())
                     )
 
-            # Log best of this step
-            step_result = self.evaluate_config(
-                best_params,
-                max_iter=max_iter,
-                force_uniform_random=step_uniform,
-                bank=bank,
-                n_jobs=n_jobs,
-            )
+            # Log best of this step — reuse cached best_result, avoid re-eval
+            step_result = best_result
             self.save_log(
                 f"isolation_{step_key}.json",
                 f"isolation_{step_key}",
@@ -780,16 +798,6 @@ class HybridALNSTuner:
         )
 
         # Build the narrow Stage-2 ranges (for logging)
-        def _window(
-            name: str, center: float, rel: float = 0.15, abs_: float = 0.0
-        ) -> tuple[float, float]:
-            if abs_ > 0:
-                low = center - abs_
-            else:
-                low = center * (1.0 - rel)
-            high = center + (abs_ if abs_ > 0 else center * rel)
-            return max(1e-6, low), high
-
         STAGE2_RANGES = {
             "initial_temperature": {
                 "low": max(1e-6, anchor["initial_temperature"] * 0.85),
@@ -1140,18 +1148,15 @@ def main() -> None:
         time_weight=args.time_weight,
         time_limit=args.time_limit,
     )
-    n_jobs = args.n_jobs
-    if n_jobs == -1 or n_jobs is None:
-        n_jobs = os.cpu_count() or 1
-
     n_inst = len(tuner.tuning_bank)
     # 5 s/inst at 2000 iter. Optuna stages: 5000 iter → 12.5 s.
     # Isolation: capped at 2000 iter → 5 s.
     bank_s = n_inst * 12.5
-    speedup = min(n_jobs, os.cpu_count() or 1)
+    n_workers = args.n_jobs if args.n_jobs > 0 else (os.cpu_count() or 1)
+    speedup = min(n_workers, os.cpu_count() or 1)
     print(f"\n{'─' * 60}")
     print(
-        f"  TIME BUDGET ESTIMATE  ({n_jobs} worker{'s' if n_jobs > 1 else ''})".center(
+        f"  TIME BUDGET ESTIMATE  ({n_workers} worker{'s' if n_workers > 1 else ''})".center(
             60
         )
     )
@@ -1189,7 +1194,7 @@ def main() -> None:
 
     # ── 1. Baseline ────────────────────────────────────────────────────────
     baseline = tuner.evaluate_defaults(
-        max_iter=min(2000, args.iter_stage1), n_jobs=n_jobs
+        max_iter=min(2000, args.iter_stage1), n_jobs=args.n_jobs
     )
 
     if args.baseline_only:
@@ -1201,7 +1206,7 @@ def main() -> None:
     if not args.no_isolation:
         isolation_best = tuner.run_isolation_steps(
             max_iter=min(2000, args.iter_stage1),
-            n_jobs=n_jobs,
+            n_jobs=args.n_jobs,
         )
 
     # ── 3. Stage 1: coarse ─────────────────────────────────────────────────
@@ -1209,7 +1214,7 @@ def main() -> None:
         n_trials=args.stage1_trials,
         max_iter=args.iter_stage1,
         anchor=isolation_best,
-        n_jobs=n_jobs,
+        n_jobs=args.n_jobs,
     )
 
     # ── 4. Stage 2: fine ───────────────────────────────────────────────────
@@ -1217,7 +1222,7 @@ def main() -> None:
         coarse_study=stage1,
         n_trials=args.stage2_trials,
         max_iter=args.iter_stage2,
-        n_jobs=n_jobs,
+        n_jobs=args.n_jobs,
     )
 
     # ── 5. Final comparison ────────────────────────────────────────────────
@@ -1233,7 +1238,7 @@ def main() -> None:
     best_result = tuner.evaluate_config(
         best_params,
         max_iter=args.iter_stage2,
-        n_jobs=n_jobs,
+        n_jobs=args.n_jobs,
     )
     tuner.save_log(
         "best_config_evaluation.json",
