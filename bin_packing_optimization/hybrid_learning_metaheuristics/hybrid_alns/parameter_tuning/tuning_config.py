@@ -95,7 +95,8 @@ ISOLATION_GRIDS: dict[str, list[dict[str, Any]]] = {
         for kmin in [0.01, 0.05, 0.20]
         for kmax in [0.10, 0.25, 0.50]
         for ni in [0.01, 0.05, 0.20]
-    ],  # 3×3×3 = 27 configs
+        if kmax > kmin
+    ],  # 3×3×3 = 27, filtered to valid (excludes k_max ≤ k_min)
     "step3_bandit": [
         {"bandit_alpha": a, "warmup_calls": w}
         for a in [0.01, 0.30, 2.00]

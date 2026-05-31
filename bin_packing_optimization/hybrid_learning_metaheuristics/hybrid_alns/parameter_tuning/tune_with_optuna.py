@@ -20,6 +20,7 @@ import concurrent.futures
 import json
 import math
 import os
+import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -119,6 +120,21 @@ def _params_diff(
     }
 
 
+def _save_json_atomic(data: dict[str, Any], path: str | Path) -> None:
+    """Atomically write *data* as JSON to *path*.
+
+    Writes to a temporary file first, then renames (``os.replace``) so the
+    target file is never left in a partially-written state.
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.tmp")
+    with open(tmp, "w") as f:
+        json.dump(data, f, indent=2)
+    os.replace(tmp, path)
+    print(f"  -> {path}")
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # 4.  PARALLEL WORKER (module-level for multiprocessing pickling)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -168,19 +184,25 @@ def _evaluate_one(
     # Build a local copy so we never mutate the caller's shared kwargs dict.
     call_kwargs = {**kwargs, "time_limit_seconds": time_limit}
     t0 = time.perf_counter()
-    solver.solve(model_bundle=model_bundle, max_iterations=max_iter, **call_kwargs)
-    elapsed = time.perf_counter() - t0
+    try:
+        solver.solve(model_bundle=model_bundle, max_iterations=max_iter, **call_kwargs)
+        elapsed = time.perf_counter() - t0
 
-    sol = solver.get_solution()
-    lb = int(math.ceil(sum(sizes) / inst_dict["bin_capacity"]))
-    relative_gap = (sol.total_bins_used - lb) / max(lb, 1)
+        sol = solver.get_solution()
+        lb = int(math.ceil(sum(sizes) / inst_dict["bin_capacity"]))
+        relative_gap = (sol.total_bins_used - lb) / max(lb, 1)
 
-    arm_pulls = [0] * N_DESTROY_ARMS
-    if hasattr(solver, "_bandit"):
-        for arm_idx in range(N_DESTROY_ARMS):
-            arm_pulls[arm_idx] = solver._bandit.arm_counts[arm_idx]
+        arm_pulls = [0] * N_DESTROY_ARMS
+        if hasattr(solver, "_bandit"):
+            for arm_idx in range(N_DESTROY_ARMS):
+                arm_pulls[arm_idx] = solver._bandit.arm_counts[arm_idx]
 
-    normalized_time = elapsed / max(time_limit, 1e-9)
+        normalized_time = elapsed / max(time_limit, 1e-9)
+    except Exception:
+        elapsed = 0.0
+        relative_gap = float("inf")
+        normalized_time = float("inf")
+        arm_pulls = [0, 0, 0]
 
     return {
         "dataset_key": inst_dict["dataset_key"],
@@ -405,16 +427,25 @@ class HybridALNSTuner:
                     )
                     for idx, d in enumerate(inst_dicts)
                 ]
-                results = [
-                    f.result()
-                    for f in tqdm(
-                        concurrent.futures.as_completed(futures),
-                        total=len(futures),
-                        desc="  Solving",
-                        leave=False,
-                        position=1,
-                    )
-                ]
+                results = []
+                for f in tqdm(
+                    concurrent.futures.as_completed(futures),
+                    total=len(futures),
+                    desc="  Solving",
+                    leave=False,
+                    position=1,
+                ):
+                    try:
+                        result = f.result(timeout=600)
+                        results.append(result)
+                    except Exception:
+                        results.append({
+                            "dataset_key": "unknown",
+                            "relative_gap": float("inf"),
+                            "normalized_time": float("inf"),
+                            "elapsed": 0.0,
+                            "arm_pulls": [0, 0, 0],
+                        })
 
         total_relative_gap = 0.0
         total_normalized_time = 0.0
@@ -526,10 +557,7 @@ class HybridALNSTuner:
         if force_uniform_random is not None:
             payload["force_uniform_random"] = force_uniform_random
 
-        path = self.output_dir / filename
-        with open(path, "w") as f:
-            json.dump(payload, f, indent=2)
-        print(f"  -> {path}")
+        _save_json_atomic(payload, self.output_dir / filename)
 
     # ── Baseline ───────────────────────────────────────────────────────────
 
@@ -956,10 +984,7 @@ class HybridALNSTuner:
             payload["search_ranges"] = search_ranges
         if anchor_params is not None:
             payload["anchor_params"] = anchor_params
-        path = self.output_dir / STUDY_FILENAME_TEMPLATE.format(name=name)
-        with open(path, "w") as f:
-            json.dump(payload, f, indent=2)
-        print(f"  -> {path}")
+        _save_json_atomic(payload, self.output_dir / STUDY_FILENAME_TEMPLATE.format(name=name))
 
     def print_best_config(
         self,
@@ -1083,10 +1108,7 @@ def _save_pipeline_summary(
         "results": results_payload,
         "output_files": output_files,
     }
-    path = tuner.output_dir / PIPELINE_SUMMARY_FILENAME
-    with open(path, "w") as f:
-        json.dump(summary, f, indent=2)
-    print(f"  -> {path}")
+    _save_json_atomic(summary, tuner.output_dir / PIPELINE_SUMMARY_FILENAME)
 
 
 def main() -> None:
