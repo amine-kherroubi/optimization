@@ -944,3 +944,206 @@ tbody tr:last-child td {
     margin: 0 !important;
   }
 }
+
+/* ── Static Markdown slide content ───────────────────────────────── */
+.markdown-content {
+  max-width: 1380px;
+  height: 680px;
+  overflow: visible;
+  transform-origin: top left;
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3 {
+  max-width: 1280px;
+}
+
+.markdown-content h1 {
+  margin-top: 130px;
+  margin-bottom: var(--s7);
+}
+
+.markdown-content h2 {
+  margin-bottom: var(--s6);
+}
+
+.markdown-content h3 {
+  margin-top: var(--s3);
+  margin-bottom: var(--s6);
+}
+
+.markdown-content p,
+.markdown-content li,
+.markdown-content blockquote p {
+  font-size: 20px;
+  line-height: 1.38;
+  color: var(--ink-3);
+}
+
+.markdown-content p + p,
+.markdown-content p + ul,
+.markdown-content p + ol,
+.markdown-content ul + p,
+.markdown-content ol + p,
+.markdown-content .table-card + p,
+.markdown-content blockquote + p {
+  margin-top: var(--s4);
+}
+
+.markdown-content ul,
+.markdown-content ol {
+  margin: var(--s4) 0 0 var(--s8);
+  padding-left: var(--s5);
+}
+
+.markdown-content li {
+  margin-bottom: var(--s2);
+}
+
+.markdown-content li ul {
+  margin-top: var(--s2);
+}
+
+.markdown-content strong {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.markdown-content em {
+  color: var(--ink-2);
+}
+
+.markdown-content code {
+  font-family: var(--mono);
+  font-size: 0.9em;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--rule-light);
+  padding: 0 0.18em;
+}
+
+.markdown-content blockquote {
+  margin-top: var(--s5);
+  padding: var(--s4) var(--s6);
+  border-left: 3px solid var(--accent);
+  background: var(--bg);
+}
+
+.markdown-content blockquote p {
+  color: var(--ink-2);
+  font-weight: 500;
+}
+
+.markdown-content .table-card {
+  margin-top: var(--s5);
+  margin-bottom: var(--s4);
+}
+
+.markdown-content .result-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s5);
+  align-items: stretch;
+  margin-top: var(--s5);
+  margin-bottom: var(--s4);
+}
+
+.markdown-content .result-grid .table-card {
+  margin: 0;
+}
+
+.result-chart-panel {
+  min-height: 210px;
+  padding: var(--s5);
+  border: 1px solid var(--rule);
+  background: var(--surface);
+}
+
+.result-chart-panel h3 {
+  margin: 0 0 var(--s4);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.result-chart-panel canvas {
+  display: block;
+  width: 100%;
+  height: 165px;
+}
+
+.markdown-content th,
+.markdown-content td {
+  padding: 11px 14px;
+}
+
+.markdown-content td {
+  font-size: 16px;
+}
+
+.markdown-content .inline-formula {
+  min-height: auto;
+  margin: var(--s5) 0;
+  padding: var(--s6);
+  font-size: 24px;
+}
+
+.markdown-content pre {
+  max-height: none;
+  overflow: visible;
+  margin-top: var(--s4);
+  padding: var(--s5);
+  border: 1px solid var(--rule);
+  background: var(--bg);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 0.95;
+  color: var(--ink-2);
+  white-space: pre;
+}
+
+.markdown-content pre code {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font-size: inherit;
+}
+
+.dividerContent {
+  background: #2c2420;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.dividerContent::after {
+  color: rgba(255, 255, 255, 0.06);
+}
+
+.dividerContent .markdown-content {
+  height: auto;
+}
+
+.dividerContent .markdown-content h2,
+.dividerContent .markdown-content h3 {
+  color: var(--accent-inv);
+}
+
+.dividerContent .markdown-content h2 {
+  font-size: 96px;
+}
+
+.dividerContent .markdown-content h3 {
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 34px;
+  font-weight: 400;
+}
+
+.dividerContent footer {
+  border-top-color: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.3);
+}
