@@ -319,8 +319,6 @@ const slides = [
   },
 ];
 
-const deck = document.getElementById("deck");
-
 const resultCharts = {
   31: {
     title: "Avg. gap",
@@ -351,6 +349,47 @@ const resultCharts = {
   },
 };
 
+const deck = document.getElementById("deck");
+
+/* ─────────────────────────────────────────────────
+   Geometric SVG ornament injected into divider slides
+───────────────────────────────────────────────────*/
+const GEO_SVG = `<svg class="geo" viewBox="0 0 520 520" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <circle cx="520" cy="0" r="260"/>
+  <circle cx="520" cy="0" r="180"/>
+  <circle cx="520" cy="0" r="100"/>
+  <rect x="300" y="-60" width="360" height="360" transform="rotate(30 480 120)"/>
+  <rect x="340" y="-20" width="240" height="240" transform="rotate(15 460 100)"/>
+</svg>`;
+
+/* ─────────────────────────────────────────────────
+   Section numbers for divider slides
+───────────────────────────────────────────────────*/
+let sectionIdx = 0;
+const ROMAN = ["I", "II", "III", "IV", "V", "VI"];
+
+/* Best-row highlighting config:
+   slideNum (1-indexed) → array of row indices (0-indexed tbody rows) to highlight */
+const BEST_ROWS = {
+  31: [1], // V.3 Ablation: Online RL only row
+  32: [0, 2], // V.4 Multi-dataset: Scholl-2 & Falkenauer-U (gap 0.20)
+  33: [4], // V.5 Comparative: Dual-learning ALNS
+  35: [0], // VI.1 Synthesis: first finding (Online RL is decisive)
+};
+
+/* Stat row config: slideNum → array of stat blocks */
+const STAT_ROWS = {
+  33: [
+    { value: "0.20", label: "Mean gap — Dual ALNS", highlight: true },
+    { value: "8×", label: "Faster than ACO", highlight: false },
+    { value: "4/5", label: "Families within 1 bin of LB", highlight: false },
+    { value: "0.00", label: "Gap — Online RL only", highlight: false },
+  ],
+};
+
+/* ─────────────────────────────────────────────────
+   Helper
+───────────────────────────────────────────────────*/
 function el(tag, className, html) {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -358,17 +397,85 @@ function el(tag, className, html) {
   return node;
 }
 
+/* ─────────────────────────────────────────────────
+   renderSlide
+───────────────────────────────────────────────────*/
 function renderSlide(slide, i) {
   const section = el("section", `slide ${slide.kind}`, "");
   section.dataset.slide = String(i + 1).padStart(2, "0");
-  section.innerHTML =
-    `<div class="markdown-content">${slide.content}</div>` +
-    `<footer>Hybrid ALNS for 1D-BPP · ${String(i + 1).padStart(2, "0")} / ${slides.length}</footer>`;
+
+  const isDivider = slide.kind === "divider" || slide.kind === "dividerContent";
+
+  if (isDivider) {
+    // Geometric ornament
+    section.insertAdjacentHTML("beforeend", GEO_SVG);
+    // Section number watermark
+    const num = ROMAN[sectionIdx] || String(sectionIdx + 1);
+    sectionIdx++;
+    section.insertAdjacentHTML(
+      "beforeend",
+      `<span class="section-num">${num}</span>`,
+    );
+  }
+
+  section.insertAdjacentHTML(
+    "beforeend",
+    `<div class="markdown-content">${slide.content}</div>`,
+  );
+
+  section.insertAdjacentHTML(
+    "beforeend",
+    `<footer>Hybrid ALNS for 1D-BPP · ${String(i + 1).padStart(2, "0")} / ${slides.length}</footer>`,
+  );
+
   return section;
 }
 
 slides.forEach((slide, i) => deck.appendChild(renderSlide(slide, i)));
 
+/* ─────────────────────────────────────────────────
+   Apply best-row highlights to tables
+───────────────────────────────────────────────────*/
+function applyBestRows() {
+  Object.entries(BEST_ROWS).forEach(([slideNum, rowIdxs]) => {
+    const slide = document.querySelector(
+      `[data-slide="${String(slideNum).padStart(2, "0")}"]`,
+    );
+    if (!slide) return;
+    slide.querySelectorAll("tbody tr").forEach((tr, idx) => {
+      if (rowIdxs.includes(idx)) tr.classList.add("best");
+    });
+  });
+}
+
+/* ─────────────────────────────────────────────────
+   Inject stat rows before footer on designated slides
+───────────────────────────────────────────────────*/
+function injectStatRows() {
+  Object.entries(STAT_ROWS).forEach(([slideNum, stats]) => {
+    const slide = document.querySelector(
+      `[data-slide="${String(Number(slideNum)).padStart(2, "0")}"]`,
+    );
+    if (!slide) return;
+    const footer = slide.querySelector("footer");
+    if (!footer) return;
+    const row = el("div", "stat-row", "");
+    stats.forEach(({ value, label, highlight }) => {
+      row.insertAdjacentHTML(
+        "beforeend",
+        `<div class="stat-block${highlight ? " highlight" : ""}">
+           <span class="stat-value">${value}</span>
+           <span class="stat-label">${label}</span>
+         </div>`,
+      );
+    });
+    footer.before(row);
+  });
+}
+
+/* ─────────────────────────────────────────────────
+   Result charts
+───────────────────────────────────────────────────*/
 function addResultCharts() {
   Object.entries(resultCharts).forEach(([slideNumber, chart]) => {
     const slide = document.querySelector(
@@ -392,11 +499,9 @@ function addResultCharts() {
 
 function initResultCharts() {
   if (typeof Chart === "undefined") return;
-
   document.querySelectorAll("canvas[data-result-chart]").forEach((canvas) => {
     const chart = resultCharts[Number(canvas.dataset.resultChart)];
     if (!chart) return;
-
     new Chart(canvas, {
       type: "bar",
       data: {
@@ -414,10 +519,7 @@ function initResultCharts() {
         animation: false,
         maintainAspectRatio: false,
         responsive: true,
-        plugins: {
-          legend: { display: false },
-          tooltip: { enabled: true },
-        },
+        plugins: { legend: { display: false }, tooltip: { enabled: true } },
         scales: {
           x: {
             ticks: { color: "#5c5650", font: { size: 11 } },
@@ -434,23 +536,24 @@ function initResultCharts() {
   });
 }
 
+applyBestRows();
+injectStatRows();
 addResultCharts();
-// Defer chart initialisation so the browser has completed its first layout
-// pass and canvas elements report correct clientWidth / clientHeight.
 requestAnimationFrame(() => initResultCharts());
 
+/* ─────────────────────────────────────────────────
+   Responsive scaling
+───────────────────────────────────────────────────*/
 function fitMarkdownContent() {
   document.querySelectorAll(".markdown-content").forEach((content) => {
     content.style.transform = "none";
     content.style.width = "";
     content.style.height = "";
-
     const scale = Math.min(
       1,
       content.clientWidth / Math.max(content.scrollWidth, 1),
       content.clientHeight / Math.max(content.scrollHeight, 1),
     );
-
     if (scale < 1) {
       content.style.transform = `scale(${scale})`;
       content.style.width = `${100 / scale}%`;
@@ -482,8 +585,4 @@ window.addEventListener("beforeprint", () =>
   }),
 );
 window.addEventListener("afterprint", fitSlides);
-// Run the full fitSlides() (which includes fitMarkdownContent) on "load" so
-// that deferred KaTeX scripts have already rendered formulas before we
-// measure scrollHeight for content scaling.  The earlier sync call is
-// removed; slides are invisible until load anyway in most browsers.
 window.addEventListener("load", fitSlides);

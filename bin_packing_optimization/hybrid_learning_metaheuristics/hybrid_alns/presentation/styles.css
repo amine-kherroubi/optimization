@@ -15,9 +15,19 @@
   --surface: #faf9f7;
   --bg: #f2efe9;
 
-  /* Single accent – reserved for key data only */
+  /* Core accent */
   --accent: #2c2420;
   --accent-inv: #faf9f7;
+
+  /* Extended palette — deliberately used */
+  --clay: #bf5a2f; /* terracotta: alternate dividers, callouts */
+  --clay-mid: #d4784f;
+  --clay-pale: #fdf0e8;
+  --slate: #253d52; /* dark navy: formula cards */
+  --slate-2: #1a2e3e;
+  --slate-pale: #eef3f8;
+  --good: #2c6644; /* green: best-result rows */
+  --good-pale: #eef6f2;
 
   /* Spacing scale (4-base) */
   --s1: 4px;
@@ -88,6 +98,22 @@ body {
   font-weight: 500;
   color: var(--muted);
   letter-spacing: 0.06em;
+}
+
+/* Left-edge accent bar — content slides only */
+.slide.content::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  background: linear-gradient(
+    to bottom,
+    var(--accent) 0%,
+    var(--accent) 40%,
+    transparent 100%
+  );
 }
 
 /* ── Typography ──────────────────────────────────────────────────── */
@@ -250,6 +276,17 @@ footer {
   display: flex;
   align-items: center;
   justify-content: center;
+  background: var(--bg);
+}
+
+/* Dot-grid background */
+.hero-visual::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(var(--rule) 1.2px, transparent 1.2px);
+  background-size: 28px 28px;
+  opacity: 0.8;
 }
 
 .bin.big {
@@ -353,18 +390,18 @@ footer {
   font-size: 19px;
 }
 
-/* Tone variants — subtle top border only */
+/* Tone variants */
 .tone-0 {
-  border-top: 2px solid #2c2420;
+  border-top: 3px solid var(--accent);
 }
 .tone-1 {
-  border-top: 2px solid var(--ink-3);
+  border-top: 3px solid var(--clay);
 }
 .tone-2 {
-  border-top: 2px solid var(--muted);
+  border-top: 3px solid var(--muted);
 }
 .tone-3 {
-  border-top: 2px solid var(--rule);
+  border-top: 3px solid var(--rule);
 }
 
 /* ── CALLOUT BAR ─────────────────────────────────────────────────── */
@@ -373,17 +410,15 @@ footer {
   left: var(--pad-x);
   right: var(--pad-x);
   bottom: 60px;
-  padding: var(--s5) var(--s6);
-  border-left: 3px solid #2c2420;
-  background: var(--bg);
+  padding: var(--s5) var(--s8);
+  border-left: 4px solid var(--clay);
+  background: var(--clay-pale);
   font-size: 22px;
   font-weight: 500;
   color: var(--ink-2);
   letter-spacing: -0.01em;
   line-height: 1.35;
-  /* No rounded corners, no gradient */
-  border-radius: 0;
-  box-shadow: none;
+  border-radius: 0 2px 2px 0;
 }
 
 /* ── OUTLINE ─────────────────────────────────────────────────────── */
