@@ -5,19 +5,19 @@
   --w: 1600px;
   --h: 900px;
 
-  /* Monochrome palette */
-  --ink: #0a0a0a;
-  --ink-2: #2a2a2a;
-  --ink-3: #4a4a4a;
-  --muted: #7a7a7a;
-  --rule: #e0e0e0;
-  --rule-light: #f0f0f0;
-  --surface: #ffffff;
-  --bg: #f5f5f3;
+  /* Warm-neutral palette */
+  --ink: #1c1917;
+  --ink-2: #3a3530;
+  --ink-3: #5c5650;
+  --muted: #9c948a;
+  --rule: #e2ddd8;
+  --rule-light: #eeebe8;
+  --surface: #faf9f7;
+  --bg: #f2efe9;
 
   /* Single accent – reserved for key data only */
-  --accent: #1a1a1a;
-  --accent-inv: #ffffff;
+  --accent: #2c2420;
+  --accent-inv: #faf9f7;
 
   /* Spacing scale (4-base) */
   --s1: 4px;
@@ -84,7 +84,7 @@ body {
   right: var(--pad-x);
   top: var(--pad-y);
   font-family: var(--mono);
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 500;
   color: var(--muted);
   letter-spacing: 0.06em;
@@ -108,7 +108,7 @@ h2 {
 }
 
 h3 {
-  font-size: 21px;
+  font-size: 26px;
   line-height: 1.15;
   font-weight: 500;
   letter-spacing: -0.02em;
@@ -116,7 +116,7 @@ h3 {
 }
 
 p {
-  font-size: 18px;
+  font-size: 22px;
   line-height: 1.5;
   color: var(--ink-3);
   font-weight: 400;
@@ -126,7 +126,7 @@ p {
 .eyebrow,
 .topline {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 500;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -145,7 +145,7 @@ p {
 /* Sequence number in topline */
 .topline span {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 500;
   color: var(--muted);
   letter-spacing: 0.06em;
@@ -164,7 +164,7 @@ h2 {
 }
 
 .subtitle {
-  font-size: 20px;
+  font-size: 24px;
   color: var(--muted);
   max-width: 900px;
   margin-bottom: var(--s8);
@@ -181,7 +181,7 @@ footer {
   align-items: center;
   justify-content: space-between;
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 14px;
   color: var(--muted);
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -232,7 +232,7 @@ footer {
 
 .pill-row span {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 500;
   letter-spacing: 0.08em;
   padding: var(--s2) var(--s4);
@@ -273,7 +273,7 @@ footer {
 }
 
 .bin.big i:nth-child(1) {
-  background: var(--ink);
+  background: #2c2420;
 }
 .bin.big i:nth-child(2) {
   background: var(--ink-3);
@@ -330,7 +330,7 @@ footer {
 
 .info-card span {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 500;
   color: var(--muted);
   letter-spacing: 0.1em;
@@ -346,16 +346,16 @@ footer {
 
 .info-card h3 {
   margin-bottom: var(--s3);
-  font-size: 19px;
+  font-size: 24px;
 }
 
 .info-card p {
-  font-size: 16px;
+  font-size: 19px;
 }
 
 /* Tone variants — subtle top border only */
 .tone-0 {
-  border-top: 2px solid var(--ink);
+  border-top: 2px solid #2c2420;
 }
 .tone-1 {
   border-top: 2px solid var(--ink-3);
@@ -374,9 +374,9 @@ footer {
   right: var(--pad-x);
   bottom: 60px;
   padding: var(--s5) var(--s6);
-  border-left: 3px solid var(--ink);
+  border-left: 3px solid #2c2420;
   background: var(--bg);
-  font-size: 18px;
+  font-size: 22px;
   font-weight: 500;
   color: var(--ink-2);
   letter-spacing: -0.01em;
@@ -408,7 +408,7 @@ footer {
 
 .outline-list b {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 500;
   color: var(--muted);
   letter-spacing: 0.08em;
@@ -416,7 +416,7 @@ footer {
 }
 
 .outline-list span {
-  font-size: 22px;
+  font-size: 26px;
   font-weight: 500;
   letter-spacing: -0.02em;
   color: var(--ink);
@@ -436,7 +436,7 @@ footer {
   display: grid;
   place-items: center;
   padding: var(--s10);
-  background: var(--ink);
+  background: #2c2420;
   color: var(--accent-inv);
   font-family: var(--mono);
   font-size: 32px;
@@ -446,6 +446,26 @@ footer {
   text-align: center;
   border-radius: 2px;
   box-shadow: none;
+}
+
+/* KaTeX inside formula card */
+.formula-katex {
+  width: 100%;
+  text-align: center;
+}
+
+.formula-card .katex {
+  color: var(--accent-inv);
+  font-size: 2.4rem;
+}
+
+.formula-card .katex-display {
+  margin: 0;
+}
+
+/* KaTeX piecewise / cases environments need a bit more breathing room */
+.formula-card .katex .mord.vlist-t2 {
+  line-height: 1.6;
 }
 
 /* Mini-stack cards */
@@ -583,7 +603,7 @@ tbody tr:last-child td {
 
 /* ── DIVIDER SLIDES ──────────────────────────────────────────────── */
 .divider {
-  background: var(--ink);
+  background: #2c2420;
   display: flex;
   flex-direction: column;
   justify-content: center;

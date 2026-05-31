@@ -63,14 +63,15 @@ const slides = [
       ],
       ["Objective", "minimize m, the number of bins used."],
     ],
-    formula: "min₍B₁,…,Bₘ₎ m",
+    formula: "$$\\min_{B_1,\\ldots,B_m}\\; m$$",
     accent: "Partition all items · respect capacity · minimize bin count",
   },
   {
     kind: "formula",
     section: "I.2 Lower bound",
     title: "I.2 Continuous Relaxation Lower Bound",
-    formula: "LB₁ = ⌈ Σᵢ₌₁ⁿ sᵢ / C ⌉",
+    formula:
+      "$$\\mathrm{LB}_1 = \\left\\lceil \\frac{\\displaystyle\\sum_{i=1}^{n} s_i}{C} \\right\\rceil$$",
     blocks: [
       ["Volume argument", "Any feasible packing must hold total item volume."],
       [
@@ -230,7 +231,8 @@ const slides = [
     kind: "formula",
     section: "III.2d Destruction radius",
     title: "III.2d Destruction Radius",
-    formula: "kₘᵢₙ = max(1,⌊0.05n⌋)   ·   kₘₐₓ = max(kₘᵢₙ+1,⌊0.25n⌋)",
+    formula:
+      "$$k_{\\min} = \\max\\!\\left(1,\\left\\lfloor 0.05n \\right\\rfloor\\right) \\qquad k_{\\max} = \\max\\!\\left(k_{\\min}+1,\\left\\lfloor 0.25n \\right\\rfloor\\right)$$",
     blocks: [
       [
         "Default range",
@@ -255,7 +257,8 @@ const slides = [
     kind: "formula",
     section: "III.3a SA acceptance",
     title: "III.3a SA Acceptance and Cooling",
-    formula: "Accept x′ if Δ ≤ 0 or U < exp(−Δ/T)",
+    formula:
+      "$$\\text{Accept } x' \\text{ if } \\Delta \\leq 0 \\;\\text{ or }\\; U < \\exp\\!\\left(\\frac{-\\Delta}{T}\\right)$$",
     blocks: [
       ["Cost delta", "Δ = f(x′) − f(x). Improvements are always accepted."],
       ["Exploration", "Worse candidates can enter with probability exp(−Δ/T)."],
@@ -323,7 +326,8 @@ const slides = [
     kind: "formula",
     section: "IV.1 Phase 2",
     title: "IV.1 Operator Selection: Phase 2",
-    formula: "k* = argmaxₖ [ θ̂ₖᵀx + α √(xᵀAₖ⁻¹x) ]",
+    formula:
+      "$$k^* = \\operatorname*{arg\\,max}_{k}\\left[\\hat{\\theta}_k^\\top x + \\alpha\\sqrt{x^\\top A_k^{-1} x}\\right]$$",
     blocks: [
       ["State", "Each arm maintains Aₖ⁻¹ ∈ R⁵ˣ⁵ and bₖ ∈ R⁵."],
       [
@@ -355,7 +359,7 @@ const slides = [
     section: "IV.1 Reward signal",
     title: "IV.1 Reward Signal",
     formula:
-      "r = saved bins / current gap   ·   0.2 if accepted without saving   ·   0 if rejected",
+      "$$r = \\begin{cases} \\dfrac{\\text{saved bins}}{\\text{gap}} & \\text{if bins saved} \\\\ 0.2 & \\text{if accepted, no saving} \\\\ 0 & \\text{if rejected} \\end{cases}$$",
     blocks: [
       ["Gap", "gap = max(1, f(x) − LB₁) after incumbent update."],
       [
@@ -622,7 +626,7 @@ function renderComparison(slide) {
 }
 
 function renderFormula(slide) {
-  return `${header(slide, slides.indexOf(slide))}<div class="formula-layout"><div class="formula-card">${slide.formula}</div><div class="mini-stack">${slide.blocks.map((b, i) => `<article><span>${String(i + 1).padStart(2, "0")}</span><h3>${b[0]}</h3><p>${b[1]}</p></article>`).join("")}</div></div>${slide.accent ? `<div class="callout">${slide.accent}</div>` : ""}`;
+  return `${header(slide, slides.indexOf(slide))}<div class="formula-layout"><div class="formula-card"><div class="formula-katex">${slide.formula}</div></div><div class="mini-stack">${slide.blocks.map((b, i) => `<article><span>${String(i + 1).padStart(2, "0")}</span><h3>${b[0]}</h3><p>${b[1]}</p></article>`).join("")}</div></div>${slide.accent ? `<div class="callout">${slide.accent}</div>` : ""}`;
 }
 
 function renderProcess(slide) {
