@@ -333,7 +333,9 @@ function initResultCharts() {
 }
 
 addResultCharts();
-initResultCharts();
+// Defer chart initialisation so the browser has completed its first layout
+// pass and canvas elements report correct clientWidth / clientHeight.
+requestAnimationFrame(() => initResultCharts());
 
 function fitMarkdownContent() {
   document.querySelectorAll(".markdown-content").forEach((content) => {
@@ -378,5 +380,8 @@ window.addEventListener("beforeprint", () =>
   }),
 );
 window.addEventListener("afterprint", fitSlides);
-window.addEventListener("load", fitMarkdownContent);
-fitSlides();
+// Run the full fitSlides() (which includes fitMarkdownContent) on "load" so
+// that deferred KaTeX scripts have already rendered formulas before we
+// measure scrollHeight for content scaling.  The earlier sync call is
+// removed; slides are invisible until load anyway in most browsers.
+window.addEventListener("load", fitSlides);
