@@ -1,238 +1,8 @@
 ---
-marp: true
-theme: default
-math: mathjax
-size: 16:9
-paginate: true
-style: |
-  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Jost:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
 
-  :root {
-    --navy:   #14273f;
-    --gold:   #b8913a;
-    --bg:     #f7f5f1;
-    --text:   #1b1b1e;
-    --muted:  #5a6b80;
-    --rule:   #ddd5c5;
-    --callout:#eee8dc;
-    --codbg:  #e8e2d8;
-  }
+**Slide 1**
 
-  section {
-    font-family: 'Jost', sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    padding: 44px 64px 44px 64px;
-    font-size: 21px;
-    line-height: 1.55;
-    font-weight: 300;
-    letter-spacing: 0.01em;
-  }
-
-  /* ── Headings ── */
-  h1 {
-    font-family: 'Cormorant Garamond', serif;
-    color: var(--navy);
-    font-size: 1.95em;
-    font-weight: 700;
-    line-height: 1.2;
-    border-bottom: 2px solid var(--gold);
-    padding-bottom: 0.25em;
-    margin-bottom: 0.55em;
-    margin-top: 0;
-    letter-spacing: -0.01em;
-  }
-
-  h2 {
-    font-family: 'Cormorant Garamond', serif;
-    color: var(--navy);
-    font-size: 1.55em;
-    font-weight: 600;
-    margin: 0.25em 0 0.4em;
-    line-height: 1.25;
-  }
-
-  h3 {
-    font-family: 'Jost', sans-serif;
-    color: var(--gold);
-    font-size: 0.72em;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.14em;
-    margin: 0.6em 0 0.35em;
-  }
-
-  /* ── Body text ── */
-  strong {
-    color: var(--navy);
-    font-weight: 600;
-  }
-
-  p { margin: 0.35em 0; }
-
-  ul, ol {
-    margin: 0.3em 0 0.3em 1.4em;
-    padding: 0;
-  }
-
-  li {
-    margin-bottom: 0.25em;
-    padding-left: 0.15em;
-  }
-
-  /* ── Tables ── */
-  section table {
-    width: 100% !important;
-    min-width: 100% !important;
-    border-collapse: collapse;
-    font-size: 0.8em;
-    margin-top: 0.5em;
-    line-height: 1.4;
-  }
-
-  th {
-    background: var(--navy);
-    color: #dce8f4;
-    padding: 7px 13px;
-    text-align: left;
-    font-family: 'Jost', sans-serif;
-    font-weight: 500;
-    letter-spacing: 0.04em;
-    font-size: 0.9em;
-  }
-
-  td {
-    padding: 6px 13px;
-    border-bottom: 1px solid var(--rule);
-    vertical-align: top;
-    background: transparent;
-  }
-
-  /* ── Code ── */
-  code {
-    font-family: 'JetBrains Mono', monospace;
-    background: var(--codbg);
-    padding: 1px 5px;
-    border-radius: 3px;
-    font-size: 0.82em;
-    font-weight: 400;
-  }
-
-  /* ── Blockquote as callout ── */
-  blockquote {
-    border-left: 3px solid var(--gold);
-    background: var(--callout);
-    margin: 0.6em 0 0.2em;
-    padding: 0.45em 1em;
-    border-radius: 0 4px 4px 0;
-    font-style: normal;
-    font-size: 0.9em;
-    color: #3a3020;
-  }
-
-  blockquote p { margin: 0; }
-
-  /* ── Pagination ── */
-  section::after {
-    font-family: 'Jost', sans-serif;
-    font-size: 0.62em;
-    color: var(--navy);
-  }
-
-  /* ── Title slide ── */
-  section.lead {
-    background: var(--navy);
-    color: #f0f4f8;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    padding: 60px 80px;
-  }
-
-  section.lead::before {
-    content: '';
-    position: absolute;
-    bottom: 0; left: 0; right: 0;
-    height: 5px;
-    background: var(--gold);
-  }
-
-  section.lead h1 {
-    font-size: 2.6em;
-    color: #ffffff;
-    border-bottom: 2px solid var(--gold);
-    padding-bottom: 0.3em;
-    margin-bottom: 0.4em;
-    font-weight: 700;
-  }
-
-  section.lead h3 {
-    color: #8bacc8;
-    font-size: 0.75em;
-    letter-spacing: 0.16em;
-    margin-bottom: 0.8em;
-  }
-
-  section.lead p {
-    color: #8bacc8;
-    font-size: 0.88em;
-    font-weight: 300;
-    max-width: 78%;
-    line-height: 1.6;
-  }
-
-  section.lead::after { color: #3a5570; }
-
-  /* ── Section divider slides ── */
-  section.divider {
-    background: var(--navy);
-    color: #f0f4f8;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    padding: 60px 80px;
-  }
-
-  section.divider::before {
-    content: '';
-    position: absolute;
-    left: 80px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 4px;
-    height: 40%;
-    background: var(--gold);
-  }
-
-  section.divider h2 {
-    font-size: 2.4em;
-    color: #ffffff;
-    font-weight: 700;
-    margin-left: 28px;
-    line-height: 1.15;
-  }
-
-  section.divider h3 {
-    color: #8bacc8;
-    margin-left: 28px;
-    font-size: 0.74em;
-  }
-
-  section.divider::after { color: #3a5570; }
-
-  /* ── Compact slides (dense tables) ── */
-  section.compact {
-    font-size: 17.5px;
-  }
-
-  section.compact table { font-size: 0.82em; }
-  section.compact td, section.compact th { padding: 5px 10px; }
----
-
-<!-- _class: lead -->
-<!-- _paginate: false -->
-
-# Hybrid ALNS for the<br>Bin Packing Problem
+# Hybrid ALNS for the Bin Packing Problem
 
 ### One-Dimensional Variant
 
@@ -240,18 +10,40 @@ A solver combining metaheuristic large-neighborhood search, adaptive bandit-base
 
 ---
 
-## Outline
+**Slide 2** *(Introduction)*
 
-1. **Problem Definition** — formal model, lower bound, complexity
-2. **BFD Initialization** — constructive warm start
-3. **ALNS Framework** — destroy operators, destruction radius
-4. **SA Acceptance** — cooling schedule, soft reheat, restart
-5. **ML Component I** — contextual bandit (LinUCB) for operator selection
-6. **ML Component II** — learned repair via behavioral cloning
-7. **Experimental Evaluation** — protocol, benchmarks, ablation, results
-8. **Conclusions** — synthesis, contributions, limitations, future work
+## Introduction
+
+**Project context:** The one-dimensional Bin-Packing Problem (1D-BPP) arises across many industrial domains — cutting stock, vehicle loading, container logistics, and cloud resource allocation — wherever discrete items must be packed into fixed-capacity bins at minimum cost.
+
+**Why classical methods fall short:** 1D-BPP is strongly NP-hard. Exact solvers (branch-and-price) are optimal but scale to only a few hundred items. Classical metaheuristics scale well but rely on fixed decision rules that do not adapt to the problem structure encountered at runtime, leading to stagnation in dense local optima.
+
+**Motivation for the hybrid approach:** Machine learning offers a principled way to make metaheuristic decisions adaptive — without replacing the optimization loop:
+- **Online** — learn *which* destroy operator performs best given the current search context (contextual bandit)
+- **Offline** — learn *which* bin to assign each displaced item by imitating an expert heuristic (behavioral cloning)
+
+**This project** embeds both components inside an Adaptive Large-Neighborhood Search (ALNS) framework, keeping them independently togglable to enable clean ablation. The goal is to demonstrate that ML-guided decisions can meaningfully improve solution quality and adaptivity over non-learning ALNS.
 
 ---
+
+**Slide 3**
+
+## Outline
+
+1. **Introduction** — project context and hybrid motivation
+2. **Problem Definition** — formal model, lower bound, NP-hardness
+3. **Literature Review** — ML inside metaheuristics
+4. **Proposed Solution**
+   - 4a. Global architecture overview
+   - 4b. BFD warm start and ALNS framework
+   - 4c. ML Component I — LinUCB bandit for operator selection
+   - 4d. ML Component II — GBT learned repair
+5. **Tests & Results** — protocol, benchmarks, ablation, multi-dataset, comparative
+6. **Synthesis & Conclusion** — findings, contributions, limitations, future work
+
+---
+
+**Slide 4**
 
 ## I.1 Problem Definition
 
@@ -267,6 +59,8 @@ $$\min_{B_1,\ldots,B_m} \; m$$
 
 ---
 
+**Slide 5**
+
 ## I.2 Continuous Relaxation Lower Bound
 
 $$\mathrm{LB}_1 = \left\lceil \frac{\displaystyle\sum_{i=1}^{n} s_i}{C} \right\rceil$$
@@ -276,6 +70,8 @@ $$\mathrm{LB}_1 = \left\lceil \frac{\displaystyle\sum_{i=1}^{n} s_i}{C} \right\r
 > Tighter bounds exist (e.g. the Martello–Toth $L_2$ bound, which accounts for large items that cannot coexist). $\mathrm{LB}_1$ is sufficient as a progress indicator in this implementation.
 
 ---
+
+**Slide 6**
 
 ## I.3 Complexity and Algorithmic Strategy
 
@@ -291,7 +87,93 @@ $$\mathrm{LB}_1 = \left\lceil \frac{\displaystyle\sum_{i=1}^{n} s_i}{C} \right\r
 
 ---
 
-## II. Constructive Initialization: Best-Fit Decreasing
+**Slide 7** *(Literature Review)*
+
+## II. Literature Review — ML in Metaheuristics
+
+> **Scope:** ML *inside* metaheuristics — using learned models to guide decisions within the optimization loop. This is distinct from "metaheuristics for ML" (hyperparameter tuning, NAS), which is outside this project's scope.
+
+**Stream 1 — Adaptive Operator Selection (AOS)**
+
+Bandit-based AOS replaces static operator probabilities with online reward signals. Fialho et al. (2010) formalised this as a multi-armed bandit; subsequent work (COMPASS, Maturana & Saubion 2008) embedded it in evolutionary and population-based frameworks. **This project uses LinUCB (Chu et al. 2011)** — a contextual extension that conditions operator selection on search-state features, enabling fine-grained adaptation.
+
+**Stream 2 — Learned Repair / Construction**
+
+Khalil et al. (2017) demonstrated that graph neural networks can learn greedy construction policies competitive with classical heuristics on TSP, MVC, and MAXCUT. Behavioral cloning (imitation learning) trains a policy directly from expert demonstrations without a reward signal — applied here to replicate BFD's bin-assignment logic under partial solutions.
+
+**Stream 3 — ML-Augmented LNS**
+
+Hottung & Tierney (2020) and Lu et al. (2021) use deep RL to learn full destroy-and-repair operators for CVRP and VRPTW. This project takes a lighter, more interpretable approach: a GBT ranker trained offline, combined with an online bandit for operator selection.
+
+**Positioning of this work:** at the intersection of Streams 1 and 2 — dual-learning ALNS combining online contextual bandit selection with offline supervised repair.
+
+---
+
+**Slide 8** *(Section Divider)*
+
+## III. Proposed Solution
+
+### Global Architecture · BFD Warm Start · ALNS Framework · ML Components
+
+---
+
+**Slide 9** *(Global Architecture Overview)*
+
+## III.0 Global Architecture
+
+**End-to-end pipeline of the hybrid ALNS solver:**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Problem Instance                          │
+│              (n items, sizes sᵢ, capacity C)                 │
+└────────────────────────┬────────────────────────────────────┘
+                         ▼
+           ┌─────────────────────────┐
+           │    BFD Initialization   │  ← Constructive warm start
+           │  Sort → Best-Fit Decr.  │
+           └────────────┬────────────┘
+                        │  x₀ (initial solution)
+                        ▼
+┌─────────────────────────────────────────────────────────────┐
+│                      ALNS Main Loop                          │
+│                                                              │
+│  ┌────────────────┐  operator  ┌────────────────────────┐   │
+│  │   LinUCB       │◄───────────│    Context Vector       │   │
+│  │   Bandit (ML)  │            │  [T, stagnation, gap,  │   │
+│  └───────┬────────┘            │   k/n, iter progress]  │   │
+│          │ select operator     └────────────────────────┘   │
+│          ▼                                                   │
+│  ┌────────────────┐            ┌────────────────────────┐   │
+│  │  Destroy Step  │─── x̂ ─────►│   GBT Repair (ML)      │   │
+│  │  (Random /     │            │  Score feasible        │   │
+│  │  Worst-load /  │            │  (item, bin) pairs     │   │
+│  │  Related-item) │            └───────────┬────────────┘   │
+│  └────────────────┘                        │ x'              │
+│                                            ▼                 │
+│                          ┌─────────────────────────────┐    │
+│                          │   SA Acceptance Criterion    │    │
+│                          │   Accept x' or keep x        │    │
+│                          │   Update x_best              │    │
+│                          └──────────────┬──────────────┘    │
+│                                         │ reward             │
+│                                         └──────► LinUCB      │
+│                                                   update      │
+└───────────────────────────┬─────────────────────────────────┘
+                            ▼
+                 ┌─────────────────────┐
+                 │   Best Solution x*  │
+                 │  gap = bins − LB₁   │
+                 └─────────────────────┘
+```
+
+**Two ML decision points:** (1) LinUCB selects the destroy operator at each iteration based on search context; (2) GBT scores all feasible bin candidates during repair. Both components are independently togglable for ablation.
+
+---
+
+**Slide 10**
+
+## III.1 Constructive Initialization: Best-Fit Decreasing
 
 BFD builds a tight deterministic starting point before ALNS begins.
 
@@ -304,16 +186,17 @@ BFD builds a tight deterministic starting point before ALNS begins.
 
 ---
 
-<!-- _class: divider -->
-<!-- _paginate: false -->
+**Slide 11** *(Section Divider)*
 
-## III. Metaheuristic Framework
+## III.2 Metaheuristic Framework
 
 ### Adaptive Large-Neighborhood Search
 
 ---
 
-## III.1 Why Local Search Alone Fails
+**Slide 12**
+
+## III.2a Why Local Search Alone Fails
 
 Classical local search applies small moves within a neighborhood $\mathcal{N}(x)$ — for example, relocating a single item. While efficient, it stalls at **local optima**: solutions from which no single move improves the objective, yet which are far from globally optimal.
 
@@ -325,7 +208,9 @@ Operate on implicitly exponential neighborhoods by partially destroying and then
 
 ---
 
-## III.2 The LNS Iterate
+**Slide 13**
+
+## III.2b The LNS Iterate
 
 Each iteration consists of two phases:
 
@@ -339,9 +224,9 @@ ALNS (Ropke & Pisinger, 2006) extends LNS by **adaptively selecting** the destro
 
 ---
 
-## III.3 Destroy Operators
+**Slide 14**
 
-<!-- _class: compact -->
+## III.2c Destroy Operators
 
 Three operators are available. All guarantee that at least one item remains placed.
 
@@ -355,7 +240,9 @@ No single operator dominates: random destruction explores broadly early on, whil
 
 ---
 
-## III.4 Destruction Radius
+**Slide 15**
+
+## III.2d Destruction Radius
 
 The displaced-item count $k$ is drawn uniformly from $[k_{\min}, k_{\max}]$ at each iteration:
 
@@ -367,16 +254,17 @@ So between **5% and 25%** of items are displaced per iteration.
 
 ---
 
-<!-- _class: divider -->
-<!-- _paginate: false -->
+**Slide 16** *(Section Divider)*
 
-## IV. Acceptance Mechanism
+## III.3 Acceptance Mechanism
 
 ### Simulated Annealing with Soft Reheat and Restart
 
 ---
 
-## IV.1 SA Acceptance and Cooling
+**Slide 17**
+
+## III.3a SA Acceptance and Cooling
 
 Let $\Delta = f(x') - f(x)$. Accept $x'$ if:
 
@@ -392,31 +280,37 @@ $$T \leftarrow \max(T,\;0.35\cdot T_0)$$
 
 ---
 
-## IV.2 Diversification Restart
+**Slide 18**
+
+## III.3b Diversification Restart
 
 When `iterations_since_improvement` reaches `no_improve_limit`:
 
 1. The current solution is reset to the **best solution found so far**
 2. Temperature is **reheated**: $T \leftarrow \max(T,\;0.20\cdot T_0)$
 3. The patience window **shrinks**:
+
 $$\mathrm{no\_improve\_limit} \leftarrow \max\!\left(100,\,\left\lfloor\tfrac{2}{3}\,\mathrm{no\_improve\_limit}\right\rfloor\right)$$
+
 so successive restarts trigger progressively sooner
+
 4. `iterations_since_improvement` is reset to zero
 
 The outer budget `max_iterations` is the **sole hard termination criterion**; the restart mechanism never terminates the run.
 
 ---
 
-<!-- _class: divider -->
-<!-- _paginate: false -->
+**Slide 19** *(Section Divider)*
 
-## V. Machine Learning Components
+## IV. Machine Learning Components
 
 ### Operator Selection + Learned Repair
 
 ---
 
-## V. Two Independent ML Components
+**Slide 20**
+
+## IV. Two Independent ML Components
 
 | Component             | Decision Targeted                              | Method                   |
 | --------------------- | ---------------------------------------------- | ------------------------ |
@@ -427,13 +321,16 @@ The two components are **independent** in implementation and can be enabled or d
 
 ---
 
-## V.1 Operator Selection: Phase 1
+**Slide 21**
+
+## IV.1 Operator Selection: Phase 1
 
 ### Warm-up — Beta-Bernoulli Thompson Sampling (first 300 calls)
 
 All arms initialised at $\mathrm{Beta}(1,1)$ (uniform prior).
 
 For each call:
+
 1. Sample $\tilde{\theta}_k \sim \mathrm{Beta}(\alpha_k,\beta_k)$ for each arm $k \in \{0,1,2\}$
 2. Select $k^* = \arg\max_k \tilde{\theta}_k$
 3. Observe reward $r \in [0,1]$; draw $\tilde{r} \sim \mathrm{Bernoulli}(r)$, then update $k^*$ only:
@@ -444,7 +341,9 @@ This phase identifies well-performing operators without requiring the context ve
 
 ---
 
-## V.1 Operator Selection: Phase 2
+**Slide 22**
+
+## IV.1 Operator Selection: Phase 2
 
 ### Exploitation — Disjoint LinUCB (calls 301+, $\alpha = 0.3$, Chu et al. 2011)
 
@@ -460,9 +359,9 @@ $$A_{k^*}^{-1} \leftarrow A_{k^*}^{-1} - \frac{(A_{k^*}^{-1}\mathbf{x})(A_{k^*}^
 
 ---
 
-## V.1 Context Vector
+**Slide 23**
 
-<!-- _class: compact -->
+## IV.1 Context Vector
 
 The 5-dimensional feature $\mathbf{x}$ encodes the current search state:
 
@@ -478,7 +377,9 @@ All features lie in $[0,1]$, enabling the UCB exploration term to be comparable 
 
 ---
 
-## V.1 Reward Signal
+**Slide 24**
+
+## IV.1 Reward Signal
 
 Let $\mathrm{gap} = \max(1,\,f(x) - \mathrm{LB}_1)$ be the current gap after updating the incumbent.
 
@@ -488,7 +389,9 @@ $$r = \begin{cases} \min\!\left(1,\;\dfrac{\max(0,-\Delta)}{\mathrm{gap}}\right)
 
 ---
 
-## V.2 Machine-Learned Repair: Overview
+**Slide 25**
+
+## IV.2 Machine-Learned Repair: Overview
 
 After destruction, each displaced item $i$ must be reinserted. Let $\mathcal{F}(i) = \{j : \ell_j + s_i \le C\}$ be the set of feasible bins.
 
@@ -500,9 +403,9 @@ After destruction, each displaced item $i$ must be reinserted. Let $\mathcal{F}(
 
 ---
 
-## V.2 Feature Representation
+**Slide 26**
 
-<!-- _class: compact -->
+## IV.2 Feature Representation
 
 Each feasible $(i,j)$ pair is encoded as an **11-dimensional vector** (all features normalised by $C$ or $n$):
 
@@ -522,7 +425,9 @@ Each feasible $(i,j)$ pair is encoded as an **11-dimensional vector** (all featu
 
 ---
 
-## V.2 Model Architecture and Training Data
+**Slide 27**
+
+## IV.2 Model Architecture and Training Data
 
 **Repair ranker:** `GradientBoostingClassifier` (scikit-learn)
 
@@ -538,18 +443,17 @@ Each feasible $(i,j)$ pair is encoded as an **11-dimensional vector** (all featu
 
 ---
 
-<!-- _class: divider -->
-<!-- _paginate: false -->
+**Slide 28** *(Section Divider)*
 
-## VI. Experimental Evaluation
+## V. Experimental Evaluation
 
 ### Protocol · Benchmarks · Ablation · Results
 
 ---
 
-## VI.1 Experimental Protocol
+**Slide 29**
 
-<!-- _class: compact -->
+## V.1 Experimental Protocol
 
 | Setting                                      | Value                                    |
 | -------------------------------------------- | ---------------------------------------- |
@@ -569,9 +473,9 @@ $$\text{gap} = \text{bins used} - \mathrm{LB}_1 \qquad (\text{gap} = 0 \;\Leftri
 
 ---
 
-## VI.2 Benchmark Datasets
+**Slide 30**
 
-<!-- _class: compact -->
+## V.2 Benchmark Datasets — Instance Characteristics
 
 Five families covering structurally distinct regimes:
 
@@ -587,9 +491,11 @@ Five families covering structurally distinct regimes:
 
 ---
 
-## VI.3 Ablation Study
+**Slide 31**
 
-<!-- _class: compact -->
+## V.3 Test 1 — Ablation Study
+
+**Purpose of this test:** Isolate the individual contribution of each ML component (LinUCB bandit and GBT repair ranker) by toggling each independently. This determines which component drives quality improvement and which adds computational overhead without proportional benefit, validating the design choices of the hybrid architecture.
 
 **Scholl-2 · 5 instances · 50 items** — each component toggled independently.
 
@@ -606,7 +512,11 @@ Five families covering structurally distinct regimes:
 
 ---
 
-## VI.4 Multi-Dataset Results
+**Slide 32**
+
+## V.4 Test 2 — Multi-Dataset Generalization
+
+**Purpose of this test:** Evaluate the generalization of the combined method (online RL + offline GBT) across structurally distinct benchmark families. Assesses whether the hybrid approach adapts to different item size distributions, capacity regimes, and structural properties — including adversarially hard instances — without retuning any parameter.
 
 **Combined method** (online RL + offline GBT repair) across all benchmark families.
 
@@ -622,11 +532,13 @@ Five families covering structurally distinct regimes:
 
 ---
 
-## VI.5 Comparative Study
+**Slide 33**
 
-<!-- _class: compact -->
+## V.5 Test 3 — Comparative Study
 
-**Scholl-2 · 5 instances · 50 items** — single-run comparison against standard combinatorial-optimization methods.
+**Purpose of this test:** Benchmark the dual-learning ALNS against a representative set of classical combinatorial optimization methods — constructive, local search, evolutionary, and population-based — on a common instance set. Assesses both solution quality (gap to $\mathrm{LB}_1$) and computational cost (runtime) to determine where the hybrid approach stands in the quality–speed trade-off landscape.
+
+**Scholl-2 · 5 instances · 50 items** — single-run comparison.
 
 | Method                   | Mean gap | Time (s) |
 | ------------------------ | -------- | -------- |
@@ -637,22 +549,23 @@ Five families covering structurally distinct regimes:
 | **Dual-learning ALNS**   | **0.20** | **0.36** |
 | Ant Colony Optimization  | 0.00     | 3.03     |
 
-The dual-learning ALNS achieves a mean gap of **0.20** — the lowest of any tested method except ACO — while running **8× faster**. No other method in the comparison achieves both a lower gap and a lower runtime.
+The dual-learning ALNS achieves a mean gap of **0.20** — the lowest of any tested method except ACO — while running **8× faster** than ACO. No other method in the comparison achieves both a lower gap and a lower runtime.
 
 > Stochastic baselines are single-run results; multi-seed averaging may alter relative rankings.
 
 ---
 
-<!-- _class: divider -->
-<!-- _paginate: false -->
+**Slide 34** *(Section Divider)*
 
-## VII. Conclusions
+## VI. Synthesis & Conclusion
 
 ### Contributions · Limitations · Future Work
 
 ---
 
-## VII.1 Synthesis
+**Slide 35**
+
+## VI.1 Synthesis of Results
 
 | Finding                                               | Evidence                                                        |
 | ----------------------------------------------------- | --------------------------------------------------------------- |
@@ -666,7 +579,9 @@ The dual-learning ALNS achieves a mean gap of **0.20** — the lowest of any tes
 
 ---
 
-## VII.2 Conclusions
+**Slide 36**
+
+## VI.2 Conclusions
 
 **Three contributions:**
 
