@@ -436,8 +436,9 @@ footer {
   display: grid;
   place-items: center;
   padding: var(--s10);
-  background: #2c2420;
-  color: var(--accent-inv);
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--rule);
   font-family: var(--mono);
   font-size: 32px;
   font-weight: 400;
@@ -448,14 +449,14 @@ footer {
   box-shadow: none;
 }
 
-/* KaTeX inside formula card */
+/* KaTeX inside any formula card */
 .formula-katex {
   width: 100%;
   text-align: center;
 }
 
 .formula-card .katex {
-  color: var(--accent-inv);
+  color: var(--ink);
   font-size: 2.4rem;
 }
 
@@ -1085,11 +1086,26 @@ tbody tr:last-child td {
   font-size: 16px;
 }
 
+/* Inline formula blocks in slides — strip all card chrome, render cleanly */
 .markdown-content .inline-formula {
-  min-height: auto;
-  margin: var(--s5) 0;
-  padding: var(--s6);
-  font-size: 24px;
+  min-height: 0;
+  background: transparent;
+  border: none;
+  padding: var(--s3) 0;
+  margin: var(--s4) 0;
+  display: block;
+  text-align: left;
+  color: var(--ink);
+}
+
+.markdown-content .inline-formula .katex {
+  color: var(--ink);
+  font-size: 1.35rem;
+}
+
+.markdown-content .inline-formula .katex-display {
+  margin: 0;
+  text-align: left;
 }
 
 .markdown-content pre {
