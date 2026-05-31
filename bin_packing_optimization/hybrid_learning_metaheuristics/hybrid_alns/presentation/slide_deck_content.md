@@ -1,5 +1,3 @@
----
-
 **Slide 1**
 
 # Hybrid ALNS for the Bin Packing Problem
