@@ -1,0 +1,44 @@
+{
+  "timestamp": 1780156400.82293,
+  "cli_args": {
+    "stage1_trials": 50,
+    "stage2_trials": 50,
+    "iter_stage1": 5000,
+    "iter_stage2": 5000,
+    "bank_size": 100,
+    "n_jobs": 8,
+    "seed": 42,
+    "output_dir": "tuning_results",
+    "model_name": "repair_model_v2.pkl",
+    "quality_weight": 0.9,
+    "time_weight": 0.1,
+    "time_limit": 60,
+    "baseline_only": false,
+    "no_isolation": false,
+    "stage2_only": false,
+    "quick": false
+  },
+  "timing_seconds": {
+    "baseline_s": 189.5,
+    "isolation_s": 320.1,
+    "stage1_s": 3540.0,
+    "stage2_s": 4620.0,
+    "best_eval_s": 215.3
+  },
+  "results": {
+    "baseline_mean_relative_gap": 0.0823,
+    "baseline_mean_normalized_time": 0.42,
+    "best_mean_relative_gap": 0.0418,
+    "best_mean_normalized_time": 0.38,
+    "improvement_abs": 0.0405,
+    "improvement_pct": 49.21
+  },
+  "output_files": {
+    "baseline": "baseline_defaults.json",
+    "isolation_step_template": "isolation_{step_key}.json",
+    "isolation_merged": "isolation_merged.json",
+    "stage1": "alns_stage1_coarse_study.json",
+    "stage2": "alns_stage2_fine_study.json",
+    "best_eval": "best_config_evaluation.json"
+  }
+}

@@ -1,0 +1,97 @@
+{
+  "timestamp": 1780156400.8194656,
+  "run_type": "isolation_step3_bandit",
+  "seed": 42,
+  "model_name": "repair_model_v2.pkl",
+  "bank_size": 20,
+  "parameters": {
+    "bandit_alpha": 0.5,
+    "warmup_calls": 200
+  },
+  "structural_defaults": {
+    "min_no_improve_limit": 250,
+    "temp_precision_floor": 1e-12,
+    "reheat_check_interval_divisor": 4.0,
+    "reheat_check_min_interval": 50,
+    "hard_restart_min_limit": 100,
+    "patience_shrink_factor": 0.6666666666666666
+  },
+  "pipeline_config": {
+    "quality_weight": 0.9,
+    "time_weight": 0.1,
+    "time_limit": 60
+  },
+  "metrics": {
+    "mean_relative_gap": 0.0688,
+    "mean_normalized_time": 0.35,
+    "mean_time_s": 21.0,
+    "total_time_s": 525.0,
+    "per_dataset_relative_gap": {
+      "falkenauer-t": 0.07469999999999999,
+      "falkenauer-u": 0.058100000000000006,
+      "scholl-1": 0.0415,
+      "scholl-2": 0.0664,
+      "scholl-3": 0.0498
+    },
+    "arm_pulls": [
+      100,
+      95,
+      85
+    ],
+    "n_instances": 20
+  },
+  "max_iter": 2000,
+  "n_jobs": 8,
+  "search_ranges": {
+    "grid": [
+      {
+        "bandit_alpha": 0.01,
+        "warmup_calls": 0
+      },
+      {
+        "bandit_alpha": 0.01,
+        "warmup_calls": 300
+      },
+      {
+        "bandit_alpha": 0.01,
+        "warmup_calls": 1000
+      },
+      {
+        "bandit_alpha": 0.3,
+        "warmup_calls": 0
+      },
+      {
+        "bandit_alpha": 0.3,
+        "warmup_calls": 300
+      },
+      {
+        "bandit_alpha": 0.3,
+        "warmup_calls": 1000
+      },
+      {
+        "bandit_alpha": 2.0,
+        "warmup_calls": 0
+      },
+      {
+        "bandit_alpha": 2.0,
+        "warmup_calls": 300
+      },
+      {
+        "bandit_alpha": 2.0,
+        "warmup_calls": 1000
+      }
+    ],
+    "bank_size": 20
+  },
+  "changes_from_baseline": {
+    "bandit_alpha": [
+      0.3,
+      0.5
+    ],
+    "warmup_calls": [
+      300,
+      200
+    ]
+  },
+  "force_uniform_random": false
+}

@@ -265,6 +265,28 @@ class BinPackingSolver:
             return bool(raw)
         raise TypeError(f"{name} must be a bool (or 0/1), got {type(raw).__name__}.")
 
+    @staticmethod
+    def _validate_params(**params: Any) -> None:
+        k_min = params.get("k_min_frac", 0.05)
+        if k_min <= 0.0:
+            raise ValueError(f"k_min_frac must be > 0, got {k_min}.")
+        k_max = params.get("k_max_frac", 0.25)
+        if k_max >= 1.0:
+            raise ValueError(f"k_max_frac must be < 1, got {k_max}.")
+        if k_max <= k_min:
+            raise ValueError(
+                f"k_max_frac ({k_max}) must be > k_min_frac ({k_min})."
+            )
+        alpha = params.get("alpha_cool")
+        if alpha is not None and not 0.0 < alpha <= 1.0:
+            raise ValueError(f"alpha_cool must be in (0, 1], got {alpha}.")
+        temp = params.get("initial_temperature")
+        if temp is not None and temp <= 0.0:
+            raise ValueError(f"initial_temperature must be > 0, got {temp}.")
+        tl = params.get("time_limit_seconds")
+        if tl is not None and tl <= 0.0:
+            raise ValueError(f"time_limit_seconds must be > 0, got {tl}.")
+
     def solve(self, method: str | None = None, **params) -> None:
         if method is not None:
             warnings.warn(
@@ -353,6 +375,14 @@ class BinPackingSolver:
         patience_shrink_factor = float(params.get("patience_shrink_factor", 2.0 / 3.0))
         if not 0 < patience_shrink_factor <= 1:
             raise ValueError("patience_shrink_factor must be in (0, 1].")
+
+        self._validate_params(
+            k_min_frac=k_min_frac,
+            k_max_frac=k_max_frac,
+            alpha_cool=alpha_cool,
+            initial_temperature=t0,
+            time_limit_seconds=raw_tl,
+        )
 
         start = self._build_ffd_start_solution()
         best = start.copy()

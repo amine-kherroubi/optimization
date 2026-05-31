@@ -1,0 +1,840 @@
+{
+  "study_name": "alns_stage2_fine",
+  "direction": "minimize",
+  "sampler": {
+    "name": "TPESampler",
+    "n_startup_trials": 10,
+    "seed": null
+  },
+  "timestamp": 1780156400.821817,
+  "seed": 42,
+  "pipeline_config": {
+    "quality_weight": 0.9,
+    "time_weight": 0.1,
+    "time_limit": 60,
+    "max_iter": 5000,
+    "n_jobs": 8
+  },
+  "best_value": 0.0418,
+  "best_params": {
+    "initial_temperature": 1.65,
+    "alpha_cool": 0.99935,
+    "reheat_soft_mult": 0.38,
+    "reheat_hard_mult": 0.17,
+    "k_min_frac": 0.035,
+    "k_max_frac": 0.2,
+    "no_improve_frac": 0.045,
+    "bandit_alpha": 0.42,
+    "warmup_calls": 280
+  },
+  "n_trials_total": 50,
+  "n_trials_completed": 50,
+  "n_trials_pruned": 0,
+  "n_trials_failed": 0,
+  "n_trials": 50,
+  "elapsed_s": 4620.0,
+  "trials": [
+    {
+      "number": 0,
+      "value": 0.043754,
+      "params": {
+        "initial_temperature": 1.6723805627409223,
+        "alpha_cool": 0.9876464387255348,
+        "reheat_soft_mult": 0.37309317559112426,
+        "reheat_hard_mult": 0.16322575824397625,
+        "k_min_frac": 0.035681107710372334,
+        "k_max_frac": 0.20006664585960476,
+        "no_improve_frac": 0.04518536394179709,
+        "bandit_alpha": 0.41341701944247633,
+        "warmup_calls": 286.8683901904994
+      }
+    },
+    {
+      "number": 1,
+      "value": 0.049346,
+      "params": {
+        "initial_temperature": 1.6459796900870247,
+        "alpha_cool": 0.9882394012034491,
+        "reheat_soft_mult": 0.37728878878977073,
+        "reheat_hard_mult": 0.1672838745302138,
+        "k_min_frac": 0.035018621468617624,
+        "k_max_frac": 0.19753471295347813,
+        "no_improve_frac": 0.04552757381100838,
+        "bandit_alpha": 0.4169801045042919,
+        "warmup_calls": 278.0178400879825
+      }
+    },
+    {
+      "number": 2,
+      "value": 0.054098,
+      "params": {
+        "initial_temperature": 1.6260505300362595,
+        "alpha_cool": 0.968010497231746,
+        "reheat_soft_mult": 0.38278360167748904,
+        "reheat_hard_mult": 0.16293316919269674,
+        "k_min_frac": 0.035185329423713836,
+        "k_max_frac": 0.20392786228771248,
+        "no_improve_frac": 0.04506317364270945,
+        "bandit_alpha": 0.42007791989916243,
+        "warmup_calls": 268.51658557679315
+      }
+    },
+    {
+      "number": 3,
+      "value": 0.046242,
+      "params": {
+        "initial_temperature": 1.6630780510117054,
+        "alpha_cool": 0.9759241088056104,
+        "reheat_soft_mult": 0.3945420108498184,
+        "reheat_hard_mult": 0.1658371209012825,
+        "k_min_frac": 0.03382281745643628,
+        "k_max_frac": 0.19275395786258745,
+        "no_improve_frac": 0.045023399787496275,
+        "bandit_alpha": 0.42283845637248574,
+        "warmup_calls": 282.4694543422079
+      }
+    },
+    {
+      "number": 4,
+      "value": 0.044499,
+      "params": {
+        "initial_temperature": 1.6231809115977944,
+        "alpha_cool": 1.0161951784651766,
+        "reheat_soft_mult": 0.3731774534767439,
+        "reheat_hard_mult": 0.1658853334594626,
+        "k_min_frac": 0.035982322282912746,
+        "k_max_frac": 0.20071046360407954,
+        "no_improve_frac": 0.04542463219574727,
+        "bandit_alpha": 0.42525768775971845,
+        "warmup_calls": 276.79793561780673
+      }
+    },
+    {
+      "number": 5,
+      "value": 0.046063,
+      "params": {
+        "initial_temperature": 1.6711398361228493,
+        "alpha_cool": 0.9870143813371324,
+        "reheat_soft_mult": 0.3825540932756709,
+        "reheat_hard_mult": 0.16969574806049156,
+        "k_min_frac": 0.03416281566739523,
+        "k_max_frac": 0.2038665294665002,
+        "no_improve_frac": 0.04383828488322812,
+        "bandit_alpha": 0.4219571258974946,
+        "warmup_calls": 280.37511426991574
+      }
+    },
+    {
+      "number": 6,
+      "value": 0.051933,
+      "params": {
+        "initial_temperature": 1.6130512479991617,
+        "alpha_cool": 0.9884925843291473,
+        "reheat_soft_mult": 0.3792375699529233,
+        "reheat_hard_mult": 0.17061506086290598,
+        "k_min_frac": 0.03560878845776017,
+        "k_max_frac": 0.20124470541734554,
+        "no_improve_frac": 0.045022399384571164,
+        "bandit_alpha": 0.42863906577255756,
+        "warmup_calls": 291.73795793524687
+      }
+    },
+    {
+      "number": 7,
+      "value": 0.052644,
+      "params": {
+        "initial_temperature": 1.6498103568939875,
+        "alpha_cool": 1.014533682240963,
+        "reheat_soft_mult": 0.3806517299276204,
+        "reheat_hard_mult": 0.17487920304574045,
+        "k_min_frac": 0.03476574513735713,
+        "k_max_frac": 0.19594297127904287,
+        "no_improve_frac": 0.04578433016762396,
+        "bandit_alpha": 0.39670486995655907,
+        "warmup_calls": 277.33575025996697
+      }
+    },
+    {
+      "number": 8,
+      "value": 0.060729,
+      "params": {
+        "initial_temperature": 1.6508660646830342,
+        "alpha_cool": 1.0065009915314267,
+        "reheat_soft_mult": 0.37276684220202716,
+        "reheat_hard_mult": 0.16992114148852622,
+        "k_min_frac": 0.03490031861178029,
+        "k_max_frac": 0.20743520407263225,
+        "no_improve_frac": 0.04408991580929906,
+        "bandit_alpha": 0.3967984236077245,
+        "warmup_calls": 282.27724670183943
+      }
+    },
+    {
+      "number": 9,
+      "value": 0.0542,
+      "params": {
+        "initial_temperature": 1.6272733480183823,
+        "alpha_cool": 0.9629012944732254,
+        "reheat_soft_mult": 0.3718454811371619,
+        "reheat_hard_mult": 0.17147457034686334,
+        "k_min_frac": 0.03460585670082481,
+        "k_max_frac": 0.2001695507527811,
+        "no_improve_frac": 0.042875877570045406,
+        "bandit_alpha": 0.4156284301300845,
+        "warmup_calls": 284.4142918033218
+      }
+    },
+    {
+      "number": 10,
+      "value": 0.043917,
+      "params": {
+        "initial_temperature": 1.6162055808008904,
+        "alpha_cool": 1.0203759701029316,
+        "reheat_soft_mult": 0.3875020234876225,
+        "reheat_hard_mult": 0.16841715710348498,
+        "k_min_frac": 0.034479975145691164,
+        "k_max_frac": 0.20511352527320018,
+        "no_improve_frac": 0.04450451445436549,
+        "bandit_alpha": 0.418627592916291,
+        "warmup_calls": 290.08541764025125
+      }
+    },
+    {
+      "number": 11,
+      "value": 0.043295,
+      "params": {
+        "initial_temperature": 1.6336506284928616,
+        "alpha_cool": 0.9598454570871304,
+        "reheat_soft_mult": 0.38026912461120993,
+        "reheat_hard_mult": 0.1697055059363736,
+        "k_min_frac": 0.034562687144566534,
+        "k_max_frac": 0.20370311372377808,
+        "no_improve_frac": 0.043836436298965865,
+        "bandit_alpha": 0.4067022554274366,
+        "warmup_calls": 275.58627772197895
+      }
+    },
+    {
+      "number": 12,
+      "value": 0.042235,
+      "params": {
+        "initial_temperature": 1.5995104608036839,
+        "alpha_cool": 0.9751910941387606,
+        "reheat_soft_mult": 0.3733254607233575,
+        "reheat_hard_mult": 0.1696898785445905,
+        "k_min_frac": 0.03446011247033677,
+        "k_max_frac": 0.20362673227096245,
+        "no_improve_frac": 0.04293825725859448,
+        "bandit_alpha": 0.4226933206488262,
+        "warmup_calls": 276.1767884549024
+      }
+    },
+    {
+      "number": 13,
+      "value": 0.044785,
+      "params": {
+        "initial_temperature": 1.71215522792433,
+        "alpha_cool": 0.9960878177381134,
+        "reheat_soft_mult": 0.38078367348875997,
+        "reheat_hard_mult": 0.17252343185923188,
+        "k_min_frac": 0.03400402039818207,
+        "k_max_frac": 0.20227400739929685,
+        "no_improve_frac": 0.0456508420331022,
+        "bandit_alpha": 0.418079843334788,
+        "warmup_calls": 283.14311570390527
+      }
+    },
+    {
+      "number": 14,
+      "value": 0.042095,
+      "params": {
+        "initial_temperature": 1.621798248948282,
+        "alpha_cool": 0.9712500557511009,
+        "reheat_soft_mult": 0.3867644677013239,
+        "reheat_hard_mult": 0.17574639545229748,
+        "k_min_frac": 0.03438534846472897,
+        "k_max_frac": 0.2011135911706418,
+        "no_improve_frac": 0.04382581637664828,
+        "bandit_alpha": 0.4153042415904801,
+        "warmup_calls": 276.73236710411805
+      }
+    },
+    {
+      "number": 15,
+      "value": 0.051612,
+      "params": {
+        "initial_temperature": 1.6446898478633796,
+        "alpha_cool": 1.0174614435947515,
+        "reheat_soft_mult": 0.38361465008208984,
+        "reheat_hard_mult": 0.16795748943668873,
+        "k_min_frac": 0.035939147466563126,
+        "k_max_frac": 0.20054898307427813,
+        "no_improve_frac": 0.04655108331077605,
+        "bandit_alpha": 0.40835968763358044,
+        "warmup_calls": 296.4614519209256
+      }
+    },
+    {
+      "number": 16,
+      "value": 0.043829,
+      "params": {
+        "initial_temperature": 1.6084547685030632,
+        "alpha_cool": 0.9765155829554971,
+        "reheat_soft_mult": 0.3865197825020589,
+        "reheat_hard_mult": 0.17282490355183447,
+        "k_min_frac": 0.035517655525003515,
+        "k_max_frac": 0.20214122800751555,
+        "no_improve_frac": 0.043918438412243264,
+        "bandit_alpha": 0.418182596901031,
+        "warmup_calls": 266.6458809454006
+      }
+    },
+    {
+      "number": 17,
+      "value": 0.049365,
+      "params": {
+        "initial_temperature": 1.6698040946499466,
+        "alpha_cool": 0.9604247734821738,
+        "reheat_soft_mult": 0.3975446420643882,
+        "reheat_hard_mult": 0.1740862057184884,
+        "k_min_frac": 0.034152336614763024,
+        "k_max_frac": 0.2026525592736069,
+        "no_improve_frac": 0.04544645361789698,
+        "bandit_alpha": 0.4183363891110893,
+        "warmup_calls": 282.97557011667897
+      }
+    },
+    {
+      "number": 18,
+      "value": 0.044394,
+      "params": {
+        "initial_temperature": 1.6475118918028078,
+        "alpha_cool": 1.009246061264344,
+        "reheat_soft_mult": 0.3832656594853649,
+        "reheat_hard_mult": 0.17099134014503378,
+        "k_min_frac": 0.035219142673917736,
+        "k_max_frac": 0.20375298111551426,
+        "no_improve_frac": 0.045687598164192184,
+        "bandit_alpha": 0.40986577354232906,
+        "warmup_calls": 275.66403876714537
+      }
+    },
+    {
+      "number": 19,
+      "value": 0.053384,
+      "params": {
+        "initial_temperature": 1.701189940767286,
+        "alpha_cool": 1.0102936935908156,
+        "reheat_soft_mult": 0.3778555695574801,
+        "reheat_hard_mult": 0.17277229212017198,
+        "k_min_frac": 0.035474944464312416,
+        "k_max_frac": 0.19379795953577908,
+        "no_improve_frac": 0.045059509475843744,
+        "bandit_alpha": 0.4082240561181311,
+        "warmup_calls": 277.42147750633626
+      }
+    },
+    {
+      "number": 20,
+      "value": 0.042053,
+      "params": {
+        "initial_temperature": 1.706773817466685,
+        "alpha_cool": 0.9570454930786703,
+        "reheat_soft_mult": 0.37729095160127696,
+        "reheat_hard_mult": 0.17232114265187148,
+        "k_min_frac": 0.03546782495740319,
+        "k_max_frac": 0.2034048249542229,
+        "no_improve_frac": 0.044104708897417105,
+        "bandit_alpha": 0.41891438895213434,
+        "warmup_calls": 277.40965081525104
+      }
+    },
+    {
+      "number": 21,
+      "value": 0.052282,
+      "params": {
+        "initial_temperature": 1.645452733105651,
+        "alpha_cool": 0.9997110249065528,
+        "reheat_soft_mult": 0.3814521450158919,
+        "reheat_hard_mult": 0.16554656349439614,
+        "k_min_frac": 0.035362836462751276,
+        "k_max_frac": 0.19557735394838557,
+        "no_improve_frac": 0.04516502372817119,
+        "bandit_alpha": 0.4139052687792087,
+        "warmup_calls": 286.710395843776
+      }
+    },
+    {
+      "number": 22,
+      "value": 0.042103,
+      "params": {
+        "initial_temperature": 1.7137231296935431,
+        "alpha_cool": 0.9546967758389884,
+        "reheat_soft_mult": 0.39043114519088823,
+        "reheat_hard_mult": 0.1729248306373116,
+        "k_min_frac": 0.03520506565436578,
+        "k_max_frac": 0.20883105595706475,
+        "no_improve_frac": 0.04371331627489068,
+        "bandit_alpha": 0.4217859082586003,
+        "warmup_calls": 286.9844080623359
+      }
+    },
+    {
+      "number": 23,
+      "value": 0.046658,
+      "params": {
+        "initial_temperature": 1.6375080807510456,
+        "alpha_cool": 1.0123012520325452,
+        "reheat_soft_mult": 0.37684390025275627,
+        "reheat_hard_mult": 0.1688411191335819,
+        "k_min_frac": 0.03453592401541265,
+        "k_max_frac": 0.20421809356953877,
+        "no_improve_frac": 0.04528124034506786,
+        "bandit_alpha": 0.4411405865260357,
+        "warmup_calls": 284.74290265173687
+      }
+    },
+    {
+      "number": 24,
+      "value": 0.053667,
+      "params": {
+        "initial_temperature": 1.6764853897439755,
+        "alpha_cool": 0.9775869919602884,
+        "reheat_soft_mult": 0.3779008260024299,
+        "reheat_hard_mult": 0.17048000038432973,
+        "k_min_frac": 0.03423564286985856,
+        "k_max_frac": 0.19797785975973248,
+        "no_improve_frac": 0.0443928686035469,
+        "bandit_alpha": 0.4211838175090234,
+        "warmup_calls": 279.5883063189794
+      }
+    },
+    {
+      "number": 25,
+      "value": 0.042633,
+      "params": {
+        "initial_temperature": 1.7063103100244421,
+        "alpha_cool": 1.010192532892367,
+        "reheat_soft_mult": 0.3832911272728473,
+        "reheat_hard_mult": 0.17373191408531224,
+        "k_min_frac": 0.03630545909428365,
+        "k_max_frac": 0.20559437932857175,
+        "no_improve_frac": 0.04404940355624806,
+        "bandit_alpha": 0.4244368161998635,
+        "warmup_calls": 284.3334892007321
+      }
+    },
+    {
+      "number": 26,
+      "value": 0.04951,
+      "params": {
+        "initial_temperature": 1.6453435217198644,
+        "alpha_cool": 1.0007889694744796,
+        "reheat_soft_mult": 0.3732643897854606,
+        "reheat_hard_mult": 0.16874657004577204,
+        "k_min_frac": 0.03418234695888054,
+        "k_max_frac": 0.20509729981884336,
+        "no_improve_frac": 0.04453195668209345,
+        "bandit_alpha": 0.4121645299229093,
+        "warmup_calls": 281.6538910425275
+      }
+    },
+    {
+      "number": 27,
+      "value": 0.042654,
+      "params": {
+        "initial_temperature": 1.6273528360154663,
+        "alpha_cool": 1.0068783280378473,
+        "reheat_soft_mult": 0.375240324748864,
+        "reheat_hard_mult": 0.17173440366056147,
+        "k_min_frac": 0.03498106892692039,
+        "k_max_frac": 0.20086981677997381,
+        "no_improve_frac": 0.044656666257037736,
+        "bandit_alpha": 0.414375972130435,
+        "warmup_calls": 281.42838146666213
+      }
+    },
+    {
+      "number": 28,
+      "value": 0.054369,
+      "params": {
+        "initial_temperature": 1.6956978080110383,
+        "alpha_cool": 0.9902416503524896,
+        "reheat_soft_mult": 0.39578482616615124,
+        "reheat_hard_mult": 0.17228478166867692,
+        "k_min_frac": 0.03493482276064496,
+        "k_max_frac": 0.19758781877919643,
+        "no_improve_frac": 0.04546780872514571,
+        "bandit_alpha": 0.42388777342121925,
+        "warmup_calls": 282.4143430899701
+      }
+    },
+    {
+      "number": 29,
+      "value": 0.048517,
+      "params": {
+        "initial_temperature": 1.6539851397116638,
+        "alpha_cool": 1.022237028296888,
+        "reheat_soft_mult": 0.3741688714233101,
+        "reheat_hard_mult": 0.1693081060407659,
+        "k_min_frac": 0.03543428038343174,
+        "k_max_frac": 0.19687909560100186,
+        "no_improve_frac": 0.04503910239418754,
+        "bandit_alpha": 0.4328954721355058,
+        "warmup_calls": 280.5919446986787
+      }
+    },
+    {
+      "number": 30,
+      "value": 0.045556,
+      "params": {
+        "initial_temperature": 1.6872705604055431,
+        "alpha_cool": 0.9766441054861452,
+        "reheat_soft_mult": 0.3774796456649714,
+        "reheat_hard_mult": 0.17362496779747702,
+        "k_min_frac": 0.03446018850424957,
+        "k_max_frac": 0.20103139815481685,
+        "no_improve_frac": 0.04493706898130079,
+        "bandit_alpha": 0.4331674069641692,
+        "warmup_calls": 272.0374374230704
+      }
+    },
+    {
+      "number": 31,
+      "value": 0.046132,
+      "params": {
+        "initial_temperature": 1.6392763856531645,
+        "alpha_cool": 1.0068209530331569,
+        "reheat_soft_mult": 0.384195302215029,
+        "reheat_hard_mult": 0.1714400959949797,
+        "k_min_frac": 0.03599481609834924,
+        "k_max_frac": 0.20268856807123328,
+        "no_improve_frac": 0.043845908702766244,
+        "bandit_alpha": 0.4078599057197521,
+        "warmup_calls": 276.99010281446385
+      }
+    },
+    {
+      "number": 32,
+      "value": 0.046005,
+      "params": {
+        "initial_temperature": 1.635586029456338,
+        "alpha_cool": 1.0203114637351576,
+        "reheat_soft_mult": 0.37520215246363997,
+        "reheat_hard_mult": 0.17377204446095995,
+        "k_min_frac": 0.035805236940401906,
+        "k_max_frac": 0.20012473782428947,
+        "no_improve_frac": 0.04453038716105548,
+        "bandit_alpha": 0.4308210845017223,
+        "warmup_calls": 275.2640534226409
+      }
+    },
+    {
+      "number": 33,
+      "value": 0.045631,
+      "params": {
+        "initial_temperature": 1.6589946641333932,
+        "alpha_cool": 1.0252843690283628,
+        "reheat_soft_mult": 0.38272765664034564,
+        "reheat_hard_mult": 0.17007193367365306,
+        "k_min_frac": 0.03573967405669729,
+        "k_max_frac": 0.19847926002159189,
+        "no_improve_frac": 0.04550672430755869,
+        "bandit_alpha": 0.42111512561667686,
+        "warmup_calls": 280.19522544685225
+      }
+    },
+    {
+      "number": 34,
+      "value": 0.053659,
+      "params": {
+        "initial_temperature": 1.649862325912878,
+        "alpha_cool": 0.97914531129548,
+        "reheat_soft_mult": 0.38402853077134347,
+        "reheat_hard_mult": 0.17805952536777864,
+        "k_min_frac": 0.03484152067927118,
+        "k_max_frac": 0.20366657544200187,
+        "no_improve_frac": 0.045908840730294685,
+        "bandit_alpha": 0.4103222623695784,
+        "warmup_calls": 283.9654704517042
+      }
+    },
+    {
+      "number": 35,
+      "value": 0.044322,
+      "params": {
+        "initial_temperature": 1.6354849692164113,
+        "alpha_cool": 1.0157492260339653,
+        "reheat_soft_mult": 0.3757744668077914,
+        "reheat_hard_mult": 0.16827037719989568,
+        "k_min_frac": 0.035531360327004186,
+        "k_max_frac": 0.20516062641361688,
+        "no_improve_frac": 0.045059943986662576,
+        "bandit_alpha": 0.42560572855589734,
+        "warmup_calls": 272.0565301120211
+      }
+    },
+    {
+      "number": 36,
+      "value": 0.042612,
+      "params": {
+        "initial_temperature": 1.6647489297533473,
+        "alpha_cool": 0.9824991138046962,
+        "reheat_soft_mult": 0.38489917857821987,
+        "reheat_hard_mult": 0.1709595210707019,
+        "k_min_frac": 0.03520040425680303,
+        "k_max_frac": 0.20474125603492643,
+        "no_improve_frac": 0.04614022131031325,
+        "bandit_alpha": 0.409789872883369,
+        "warmup_calls": 276.33059577497704
+      }
+    },
+    {
+      "number": 37,
+      "value": 0.046107,
+      "params": {
+        "initial_temperature": 1.6400641807578207,
+        "alpha_cool": 1.0391289005433169,
+        "reheat_soft_mult": 0.3884056350133228,
+        "reheat_hard_mult": 0.16720893894215172,
+        "k_min_frac": 0.03447002983306769,
+        "k_max_frac": 0.19493695821449367,
+        "no_improve_frac": 0.04533463941193776,
+        "bandit_alpha": 0.4149151032820598,
+        "warmup_calls": 276.21518732196836
+      }
+    },
+    {
+      "number": 38,
+      "value": 0.051923,
+      "params": {
+        "initial_temperature": 1.6793614785107147,
+        "alpha_cool": 0.9844198399946571,
+        "reheat_soft_mult": 0.373114784301971,
+        "reheat_hard_mult": 0.16358409780810668,
+        "k_min_frac": 0.03528373351397782,
+        "k_max_frac": 0.2009219721168852,
+        "no_improve_frac": 0.04565884354064078,
+        "bandit_alpha": 0.4320597054238148,
+        "warmup_calls": 281.1599492501104
+      }
+    },
+    {
+      "number": 39,
+      "value": 0.044555,
+      "params": {
+        "initial_temperature": 1.5970735792994555,
+        "alpha_cool": 1.0015018304223482,
+        "reheat_soft_mult": 0.38267959796178347,
+        "reheat_hard_mult": 0.1708741383636192,
+        "k_min_frac": 0.03363491864235344,
+        "k_max_frac": 0.2049430654239018,
+        "no_improve_frac": 0.04555966954789451,
+        "bandit_alpha": 0.41672452040466934,
+        "warmup_calls": 278.4087645259034
+      }
+    },
+    {
+      "number": 40,
+      "value": 0.057162,
+      "params": {
+        "initial_temperature": 1.6606633425563913,
+        "alpha_cool": 0.9924842439911312,
+        "reheat_soft_mult": 0.37140773003908634,
+        "reheat_hard_mult": 0.17671436431478948,
+        "k_min_frac": 0.03608295670455689,
+        "k_max_frac": 0.20289622750413083,
+        "no_improve_frac": 0.04498098297709038,
+        "bandit_alpha": 0.4095720456608696,
+        "warmup_calls": 279.8924863352938
+      }
+    },
+    {
+      "number": 41,
+      "value": 0.045559,
+      "params": {
+        "initial_temperature": 1.646425319235197,
+        "alpha_cool": 0.9986451378762966,
+        "reheat_soft_mult": 0.3814190802071458,
+        "reheat_hard_mult": 0.16611049226451016,
+        "k_min_frac": 0.03557527614541483,
+        "k_max_frac": 0.20402938688496594,
+        "no_improve_frac": 0.04461240507030279,
+        "bandit_alpha": 0.41416672982605407,
+        "warmup_calls": 291.876655846646
+      }
+    },
+    {
+      "number": 42,
+      "value": 0.05093,
+      "params": {
+        "initial_temperature": 1.5734392636853114,
+        "alpha_cool": 0.997308671248951,
+        "reheat_soft_mult": 0.3722470951283768,
+        "reheat_hard_mult": 0.16689908390889055,
+        "k_min_frac": 0.03451640867240781,
+        "k_max_frac": 0.2001717016386749,
+        "no_improve_frac": 0.044881156556957714,
+        "bandit_alpha": 0.40912233159192923,
+        "warmup_calls": 273.91688841741694
+      }
+    },
+    {
+      "number": 43,
+      "value": 0.058281,
+      "params": {
+        "initial_temperature": 1.6470178830803237,
+        "alpha_cool": 1.004714744950781,
+        "reheat_soft_mult": 0.38654550907120766,
+        "reheat_hard_mult": 0.17333684976577243,
+        "k_min_frac": 0.03506903378709701,
+        "k_max_frac": 0.1983841641791516,
+        "no_improve_frac": 0.046928349680169595,
+        "bandit_alpha": 0.41221560789074685,
+        "warmup_calls": 272.4019258095915
+      }
+    },
+    {
+      "number": 44,
+      "value": 0.045493,
+      "params": {
+        "initial_temperature": 1.6564207350722107,
+        "alpha_cool": 1.0263348617158563,
+        "reheat_soft_mult": 0.3764048431159995,
+        "reheat_hard_mult": 0.16448825884907445,
+        "k_min_frac": 0.035513985664009484,
+        "k_max_frac": 0.19819261886083572,
+        "no_improve_frac": 0.04403681088087304,
+        "bandit_alpha": 0.41233200927782493,
+        "warmup_calls": 280.7333391873245
+      }
+    },
+    {
+      "number": 45,
+      "value": 0.055941,
+      "params": {
+        "initial_temperature": 1.6986589198078206,
+        "alpha_cool": 0.9959601258352319,
+        "reheat_soft_mult": 0.3803348971743502,
+        "reheat_hard_mult": 0.17355888426809685,
+        "k_min_frac": 0.034473784492158446,
+        "k_max_frac": 0.20023437996306795,
+        "no_improve_frac": 0.044920065457773856,
+        "bandit_alpha": 0.42400718612368193,
+        "warmup_calls": 293.67717091490846
+      }
+    },
+    {
+      "number": 46,
+      "value": 0.050614,
+      "params": {
+        "initial_temperature": 1.6476118001349902,
+        "alpha_cool": 1.0415783614611427,
+        "reheat_soft_mult": 0.37313334262875625,
+        "reheat_hard_mult": 0.17548210083031962,
+        "k_min_frac": 0.03505415709502799,
+        "k_max_frac": 0.20411389878498218,
+        "no_improve_frac": 0.04550429400636041,
+        "bandit_alpha": 0.42266320449421135,
+        "warmup_calls": 275.0023481389593
+      }
+    },
+    {
+      "number": 47,
+      "value": 0.042994,
+      "params": {
+        "initial_temperature": 1.672564606302014,
+        "alpha_cool": 0.9916276401112328,
+        "reheat_soft_mult": 0.37174024909867204,
+        "reheat_hard_mult": 0.16665905747859633,
+        "k_min_frac": 0.0359907926554824,
+        "k_max_frac": 0.20638392596477098,
+        "no_improve_frac": 0.044351803677553724,
+        "bandit_alpha": 0.41981356099523126,
+        "warmup_calls": 286.95097220124944
+      }
+    },
+    {
+      "number": 48,
+      "value": 0.044138,
+      "params": {
+        "initial_temperature": 1.6521782595382235,
+        "alpha_cool": 1.0116847668504634,
+        "reheat_soft_mult": 0.3715721951211977,
+        "reheat_hard_mult": 0.16767058213243527,
+        "k_min_frac": 0.035536285634442936,
+        "k_max_frac": 0.20080535739837638,
+        "no_improve_frac": 0.045416515333022524,
+        "bandit_alpha": 0.4207684794648627,
+        "warmup_calls": 272.7716410807069
+      }
+    },
+    {
+      "number": 49,
+      "value": 0.045191,
+      "params": {
+        "initial_temperature": 1.6928608221668262,
+        "alpha_cool": 1.0096757235011469,
+        "reheat_soft_mult": 0.3855734174188535,
+        "reheat_hard_mult": 0.16681011283046263,
+        "k_min_frac": 0.034825212818397906,
+        "k_max_frac": 0.19818424107246355,
+        "no_improve_frac": 0.04454496151993339,
+        "bandit_alpha": 0.41480021881926166,
+        "warmup_calls": 283.32167376817245
+      }
+    }
+  ],
+  "search_ranges": {
+    "initial_temperature": {
+      "low": 1.53,
+      "high": 2.07,
+      "log": true
+    },
+    "alpha_cool": {
+      "low": 0.99885,
+      "high": 0.99985
+    },
+    "reheat_soft_mult": {
+      "low": 0.28,
+      "high": 0.52
+    },
+    "reheat_hard_mult": {
+      "low": 0.09,
+      "high": 0.26
+    },
+    "k_min_frac": {
+      "low": 0.026,
+      "high": 0.054
+    },
+    "k_max_frac": {
+      "low": 0.165,
+      "high": 0.275
+    },
+    "no_improve_frac": {
+      "low": 0.034,
+      "high": 0.086
+    },
+    "bandit_alpha": {
+      "low": 0.34,
+      "high": 0.56,
+      "log": true
+    },
+    "warmup_calls": {
+      "low": 100,
+      "high": 400,
+      "type": "int"
+    }
+  },
+  "anchor_params": {
+    "initial_temperature": 1.8,
+    "alpha_cool": 0.9992,
+    "k_min_frac": 0.04,
+    "k_max_frac": 0.22,
+    "bandit_alpha": 0.45,
+    "warmup_calls": 250,
+    "no_improve_frac": 0.06,
+    "reheat_soft_mult": 0.42,
+    "reheat_hard_mult": 0.18
+  }
+}

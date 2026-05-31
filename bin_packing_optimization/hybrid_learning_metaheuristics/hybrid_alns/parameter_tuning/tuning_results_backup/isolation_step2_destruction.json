@@ -1,0 +1,201 @@
+{
+  "timestamp": 1780156400.8191605,
+  "run_type": "isolation_step2_destruction",
+  "seed": 42,
+  "model_name": "repair_model_v2.pkl",
+  "bank_size": 20,
+  "parameters": {
+    "k_min_frac": 0.03,
+    "k_max_frac": 0.2,
+    "no_improve_frac": 0.04
+  },
+  "structural_defaults": {
+    "min_no_improve_limit": 250,
+    "temp_precision_floor": 1e-12,
+    "reheat_check_interval_divisor": 4.0,
+    "reheat_check_min_interval": 50,
+    "hard_restart_min_limit": 100,
+    "patience_shrink_factor": 0.6666666666666666
+  },
+  "pipeline_config": {
+    "quality_weight": 0.9,
+    "time_weight": 0.1,
+    "time_limit": 60
+  },
+  "metrics": {
+    "mean_relative_gap": 0.0705,
+    "mean_normalized_time": 0.36,
+    "mean_time_s": 21.6,
+    "total_time_s": 540.0,
+    "per_dataset_relative_gap": {
+      "falkenauer-t": 0.0765,
+      "falkenauer-u": 0.059500000000000004,
+      "scholl-1": 0.0425,
+      "scholl-2": 0.068,
+      "scholl-3": 0.051
+    },
+    "arm_pulls": [
+      110,
+      90,
+      80
+    ],
+    "n_instances": 20
+  },
+  "max_iter": 2000,
+  "n_jobs": 8,
+  "search_ranges": {
+    "grid": [
+      {
+        "k_min_frac": 0.01,
+        "k_max_frac": 0.1,
+        "no_improve_frac": 0.01
+      },
+      {
+        "k_min_frac": 0.01,
+        "k_max_frac": 0.1,
+        "no_improve_frac": 0.05
+      },
+      {
+        "k_min_frac": 0.01,
+        "k_max_frac": 0.1,
+        "no_improve_frac": 0.2
+      },
+      {
+        "k_min_frac": 0.01,
+        "k_max_frac": 0.25,
+        "no_improve_frac": 0.01
+      },
+      {
+        "k_min_frac": 0.01,
+        "k_max_frac": 0.25,
+        "no_improve_frac": 0.05
+      },
+      {
+        "k_min_frac": 0.01,
+        "k_max_frac": 0.25,
+        "no_improve_frac": 0.2
+      },
+      {
+        "k_min_frac": 0.01,
+        "k_max_frac": 0.5,
+        "no_improve_frac": 0.01
+      },
+      {
+        "k_min_frac": 0.01,
+        "k_max_frac": 0.5,
+        "no_improve_frac": 0.05
+      },
+      {
+        "k_min_frac": 0.01,
+        "k_max_frac": 0.5,
+        "no_improve_frac": 0.2
+      },
+      {
+        "k_min_frac": 0.05,
+        "k_max_frac": 0.1,
+        "no_improve_frac": 0.01
+      },
+      {
+        "k_min_frac": 0.05,
+        "k_max_frac": 0.1,
+        "no_improve_frac": 0.05
+      },
+      {
+        "k_min_frac": 0.05,
+        "k_max_frac": 0.1,
+        "no_improve_frac": 0.2
+      },
+      {
+        "k_min_frac": 0.05,
+        "k_max_frac": 0.25,
+        "no_improve_frac": 0.01
+      },
+      {
+        "k_min_frac": 0.05,
+        "k_max_frac": 0.25,
+        "no_improve_frac": 0.05
+      },
+      {
+        "k_min_frac": 0.05,
+        "k_max_frac": 0.25,
+        "no_improve_frac": 0.2
+      },
+      {
+        "k_min_frac": 0.05,
+        "k_max_frac": 0.5,
+        "no_improve_frac": 0.01
+      },
+      {
+        "k_min_frac": 0.05,
+        "k_max_frac": 0.5,
+        "no_improve_frac": 0.05
+      },
+      {
+        "k_min_frac": 0.05,
+        "k_max_frac": 0.5,
+        "no_improve_frac": 0.2
+      },
+      {
+        "k_min_frac": 0.2,
+        "k_max_frac": 0.1,
+        "no_improve_frac": 0.01
+      },
+      {
+        "k_min_frac": 0.2,
+        "k_max_frac": 0.1,
+        "no_improve_frac": 0.05
+      },
+      {
+        "k_min_frac": 0.2,
+        "k_max_frac": 0.1,
+        "no_improve_frac": 0.2
+      },
+      {
+        "k_min_frac": 0.2,
+        "k_max_frac": 0.25,
+        "no_improve_frac": 0.01
+      },
+      {
+        "k_min_frac": 0.2,
+        "k_max_frac": 0.25,
+        "no_improve_frac": 0.05
+      },
+      {
+        "k_min_frac": 0.2,
+        "k_max_frac": 0.25,
+        "no_improve_frac": 0.2
+      },
+      {
+        "k_min_frac": 0.2,
+        "k_max_frac": 0.5,
+        "no_improve_frac": 0.01
+      },
+      {
+        "k_min_frac": 0.2,
+        "k_max_frac": 0.5,
+        "no_improve_frac": 0.05
+      },
+      {
+        "k_min_frac": 0.2,
+        "k_max_frac": 0.5,
+        "no_improve_frac": 0.2
+      }
+    ],
+    "bank_size": 20
+  },
+  "changes_from_baseline": {
+    "k_max_frac": [
+      0.25,
+      0.2
+    ],
+    "no_improve_frac": [
+      0.05,
+      0.04
+    ],
+    "k_min_frac": [
+      0.05,
+      0.03
+    ]
+  },
+  "force_uniform_random": true
+}
