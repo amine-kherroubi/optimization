@@ -8,6 +8,7 @@
 \usepackage{xcolor}
 \usepackage{url}
 \usepackage{tikz}
+\usepackage{float}
 \usetikzlibrary{arrows.meta,positioning}
 \def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
     T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
@@ -27,26 +28,30 @@
 
 \begin{abstract}
 	The one-dimensional bin packing problem (1D-BPP) is a strongly NP-hard
-	combinatorial optimization problem in which a set of weighted items must be
-	packed into the fewest identical capacity-limited bins. Metaheuristics scale to
-	large instances but rely on hand-designed operators and fixed policies that do
-	not adapt to the state of the search. We present a dual-learning Adaptive Large
-	Neighborhood Search (ALNS) that injects machine learning at two distinct decision
-	points of a single search loop: an \emph{online} warm-start contextual bandit
-	(LinUCB) selects the destroy operator from a five-dimensional search-state
-	context, while an \emph{offline} gradient-boosted-trees model, trained by
-	behavioral cloning of Best-Fit Decreasing, ranks feasible bins during repair. An
-	ablation study isolates the contribution of each learning component, and a
-	multi-dataset evaluation on standard benchmarks (Scholl, Falkenauer, W\"ascher,
-	Hard28) characterizes the combined method. With a budget of $5000$ ALNS
-	iterations, all four ablation configurations reach a near-optimal mean gap of
-	$0.05$ bins on the Scholl-2 slice ($20$ instances); the two learning
-	components affect only solve time on this slice. In the comparative study the
-	dual-learning ALNS achieves the best mean gap ($0.05$ bins, versus $0.25$ for
-	ant colony optimization at roughly $22\times$ the runtime), dominating every
-	classical baseline on quality. Across the five full benchmark families ($685$
-	instances) the combined method reaches the optimum on $86\%$ of Scholl-2 and
-	$61\%$ of Falkenauer-U instances.
+combinatorial optimization problem requiring a set of $n$ weighted items to be
+assigned to the minimum number of capacity-$C$ bins.  Metaheuristics scale to
+large instances but rely on hand-crafted operators governed by policies that are
+fixed prior to execution and remain insensitive to the evolving state of the
+search.  We propose a dual-learning Adaptive Large Neighborhood Search (ALNS)
+that embeds machine learning at two structurally distinct decision points within
+a single destroy--repair loop.  At the \emph{online} level, a warm-start
+LinUCB contextual bandit selects the destroy operator from a five-dimensional
+encoding of the current search state, replacing the static roulette-wheel
+mechanism of standard ALNS.  At the \emph{offline} level, a gradient-boosted
+trees (GBT) model---trained by behavioral cloning of Best-Fit Decreasing
+(BFD)---ranks feasible bins during repair, injecting instance-class knowledge
+without incurring online learning overhead.  An ablation study isolates each
+component's contribution; a multi-dataset evaluation covers five standard
+benchmark families (Scholl, Falkenauer, W\"ascher, Hard28, 685 instances
+total).  Under a budget of $5{,}000$ ALNS iterations, all four ablation
+configurations attain a near-optimal mean gap of $0.05$ bins on the Scholl-2
+50-item slice; the learning components affect only solve time on this slice.
+In the comparative study the dual-learning ALNS achieves the lowest mean gap
+($0.05$ bins, versus $0.25$ for ant colony optimization at approximately
+$22\times$ the runtime), strictly dominating every classical baseline on
+solution quality.  Across the five full benchmark families the combined method
+reaches the $\mathrm{LB}_1$-optimal solution on $86\%$ of Scholl-2 and $61\%$
+of Falkenauer-U instances.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -121,34 +126,45 @@ Section~\ref{sec:conclusion} concludes and outlines perspectives.
 
 \section{Problem Formulation}\label{sec:formulation}
 
-Let $\mathcal{I}=\{1,\dots,n\}$ be a set of items with strictly positive integer
-sizes $s_i\in\mathbb{Z}_{>0}$, and let identical bins have integer capacity
-$C\in\mathbb{Z}_{>0}$ with $s_i\le C$ for all $i$. Using binary variables
-$x_{ij}=1$ iff item $i$ is placed in bin $j$, and $y_j=1$ iff bin $j$ is used
-(with $j\in\{1,\dots,n\}$), the problem is:
+Let $\mathcal{I}=\{1,\dots,n\}$ be a set of items with strictly positive
+integer sizes $s_i\in\mathbb{Z}_{>0}$, and let each bin have integer capacity
+$C\in\mathbb{Z}_{>0}$ with $s_i\le C$ for all $i\in\mathcal{I}$.  Introduce
+binary decision variables $x_{ij}=1$ if item $i$ is placed in bin $j$, and
+$y_j=1$ if bin $j$ is used, where $j\in\{1,\dots,n\}$.  The 1D-BPP is then:
+%
 \begin{align}
-	\min \quad       & \sum_{j=1}^{n} y_j \label{eq:obj}                                                     \\
-	\text{s.t.}\quad & \sum_{j=1}^{n} x_{ij}=1,               &  & \forall i\in\mathcal{I} \label{eq:assign} \\
-	                 & \sum_{i=1}^{n} s_i\,x_{ij}\le C\,y_j,  &  & \forall j \label{eq:cap}                  \\
-	                 & x_{ij}\le y_j,\; x_{ij},y_j\in\{0,1\}. &  & \label{eq:link}
+    \min \quad       & \sum_{j=1}^{n} y_j                                                      \label{eq:obj}    \\
+    \text{s.t.}\quad & \sum_{j=1}^{n} x_{ij}=1,               &  & \forall\,i\in\mathcal{I}   \label{eq:assign} \\
+                     & \sum_{i=1}^{n} s_i\,x_{ij}\le C\,y_j,  &  & \forall\,j                 \label{eq:cap}    \\
+                     & x_{ij}\le y_j,\; x_{ij},y_j\in\{0,1\}. &  &                            \label{eq:link}
 \end{align}
-Constraint~\eqref{eq:assign} assigns each item to exactly one bin,
-\eqref{eq:cap} enforces capacity and links assignment to bin usage, and the
-objective~\eqref{eq:obj} minimizes the number of bins used. A standard continuous
-lower bound is
+%
+Constraint~\eqref{eq:assign} enforces that each item is assigned to exactly one
+bin.  Constraint~\eqref{eq:cap} simultaneously bounds bin load by $C$ and
+couples assignment variables to bin-usage indicators.  Constraint~\eqref{eq:link}
+prevents an item from being placed in a bin that is not open.
+Objective~\eqref{eq:obj} minimizes the number of bins used.
+ 
+A standard continuous lower bound is obtained by noting that the total item
+volume must be distributed over bins of capacity $C$, requiring at least
+$\sum_i s_i / C$ bins; integrality gives
+%
 \begin{equation}
-	\mathrm{LB}_1=\left\lceil \frac{\sum_{i=1}^{n} s_i}{C} \right\rceil ,\label{eq:lb}
+    \mathrm{LB}_1=\left\lceil \frac{\sum_{i=1}^{n} s_i}{C} \right\rceil.
+    \label{eq:lb}
 \end{equation}
-which is valid because the total item volume $\sum_i s_i$ must be distributed over
-bins of capacity $C$, requiring at least $\sum_i s_i / C$ of them; integrality
-gives the ceiling. Sharper bounds exist, such as the $L_2$ bound of Martello and
-Toth~\cite{bMartello}, but $\mathrm{LB}_1$ is sufficient as the progress indicator
-used throughout this work. 1D-BPP is strongly NP-hard by reduction from
-3-Partition~\cite{bGarey}, which justifies a metaheuristic treatment.
+%
+Sharper lower bounds exist---notably the $L_2$ bound of Martello and
+Toth~\cite{bMartello}, which exploits item-size interactions---but
+$\mathrm{LB}_1$ suffices as the progress indicator used throughout this work.
+Strong NP-hardness follows from a polynomial reduction from
+3-Partition~\cite{bGarey}, establishing that no pseudo-polynomial exact
+algorithm exists unless P$=$NP and justifying a metaheuristic treatment for
+large instances.
 
 \section{Proposed Dual-Learning ALNS}\label{sec:approach}
 
-\begin{figure}[t]
+\begin{figure}[H]
 	\centering
 	\begin{tikzpicture}[
 		node distance=3.2mm,
@@ -174,14 +190,19 @@ used throughout this work. 1D-BPP is strongly NP-hard by reduction from
 \end{figure}
 
 \subsection{Solution Encoding and Warm Start}
-A solution is the assignment of items to bins. Internally the search stores, for
-each item, the index of its bin and, for each bin, its current load, so that a
-removal or insertion updates in $O(1)$ and the objective---the number of
-non-empty bins---is read directly. The search is warm-started with Best-Fit
-Decreasing (BFD): items are processed in non-increasing size order and each is
-placed in the open bin that leaves the smallest residual capacity, a new bin being
-opened only when no bin can host it. A tight initial packing gives ALNS fewer bins
-to eliminate and shortens the time spent recovering from a poor initialization.
+A solution is represented as the bijection from items to bins, maintained as
+two parallel arrays: for each item, the index of its assigned bin, and for each
+bin, its current aggregate load.  Any removal or reinsertion updates both arrays
+in $O(1)$, and the objective value---the count of non-empty bins---is read
+directly from the bin-load array without additional traversal.
+ 
+The search is initialized with Best-Fit Decreasing (BFD).  Items are processed
+in non-increasing size order; each item is placed in the open bin whose
+residual capacity after placement is minimized, and a new bin is opened only
+when no feasible bin exists.  BFD's greedy tightness produces an initial packing
+that is typically within a few bins of the optimum, reducing both the number of
+iterations required to reach a high-quality region and the frequency of costly
+total-destruction events.
 
 \subsection{Adaptive Large Neighborhood Search}
 The search follows the large-neighborhood-search paradigm~\cite{bShaw} in its
@@ -197,17 +218,29 @@ radius $k$ is drawn uniformly from $[\lfloor 0.05\,n\rfloor,\lfloor 0.25\,n\rflo
 and is widened toward its upper bound as stagnation grows; all operators guarantee
 that at least one item remains placed, preventing total destruction.
 
-\subsection{Acceptance: Simulated Annealing}
-Candidates are accepted by simulated annealing. A candidate whose bin-count change
-is $\Delta$ is accepted whenever $\Delta\le 0$, and otherwise with probability
-$\exp(-\Delta/T)$. The temperature follows geometric cooling
-$T\leftarrow \alpha_{\mathrm{cool}}\,T$ with $T_0=1/\ln 2$ and
-$\alpha_{\mathrm{cool}}=0.9995$. To avoid premature freezing, a soft reheat lifts
-$T$ back toward $0.35\,T_0$ during prolonged stagnation, and a diversification
-restart---reverting to the best solution found, partially reheating to
-$0.20\,T_0$, and shrinking the patience window---is triggered when no improvement
-occurs within a budget of iterations. The fixed iteration budget is the sole
-termination criterion.
+\subsection{Acceptance Criterion: Simulated Annealing}\label{sec:sa}
+ 
+Candidate solutions are accepted by a simulated-annealing criterion.  Let
+$\Delta = f(x') - f(x)$ denote the change in bin count relative to the
+incumbent.  A candidate with $\Delta\le0$ is accepted unconditionally; a
+candidate with $\Delta>0$ is accepted with probability $\exp(-\Delta/T)$.  The
+temperature follows a geometric cooling schedule,
+%
+\begin{equation}
+    T \;\leftarrow\; \alpha_{\mathrm{cool}}\,T,
+    \qquad T_0 = \frac{1}{\ln 2},\quad
+    \alpha_{\mathrm{cool}} = 0.9995
+    \label{eq:sa}
+\end{equation}
+%
+so that at $T_0$ a one-bin worsening is accepted with probability $0.5$.  Two
+adaptive mechanisms counteract premature convergence.  A \emph{soft reheat}
+raises $T$ toward $0.35\,T_0$ when the best solution has not improved for a
+prescribed number of iterations.  A \emph{diversification restart}---reverting
+to the best solution found, partially reheating to $0.20\,T_0$, and resetting
+the stagnation counter---is triggered when the soft reheat fails to produce
+improvement within a secondary patience budget.  The fixed iteration count is
+the sole termination criterion; no wall-clock time limit is imposed.
 
 \subsection{Online Learning: Warm-Start LinUCB Operator Selection}
 Operator selection is delegated to a warm-start contextual bandit. During the
