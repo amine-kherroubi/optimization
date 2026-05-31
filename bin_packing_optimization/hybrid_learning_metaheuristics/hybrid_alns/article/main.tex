@@ -246,6 +246,15 @@ stored with the model, and a fast predictor applies it in NumPy and reads class
 probabilities directly, avoiding per-call validation overhead. Algorithm~\ref{alg:alns}
 summarizes the complete loop.
 
+\subsection{Parameter Tuning}
+The hybrid ALNS has a small set of sensitive hyperparameters: the cooling rate,
+destruction radius bounds, and the reheat and restart thresholds. We tune these
+offline with an Optuna search on a held-out slice of Scholl-2, optimizing mean
+gap to $\mathrm{LB}_1$ under a fixed iteration budget. The LinUCB exploration
+coefficient and warm-start length are tuned jointly but kept fixed across all
+experiments to ensure comparability. Once selected, the parameters are frozen and
+used unchanged for the full evaluation.
+
 \begin{figure}[t]
 	\centering
 	\begin{algorithmic}[1]
