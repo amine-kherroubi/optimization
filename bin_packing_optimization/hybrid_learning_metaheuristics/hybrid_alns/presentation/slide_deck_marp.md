@@ -1,16 +1,244 @@
 ---
+marp: true
+theme: default
+math: mathjax
+size: 16:9
+paginate: true
+style: |
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Jost:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
 
-**Slide 1**
+  :root {
+    --navy:   #14273f;
+    --gold:   #b8913a;
+    --bg:     #f7f5f1;
+    --text:   #1b1b1e;
+    --muted:  #5a6b80;
+    --rule:   #ddd5c5;
+    --callout:#eee8dc;
+    --codbg:  #e8e2d8;
+  }
 
-# Hybrid ALNS for the Bin Packing Problem
+  section {
+    font-family: 'Jost', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 44px 64px 44px 64px;
+    font-size: 21px;
+    line-height: 1.55;
+    font-weight: 300;
+    letter-spacing: 0.01em;
+  }
+
+  /* ── Headings ── */
+  h1 {
+    font-family: 'Cormorant Garamond', serif;
+    color: var(--navy);
+    font-size: 1.95em;
+    font-weight: 700;
+    line-height: 1.2;
+    border-bottom: 2px solid var(--gold);
+    padding-bottom: 0.25em;
+    margin-bottom: 0.55em;
+    margin-top: 0;
+    letter-spacing: -0.01em;
+  }
+
+  h2 {
+    font-family: 'Cormorant Garamond', serif;
+    color: var(--navy);
+    font-size: 1.55em;
+    font-weight: 600;
+    margin: 0.25em 0 0.4em;
+    line-height: 1.25;
+  }
+
+  h3 {
+    font-family: 'Jost', sans-serif;
+    color: var(--gold);
+    font-size: 0.72em;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    margin: 0.6em 0 0.35em;
+  }
+
+  /* ── Body text ── */
+  strong {
+    color: var(--navy);
+    font-weight: 600;
+  }
+
+  p { margin: 0.35em 0; }
+
+  ul, ol {
+    margin: 0.3em 0 0.3em 1.4em;
+    padding: 0;
+  }
+
+  li {
+    margin-bottom: 0.25em;
+    padding-left: 0.15em;
+  }
+
+  /* ── Tables ── */
+  section table {
+    width: 100% !important;
+    min-width: 100% !important;
+    border-collapse: collapse;
+    font-size: 0.8em;
+    margin-top: 0.5em;
+    line-height: 1.4;
+  }
+
+  th {
+    background: var(--navy);
+    color: #dce8f4;
+    padding: 7px 13px;
+    text-align: left;
+    font-family: 'Jost', sans-serif;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    font-size: 0.9em;
+  }
+
+  td {
+    padding: 6px 13px;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+    background: transparent;
+  }
+
+  /* ── Code ── */
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    background: var(--codbg);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 0.82em;
+    font-weight: 400;
+  }
+
+  /* ── Blockquote as callout ── */
+  blockquote {
+    border-left: 3px solid var(--gold);
+    background: var(--callout);
+    margin: 0.6em 0 0.2em;
+    padding: 0.45em 1em;
+    border-radius: 0 4px 4px 0;
+    font-style: normal;
+    font-size: 0.9em;
+    color: #3a3020;
+  }
+
+  blockquote p { margin: 0; }
+
+  /* ── Pagination ── */
+  section::after {
+    font-family: 'Jost', sans-serif;
+    font-size: 0.62em;
+    color: var(--navy);
+  }
+
+  /* ── Title slide ── */
+  section.lead {
+    background: var(--navy);
+    color: #f0f4f8;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 60px 80px;
+  }
+
+  section.lead::before {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 5px;
+    background: var(--gold);
+  }
+
+  section.lead h1 {
+    font-size: 2.6em;
+    color: #ffffff;
+    border-bottom: 2px solid var(--gold);
+    padding-bottom: 0.3em;
+    margin-bottom: 0.4em;
+    font-weight: 700;
+  }
+
+  section.lead h3 {
+    color: #8bacc8;
+    font-size: 0.75em;
+    letter-spacing: 0.16em;
+    margin-bottom: 0.8em;
+  }
+
+  section.lead p {
+    color: #8bacc8;
+    font-size: 0.88em;
+    font-weight: 300;
+    max-width: 78%;
+    line-height: 1.6;
+  }
+
+  section.lead::after { color: #3a5570; }
+
+  /* ── Section divider slides ── */
+  section.divider {
+    background: var(--navy);
+    color: #f0f4f8;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 60px 80px;
+  }
+
+  section.divider::before {
+    content: '';
+    position: absolute;
+    left: 80px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 4px;
+    height: 40%;
+    background: var(--gold);
+  }
+
+  section.divider h2 {
+    font-size: 2.4em;
+    color: #ffffff;
+    font-weight: 700;
+    margin-left: 28px;
+    line-height: 1.15;
+  }
+
+  section.divider h3 {
+    color: #8bacc8;
+    margin-left: 28px;
+    font-size: 0.74em;
+  }
+
+  section.divider::after { color: #3a5570; }
+
+  /* ── Compact slides (dense tables) ── */
+  section.compact {
+    font-size: 17.5px;
+  }
+
+  section.compact table { font-size: 0.82em; }
+  section.compact td, section.compact th { padding: 5px 10px; }
+---
+
+<!-- _class: lead -->
+<!-- _paginate: false -->
+
+# Hybrid ALNS for the<br>Bin Packing Problem
 
 ### One-Dimensional Variant
 
 A solver combining metaheuristic large-neighborhood search, adaptive bandit-based operator selection, and machine-learned repair via behavioral cloning from BFD.
 
 ---
-
-**Slide 2**
 
 ## Outline
 
@@ -24,8 +252,6 @@ A solver combining metaheuristic large-neighborhood search, adaptive bandit-base
 8. **Conclusions** — synthesis, contributions, limitations, future work
 
 ---
-
-**Slide 3**
 
 ## I.1 Problem Definition
 
@@ -41,8 +267,6 @@ $$\min_{B_1,\ldots,B_m} \; m$$
 
 ---
 
-**Slide 4**
-
 ## I.2 Continuous Relaxation Lower Bound
 
 $$\mathrm{LB}_1 = \left\lceil \frac{\displaystyle\sum_{i=1}^{n} s_i}{C} \right\rceil$$
@@ -52,8 +276,6 @@ $$\mathrm{LB}_1 = \left\lceil \frac{\displaystyle\sum_{i=1}^{n} s_i}{C} \right\r
 > Tighter bounds exist (e.g. the Martello–Toth $L_2$ bound, which accounts for large items that cannot coexist). $\mathrm{LB}_1$ is sufficient as a progress indicator in this implementation.
 
 ---
-
-**Slide 5**
 
 ## I.3 Complexity and Algorithmic Strategy
 
@@ -69,8 +291,6 @@ $$\mathrm{LB}_1 = \left\lceil \frac{\displaystyle\sum_{i=1}^{n} s_i}{C} \right\r
 
 ---
 
-**Slide 6**
-
 ## II. Constructive Initialization: Best-Fit Decreasing
 
 BFD builds a tight deterministic starting point before ALNS begins.
@@ -84,15 +304,14 @@ BFD builds a tight deterministic starting point before ALNS begins.
 
 ---
 
-**Slide 7** *(Section Divider)*
+<!-- _class: divider -->
+<!-- _paginate: false -->
 
 ## III. Metaheuristic Framework
 
 ### Adaptive Large-Neighborhood Search
 
 ---
-
-**Slide 8**
 
 ## III.1 Why Local Search Alone Fails
 
@@ -105,8 +324,6 @@ Classical local search applies small moves within a neighborhood $\mathcal{N}(x)
 Operate on implicitly exponential neighborhoods by partially destroying and then repairing the current solution.
 
 ---
-
-**Slide 9**
 
 ## III.2 The LNS Iterate
 
@@ -122,9 +339,9 @@ ALNS (Ropke & Pisinger, 2006) extends LNS by **adaptively selecting** the destro
 
 ---
 
-**Slide 10**
-
 ## III.3 Destroy Operators
+
+<!-- _class: compact -->
 
 Three operators are available. All guarantee that at least one item remains placed.
 
@@ -138,8 +355,6 @@ No single operator dominates: random destruction explores broadly early on, whil
 
 ---
 
-**Slide 11**
-
 ## III.4 Destruction Radius
 
 The displaced-item count $k$ is drawn uniformly from $[k_{\min}, k_{\max}]$ at each iteration:
@@ -152,15 +367,14 @@ So between **5% and 25%** of items are displaced per iteration.
 
 ---
 
-**Slide 12** *(Section Divider)*
+<!-- _class: divider -->
+<!-- _paginate: false -->
 
 ## IV. Acceptance Mechanism
 
 ### Simulated Annealing with Soft Reheat and Restart
 
 ---
-
-**Slide 13**
 
 ## IV.1 SA Acceptance and Cooling
 
@@ -178,8 +392,6 @@ $$T \leftarrow \max(T,\;0.35\cdot T_0)$$
 
 ---
 
-**Slide 14**
-
 ## IV.2 Diversification Restart
 
 When `iterations_since_improvement` reaches `no_improve_limit`:
@@ -187,26 +399,22 @@ When `iterations_since_improvement` reaches `no_improve_limit`:
 1. The current solution is reset to the **best solution found so far**
 2. Temperature is **reheated**: $T \leftarrow \max(T,\;0.20\cdot T_0)$
 3. The patience window **shrinks**:
-
 $$\mathrm{no\_improve\_limit} \leftarrow \max\!\left(100,\,\left\lfloor\tfrac{2}{3}\,\mathrm{no\_improve\_limit}\right\rfloor\right)$$
-
 so successive restarts trigger progressively sooner
-
 4. `iterations_since_improvement` is reset to zero
 
 The outer budget `max_iterations` is the **sole hard termination criterion**; the restart mechanism never terminates the run.
 
 ---
 
-**Slide 15** *(Section Divider)*
+<!-- _class: divider -->
+<!-- _paginate: false -->
 
 ## V. Machine Learning Components
 
 ### Operator Selection + Learned Repair
 
 ---
-
-**Slide 16**
 
 ## V. Two Independent ML Components
 
@@ -219,8 +427,6 @@ The two components are **independent** in implementation and can be enabled or d
 
 ---
 
-**Slide 17**
-
 ## V.1 Operator Selection: Phase 1
 
 ### Warm-up — Beta-Bernoulli Thompson Sampling (first 300 calls)
@@ -228,7 +434,6 @@ The two components are **independent** in implementation and can be enabled or d
 All arms initialised at $\mathrm{Beta}(1,1)$ (uniform prior).
 
 For each call:
-
 1. Sample $\tilde{\theta}_k \sim \mathrm{Beta}(\alpha_k,\beta_k)$ for each arm $k \in \{0,1,2\}$
 2. Select $k^* = \arg\max_k \tilde{\theta}_k$
 3. Observe reward $r \in [0,1]$; draw $\tilde{r} \sim \mathrm{Bernoulli}(r)$, then update $k^*$ only:
@@ -238,8 +443,6 @@ For each call:
 This phase identifies well-performing operators without requiring the context vector, mitigating the cold-start problem of pure LinUCB on short runs.
 
 ---
-
-**Slide 18**
 
 ## V.1 Operator Selection: Phase 2
 
@@ -257,9 +460,9 @@ $$A_{k^*}^{-1} \leftarrow A_{k^*}^{-1} - \frac{(A_{k^*}^{-1}\mathbf{x})(A_{k^*}^
 
 ---
 
-**Slide 19**
-
 ## V.1 Context Vector
+
+<!-- _class: compact -->
 
 The 5-dimensional feature $\mathbf{x}$ encodes the current search state:
 
@@ -275,8 +478,6 @@ All features lie in $[0,1]$, enabling the UCB exploration term to be comparable 
 
 ---
 
-**Slide 20**
-
 ## V.1 Reward Signal
 
 Let $\mathrm{gap} = \max(1,\,f(x) - \mathrm{LB}_1)$ be the current gap after updating the incumbent.
@@ -286,8 +487,6 @@ $$r = \begin{cases} \min\!\left(1,\;\dfrac{\max(0,-\Delta)}{\mathrm{gap}}\right)
 > Normalising by $\mathrm{gap}$ rewards bin savings more highly when the solution is already close to the lower bound, reflecting the increasing marginal difficulty of further improvement.
 
 ---
-
-**Slide 21**
 
 ## V.2 Machine-Learned Repair: Overview
 
@@ -301,9 +500,9 @@ After destruction, each displaced item $i$ must be reinserted. Let $\mathcal{F}(
 
 ---
 
-**Slide 22**
-
 ## V.2 Feature Representation
+
+<!-- _class: compact -->
 
 Each feasible $(i,j)$ pair is encoded as an **11-dimensional vector** (all features normalised by $C$ or $n$):
 
@@ -323,8 +522,6 @@ Each feasible $(i,j)$ pair is encoded as an **11-dimensional vector** (all featu
 
 ---
 
-**Slide 23**
-
 ## V.2 Model Architecture and Training Data
 
 **Repair ranker:** `GradientBoostingClassifier` (scikit-learn)
@@ -341,7 +538,8 @@ Each feasible $(i,j)$ pair is encoded as an **11-dimensional vector** (all featu
 
 ---
 
-**Slide 24** *(Section Divider)*
+<!-- _class: divider -->
+<!-- _paginate: false -->
 
 ## VI. Experimental Evaluation
 
@@ -349,9 +547,9 @@ Each feasible $(i,j)$ pair is encoded as an **11-dimensional vector** (all featu
 
 ---
 
-**Slide 25**
-
 ## VI.1 Experimental Protocol
+
+<!-- _class: compact -->
 
 | Setting                                      | Value                                    |
 | -------------------------------------------- | ---------------------------------------- |
@@ -371,9 +569,9 @@ $$\text{gap} = \text{bins used} - \mathrm{LB}_1 \qquad (\text{gap} = 0 \;\Leftri
 
 ---
 
-**Slide 26**
-
 ## VI.2 Benchmark Datasets
+
+<!-- _class: compact -->
 
 Five families covering structurally distinct regimes:
 
@@ -389,9 +587,9 @@ Five families covering structurally distinct regimes:
 
 ---
 
-**Slide 27**
-
 ## VI.3 Ablation Study
+
+<!-- _class: compact -->
 
 **Scholl-2 · 5 instances · 50 items** — each component toggled independently.
 
@@ -407,8 +605,6 @@ Five families covering structurally distinct regimes:
 > Conclusions are bounded by a 5-instance evaluation slice at a single instance size. Large-instance behaviour is an open empirical question.
 
 ---
-
-**Slide 28**
 
 ## VI.4 Multi-Dataset Results
 
@@ -426,9 +622,9 @@ Five families covering structurally distinct regimes:
 
 ---
 
-**Slide 29**
-
 ## VI.5 Comparative Study
+
+<!-- _class: compact -->
 
 **Scholl-2 · 5 instances · 50 items** — single-run comparison against standard combinatorial-optimization methods.
 
@@ -447,15 +643,14 @@ The dual-learning ALNS achieves a mean gap of **0.20** — the lowest of any tes
 
 ---
 
-**Slide 30** *(Section Divider)*
+<!-- _class: divider -->
+<!-- _paginate: false -->
 
 ## VII. Conclusions
 
 ### Contributions · Limitations · Future Work
 
 ---
-
-**Slide 31**
 
 ## VII.1 Synthesis
 
@@ -470,8 +665,6 @@ The dual-learning ALNS achieves a mean gap of **0.20** — the lowest of any tes
 > All conclusions are bounded by **5-instance evaluation slices** and single-run stochastic baselines. Broader empirical validation is required before general claims can be made.
 
 ---
-
-**Slide 32**
 
 ## VII.2 Conclusions
 
