@@ -72,9 +72,35 @@ def main():
     }
 
     abl = [
-        ("No learning", run(hybrid, "no-learning", {**BASE, "use_offline_model": False, "use_online_rl": False})),
-        ("Online only", run(hybrid, "online-only", {**BASE, "use_offline_model": False, "use_online_rl": True})),
-        ("Offline only", run(hybrid, "offline-only", {**BASE, "use_offline_model": True, "use_online_rl": False, "model_bundle": model()})),
+        (
+            "No learning",
+            run(
+                hybrid,
+                "no-learning",
+                {**BASE, "use_offline_model": False, "use_online_rl": False},
+            ),
+        ),
+        (
+            "Online only",
+            run(
+                hybrid,
+                "online-only",
+                {**BASE, "use_offline_model": False, "use_online_rl": True},
+            ),
+        ),
+        (
+            "Offline only",
+            run(
+                hybrid,
+                "offline-only",
+                {
+                    **BASE,
+                    "use_offline_model": True,
+                    "use_online_rl": False,
+                    "model_bundle": model(),
+                },
+            ),
+        ),
         ("Both combined", run(hybrid, "both-combined", hybrid_args)),
     ]
 

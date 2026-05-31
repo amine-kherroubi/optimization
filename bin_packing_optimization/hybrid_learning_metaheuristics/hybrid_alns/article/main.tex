@@ -28,30 +28,30 @@
 
 \begin{abstract}
 	The one-dimensional bin packing problem (1D-BPP) is a strongly NP-hard
-combinatorial optimization problem requiring a set of $n$ weighted items to be
-assigned to the minimum number of capacity-$C$ bins.  Metaheuristics scale to
-large instances but rely on hand-crafted operators governed by policies that are
-fixed prior to execution and remain insensitive to the evolving state of the
-search.  We propose a dual-learning Adaptive Large Neighborhood Search (ALNS)
-that embeds machine learning at two structurally distinct decision points within
-a single destroy--repair loop.  At the \emph{online} level, a warm-start
-LinUCB contextual bandit selects the destroy operator from a five-dimensional
-encoding of the current search state, replacing the static roulette-wheel
-mechanism of standard ALNS.  At the \emph{offline} level, a gradient-boosted
-trees (GBT) model---trained by behavioral cloning of Best-Fit Decreasing
-(BFD)---ranks feasible bins during repair, injecting instance-class knowledge
-without incurring online learning overhead.  An ablation study isolates each
-component's contribution; a multi-dataset evaluation covers five standard
-benchmark families (Scholl, Falkenauer, W\"ascher, Hard28, 685 instances
-total).  Under a budget of $5{,}000$ ALNS iterations, all four ablation
-configurations attain a near-optimal mean gap of $0.05$ bins on the Scholl-2
-50-item slice; the learning components affect only solve time on this slice.
-In the comparative study the dual-learning ALNS achieves the lowest mean gap
-($0.05$ bins, versus $0.25$ for ant colony optimization at approximately
-$22\times$ the runtime), strictly dominating every classical baseline on
-solution quality.  Across the five full benchmark families the combined method
-reaches the $\mathrm{LB}_1$-optimal solution on $86\%$ of Scholl-2 and $61\%$
-of Falkenauer-U instances.
+	combinatorial optimization problem requiring a set of $n$ weighted items to be
+	assigned to the minimum number of capacity-$C$ bins.  Metaheuristics scale to
+	large instances but rely on hand-crafted operators governed by policies that are
+	fixed prior to execution and remain insensitive to the evolving state of the
+	search.  We propose a dual-learning Adaptive Large Neighborhood Search (ALNS)
+	that embeds machine learning at two structurally distinct decision points within
+	a single destroy--repair loop.  At the \emph{online} level, a warm-start
+	LinUCB contextual bandit selects the destroy operator from a five-dimensional
+	encoding of the current search state, replacing the static roulette-wheel
+	mechanism of standard ALNS.  At the \emph{offline} level, a gradient-boosted
+	trees (GBT) model---trained by behavioral cloning of Best-Fit Decreasing
+	(BFD)---ranks feasible bins during repair, injecting instance-class knowledge
+	without incurring online learning overhead.  An ablation study isolates each
+	component's contribution; a multi-dataset evaluation covers five standard
+	benchmark families (Scholl, Falkenauer, W\"ascher, Hard28, 685 instances
+	total).  Under a budget of $5{,}000$ ALNS iterations, all four ablation
+	configurations attain a near-optimal mean gap of $0.05$ bins on the Scholl-2
+	50-item slice; the learning components affect only solve time on this slice.
+	In the comparative study the dual-learning ALNS achieves the lowest mean gap
+	($0.05$ bins, versus $0.25$ for ant colony optimization at approximately
+	$22\times$ the runtime), strictly dominating every classical baseline on
+	solution quality.  Across the five full benchmark families the combined method
+	reaches the $\mathrm{LB}_1$-optimal solution on $86\%$ of Scholl-2 and $61\%$
+	of Falkenauer-U instances.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -133,10 +133,10 @@ binary decision variables $x_{ij}=1$ if item $i$ is placed in bin $j$, and
 $y_j=1$ if bin $j$ is used, where $j\in\{1,\dots,n\}$.  The 1D-BPP is then:
 %
 \begin{align}
-    \min \quad       & \sum_{j=1}^{n} y_j                                                      \label{eq:obj}    \\
-    \text{s.t.}\quad & \sum_{j=1}^{n} x_{ij}=1,               &  & \forall\,i\in\mathcal{I}   \label{eq:assign} \\
-                     & \sum_{i=1}^{n} s_i\,x_{ij}\le C\,y_j,  &  & \forall\,j                 \label{eq:cap}    \\
-                     & x_{ij}\le y_j,\; x_{ij},y_j\in\{0,1\}. &  &                            \label{eq:link}
+	\min \quad       & \sum_{j=1}^{n} y_j                                                      \label{eq:obj}                                                   \\
+	\text{s.t.}\quad & \sum_{j=1}^{n} x_{ij}=1,                                                               &  & \forall\,i\in\mathcal{I}   \label{eq:assign} \\
+	                 & \sum_{i=1}^{n} s_i\,x_{ij}\le C\,y_j,                                                  &  & \forall\,j                 \label{eq:cap}    \\
+	                 & x_{ij}\le y_j,\; x_{ij},y_j\in\{0,1\}.                                                 &  & \label{eq:link}
 \end{align}
 %
 Constraint~\eqref{eq:assign} enforces that each item is assigned to exactly one
@@ -144,14 +144,14 @@ bin.  Constraint~\eqref{eq:cap} simultaneously bounds bin load by $C$ and
 couples assignment variables to bin-usage indicators.  Constraint~\eqref{eq:link}
 prevents an item from being placed in a bin that is not open.
 Objective~\eqref{eq:obj} minimizes the number of bins used.
- 
+
 A standard continuous lower bound is obtained by noting that the total item
 volume must be distributed over bins of capacity $C$, requiring at least
 $\sum_i s_i / C$ bins; integrality gives
 %
 \begin{equation}
-    \mathrm{LB}_1=\left\lceil \frac{\sum_{i=1}^{n} s_i}{C} \right\rceil.
-    \label{eq:lb}
+	\mathrm{LB}_1=\left\lceil \frac{\sum_{i=1}^{n} s_i}{C} \right\rceil.
+	\label{eq:lb}
 \end{equation}
 %
 Sharper lower bounds exist---notably the $L_2$ bound of Martello and
@@ -163,6 +163,8 @@ algorithm exists unless P$=$NP and justifying a metaheuristic treatment for
 large instances.
 
 \section{Proposed Dual-Learning ALNS}\label{sec:approach}
+
+Figure~\ref{fig:arch} gives an overview of the dual-learning ALNS. The loop begins with a BFD warm start, then at each iteration builds a five-dimensional context, selects a destroy operator via the LinUCB bandit, rebuilds the partial solution with the GBT repair model, and applies a simulated-annealing acceptance criterion before updating the bandit and adjusting the temperature.
 
 \begin{figure}[H]
 	\centering
@@ -195,7 +197,7 @@ two parallel arrays: for each item, the index of its assigned bin, and for each
 bin, its current aggregate load.  Any removal or reinsertion updates both arrays
 in $O(1)$, and the objective value---the count of non-empty bins---is read
 directly from the bin-load array without additional traversal.
- 
+
 The search is initialized with Best-Fit Decreasing (BFD).  Items are processed
 in non-increasing size order; each item is placed in the open bin whose
 residual capacity after placement is minimized, and a new bin is opened only
@@ -219,7 +221,7 @@ and is widened toward its upper bound as stagnation grows; all operators guarant
 that at least one item remains placed, preventing total destruction.
 
 \subsection{Acceptance Criterion: Simulated Annealing}\label{sec:sa}
- 
+
 Candidate solutions are accepted by a simulated-annealing criterion.  Let
 $\Delta = f(x') - f(x)$ denote the change in bin count relative to the
 incumbent.  A candidate with $\Delta\le0$ is accepted unconditionally; a
@@ -227,10 +229,10 @@ candidate with $\Delta>0$ is accepted with probability $\exp(-\Delta/T)$.  The
 temperature follows a geometric cooling schedule,
 %
 \begin{equation}
-    T \;\leftarrow\; \alpha_{\mathrm{cool}}\,T,
-    \qquad T_0 = \frac{1}{\ln 2},\quad
-    \alpha_{\mathrm{cool}} = 0.9995
-    \label{eq:sa}
+	T \;\leftarrow\; \alpha_{\mathrm{cool}}\,T,
+	\qquad T_0 = \frac{1}{\ln 2},\quad
+	\alpha_{\mathrm{cool}} = 0.9995
+	\label{eq:sa}
 \end{equation}
 %
 so that at $T_0$ a one-bin worsening is accepted with probability $0.5$.  Two
@@ -288,27 +290,27 @@ Tuning is handled by a three-stage Optuna~\cite{bAkiba} pipeline that narrows
 the search progressively, moving from broad exploration to focused refinement.
 
 \begin{table}[htbp]
-\caption{Tunable hyperparameters, their defaults, and Stage~1 search ranges.
-Stage~2 windows are computed dynamically as $\pm15$--$25\%$ of the Stage~1 best.
-Log-scale sampling is applied where the effect spans orders of magnitude.}
-\label{tab:tuning-params}
-\centering
-\small
-\begin{tabular}{l c c}
-\hline
-\textbf{Parameter} & \textbf{Default} & \textbf{Stage~1 range} \\
-\hline
-$\alpha_{\mathrm{cool}}$        & $0.9995$    & $(0.998,\;0.9999)$      \\
-$\mathrm{bandit\_alpha}$        & $0.30$      & $(0.05,\;1.0)$\;log     \\
-$\mathrm{initial\_temperature}$ & $1/\ln 2$   & $(0.5,\;5.0)$\;log      \\
-$k_{\min}$                      & $0.05\,n$   & $(0.01n,\;0.20n)$       \\
-$k_{\max}$                      & $0.25\,n$   & $(0.10n,\;0.40n)$       \\
-$\mathrm{no\_improve\_frac}$    & $0.05$      & $(0.01,\;0.20)$         \\
-$\mathrm{reheat\_soft\_mult}$   & $0.35$      & $(0.10,\;0.90)$         \\
-$\mathrm{reheat\_hard\_mult}$   & $0.20$      & $(0.05,\;0.80)$         \\
-$\mathrm{warmup\_calls}$        & $300$       & $[50,\;600]$            \\
-\hline
-\end{tabular}
+	\caption{Tunable hyperparameters, their defaults, and Stage~1 search ranges.
+		Stage~2 windows are computed dynamically as $\pm15$--$25\%$ of the Stage~1 best.
+		Log-scale sampling is applied where the effect spans orders of magnitude.}
+	\label{tab:tuning-params}
+	\centering
+	\small
+	\begin{tabular}{l c c}
+		\hline
+		\textbf{Parameter}              & \textbf{Default} & \textbf{Stage~1 range} \\
+		\hline
+		$\alpha_{\mathrm{cool}}$        & $0.9995$         & $(0.998,\;0.9999)$     \\
+		$\mathrm{bandit\_alpha}$        & $0.30$           & $(0.05,\;1.0)$\;log    \\
+		$\mathrm{initial\_temperature}$ & $1/\ln 2$        & $(0.5,\;5.0)$\;log     \\
+		$k_{\min}$                      & $0.05\,n$        & $(0.01n,\;0.20n)$      \\
+		$k_{\max}$                      & $0.25\,n$        & $(0.10n,\;0.40n)$      \\
+		$\mathrm{no\_improve\_frac}$    & $0.05$           & $(0.01,\;0.20)$        \\
+		$\mathrm{reheat\_soft\_mult}$   & $0.35$           & $(0.10,\;0.90)$        \\
+		$\mathrm{reheat\_hard\_mult}$   & $0.20$           & $(0.05,\;0.80)$        \\
+		$\mathrm{warmup\_calls}$        & $300$            & $[50,\;600]$           \\
+		\hline
+	\end{tabular}
 \end{table}
 
 The parameters govern five distinct aspects of the solver.
@@ -330,18 +332,18 @@ The same bank is reused across all evaluations, for consistent and comparable ra
 Configurations are scored by a composite objective that balances solution quality against computational cost:
 
 \begin{equation}
-\label{eq:composite}
-\Phi(\theta) \;=\;
-w_q \cdot \frac{1}{N}\sum_{i=1}^{N}
-\frac{b_i(\theta) - \mathrm{LB}_{1,i}}{\max(\mathrm{LB}_{1,i},1)}
-\;+\;
-w_t \cdot \frac{1}{N}\sum_{i=1}^{N}
-\frac{t_i(\theta)}{\max(\tau,10^{-9})},
+	\label{eq:composite}
+	\Phi(\theta) \;=\;
+	w_q \cdot \frac{1}{N}\sum_{i=1}^{N}
+	\frac{b_i(\theta) - \mathrm{LB}_{1,i}}{\max(\mathrm{LB}_{1,i},1)}
+	\;+\;
+	w_t \cdot \frac{1}{N}\sum_{i=1}^{N}
+	\frac{t_i(\theta)}{\max(\tau,10^{-9})},
 \end{equation}
 
-\noindent where $b_i(\theta)$ is the bin count, $\mathrm{LB}_{1,i}$ the continuous lower bound, $t_i(\theta)$ 
-the wall-clock time, and $\tau=60$\,s the time normaliser. Weights $w_q=0.9$ and $w_t=0.1$ prioritise solution 
-quality while penalising impractically slow configurations. The relative gap formulation makes the quality 
+\noindent where $b_i(\theta)$ is the bin count, $\mathrm{LB}_{1,i}$ the continuous lower bound, $t_i(\theta)$
+the wall-clock time, and $\tau=60$\,s the time normaliser. Weights $w_q=0.9$ and $w_t=0.1$ prioritise solution
+quality while penalising impractically slow configurations. The relative gap formulation makes the quality
 term scale-invariant across instances of different sizes.
 
 
@@ -489,13 +491,13 @@ deadline, an honest upper bound rather than the lower bound.
 	\centering
 	\begin{tabular}{l c c c c}
 		\hline
-		\textbf{Dataset}  & \textbf{N} & \textbf{Avg gap} & \textbf{Opt (\%)} & \textbf{Avg time (s)} \\
+		\textbf{Dataset} & \textbf{N} & \textbf{Avg gap} & \textbf{Opt (\%)} & \textbf{Avg time (s)} \\
 		\hline
-		Scholl-2          & 480        & 0.28             & 85.8              & 33.37                 \\
-		Falkenauer-T      & 80         & 1.06             & 0.0               & 53.48                 \\
-		Falkenauer-U      & 80         & 0.45             & 61.3              & 541.49                \\
-		W\"ascher         & 17         & 0.82             & 17.6              & 28.39                 \\
-		Hard28            & 28         & 0.82             & 17.9              & 1286.82               \\
+		Scholl-2         & 480        & 0.28             & 85.8              & 33.37                 \\
+		Falkenauer-T     & 80         & 1.06             & 0.0               & 53.48                 \\
+		Falkenauer-U     & 80         & 0.45             & 61.3              & 541.49                \\
+		W\"ascher        & 17         & 0.82             & 17.6              & 28.39                 \\
+		Hard28           & 28         & 0.82             & 17.9              & 1286.82               \\
 		\hline
 	\end{tabular}
 \end{table}
@@ -575,7 +577,7 @@ learned components across instance families.
 	\bibitem{bScholl} A. Scholl, R. Klein, and C. J\"urgens, ``BISON: A fast hybrid procedure for exactly solving the one-dimensional bin packing problem,'' \textit{Comput. Oper. Res.}, vol. 24, no. 7, pp. 627--645, 1997.
 	\bibitem{bSchwerin} P. Schwerin and G. W\"ascher, ``The bin-packing problem: A problem generator and some numerical experiments with FFD packing and MTP,'' \textit{Int. Trans. Oper. Res.}, vol. 4, no. 5--6, pp. 377--389, 1997.
 	\bibitem{bPedregosa} F. Pedregosa \textit{et al.}, ``Scikit-learn: Machine learning in Python,'' \textit{J. Mach. Learn. Res.}, vol. 12, pp. 2825--2830, 2011.
-\bibitem{bAkiba} T. Akiba \textit{et al.}, ``Optuna: A next-generation hyperparameter optimization framework,'' in \textit{Proc. 25th ACM SIGKDD Int. Conf. Knowledge Discovery and Data Mining (KDD)}, 2019, pp. 2623--2631.
+	\bibitem{bAkiba} T. Akiba \textit{et al.}, ``Optuna: A next-generation hyperparameter optimization framework,'' in \textit{Proc. 25th ACM SIGKDD Int. Conf. Knowledge Discovery and Data Mining (KDD)}, 2019, pp. 2623--2631.
 \end{thebibliography}
 
 \end{document}
