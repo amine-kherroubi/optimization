@@ -1,6 +1,6 @@
 # Scripts de présentation — Hybrid ALNS
 
-> Répartition basée sur les noms du fichier `LICENSE` : Mohamed El Amine Kherroubi, Rayan Boukakiou, Idris Yassine Ziadi, Idris Himeur, Adem Abdelhafidh Diar.  
+> Répartition basée sur les noms du fichier `LICENSE` : Mohamed El Amine Kherroubi, Rayan Boukakiou, Idris Yassine Ziadi, Idris Himeur, Adem Abdelhafidh Diar.
 > Le script est organisé par sections, pas slide par slide, pour garder une présentation fluide et équitable.
 
 ---
