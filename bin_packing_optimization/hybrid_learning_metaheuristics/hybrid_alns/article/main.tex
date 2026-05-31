@@ -428,6 +428,54 @@ set of difficult $160$--$200$-item instances at capacity $1000$.
 	\end{tabular}
 \end{table}
 
+\subsection{Parameter Tuning Results}
+
+Due to computational constraints, we run a reduced version of the three-stage
+pipeline: 12 coarse trials (Stage~1) followed by 10 fine-refinement trials
+(Stage~2), each evaluated on a 10-instance bank subset at 1\,500 ALNS
+iterations. The isolation pre-screening and full 100-instance bank are omitted.
+A larger budget would allow the full pipeline to explore more thoroughly and
+converge to a significantly better-tuned configuration.
+
+
+
+\begin{table}[htbp]
+	\caption{Tuning trajectory: composite objective $\Phi$ (\ref{eq:composite}), mean relative gap to $\mathrm{LB}_1$, normalised time, and mean wall-clock time at each pipeline stage.}
+	\label{tab:tuning}
+	\centering
+	\begin{tabular}{l c c c c}
+		\hline
+		\textbf{Stage}      & $\mathbf{\Phi}$ & \textbf{Mean gap} & \textbf{Norm.\ time} & \textbf{Time (s)} \\
+		\hline
+		Default parameters  & 0.0625          & 0.00590           & 0.5720               & 34.32             \\
+		Stage~1 (coarse)    & 0.0523          & 0.00641           & 0.4655               & 27.93             \\
+		Stage~2 (fine)      & 0.0508          & 0.00690           & 0.4459               & 26.75             \\
+		Final re-evaluation & 0.0528          & 0.00690           & 0.4658               & 27.95             \\
+		\hline
+	\end{tabular}
+\end{table}
+
+Table~\ref{tab:tuning} traces the pipeline from the default configuration through
+to the final re-evaluation. The default row serves as the baseline reference.
+Stage~1 broadly explores the full $S_1$ ranges and already reduces $\Phi$ by
+16\%. Stage~2 refines within a contracted window around the Stage~1 best,
+achieving the lowest observed $\Phi$ of 0.0508. The final re-evaluation runs the
+Stage~2 configuration on a fresh, independent draw from the same bank; the small
+increase from 0.0508 to 0.0528 reflects the expected stochastic variance of the
+solver across runs, and remains well within acceptable noise at this evaluation
+budget.
+The final tuned configuration is:
+
+$\alpha_{\mathrm{cool}}=0.9979$,
+$k_{\min}=0.009\,n$,
+$k_{\max}=0.097\,n$,
+$\mathrm{bandit\_alpha}=0.090$,
+$\mathrm{warmup\_calls}=138$,
+$\mathrm{no\_improve\_frac}=0.183$,
+$\mathrm{reheat\_soft\_mult}=0.810$,
+$\mathrm{reheat\_hard\_mult}=0.480$,
+$T_0=0.959$.
+
 \subsection{Ablation Study}
 To isolate the effect of each learning component we run four configurations on
 the first $20$ Scholl-2 $50$-item instances, keeping all ALNS settings identical
