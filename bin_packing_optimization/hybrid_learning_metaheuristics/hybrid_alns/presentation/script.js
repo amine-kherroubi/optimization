@@ -50,8 +50,110 @@ const slides = [
   {
     kind: "content",
     title: "III.0 Global Architecture",
-    content:
-      "<h2>III.0 Global Architecture</h2>\n<p><strong>End-to-end pipeline of the hybrid ALNS solver:</strong></p>\n<pre><code>┌─────────────────────────────────────────────────────────────┐\n│                    Problem Instance                          │\n│              (n items, sizes sᵢ, capacity C)                 │\n└────────────────────────┬────────────────────────────────────┘\n                         ▼\n           ┌─────────────────────────┐\n           │    BFD Initialization   │  ← Constructive warm start\n           │  Sort → Best-Fit Decr.  │\n           └────────────┬────────────┘\n                        │  x₀ (initial solution)\n                        ▼\n┌─────────────────────────────────────────────────────────────┐\n│                      ALNS Main Loop                          │\n│                                                              │\n│  ┌────────────────┐  operator  ┌────────────────────────┐   │\n│  │   LinUCB       │◄───────────│    Context Vector       │   │\n│  │   Bandit (ML)  │            │  [T, stagnation, gap,  │   │\n│  └───────┬────────┘            │   k/n, iter progress]  │   │\n│          │ select operator     └────────────────────────┘   │\n│          ▼                                                   │\n│  ┌────────────────┐            ┌────────────────────────┐   │\n│  │  Destroy Step  │─── x̂ ─────►│   GBT Repair (ML)      │   │\n│  │  (Random /     │            │  Score feasible        │   │\n│  │  Worst-load /  │            │  (item, bin) pairs     │   │\n│  │  Related-item) │            └───────────┬────────────┘   │\n│  └────────────────┘                        │ x'              │\n│                                            ▼                 │\n│                          ┌─────────────────────────────┐    │\n│                          │   SA Acceptance Criterion    │    │\n│                          │   Accept x' or keep x        │    │\n│                          │   Update x_best              │    │\n│                          └──────────────┬──────────────┘    │\n│                                         │ reward             │\n│                                         └──────► LinUCB      │\n│                                                   update      │\n└───────────────────────────┬─────────────────────────────────┘\n                            ▼\n                 ┌─────────────────────┐\n                 │   Best Solution x*  │\n                 │  gap = bins − LB₁   │\n                 └─────────────────────┘</code></pre>\n<p><strong>Two ML decision points:</strong> (1) LinUCB selects the destroy operator at each iteration based on search context; (2) GBT scores all feasible bin candidates during repair. Both components are independently togglable for ablation.</p>",
+    content: `<h2>III.0 Global Architecture</h2>
+<svg viewBox="0 0 1280 540" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-height:480px;display:block;margin:var(--s5) 0" aria-label="ALNS pipeline diagram" role="img">
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="3.5" orient="auto">
+      <path d="M0,0 L0,7 L8,3.5 Z" fill="#9c948a"/>
+    </marker>
+    <marker id="arr-dk" markerWidth="8" markerHeight="8" refX="7" refY="3.5" orient="auto">
+      <path d="M0,0 L0,7 L8,3.5 Z" fill="#3a3530"/>
+    </marker>
+  </defs>
+  <style>
+    .dg-box { fill:#f2efe9; stroke:#e2ddd8; stroke-width:1.5 }
+    .dg-box-ml { fill:#f2efe9; stroke:#3a3530; stroke-width:1.5 stroke-dasharray:5,3 }
+    .dg-box-loop { fill:none; stroke:#e2ddd8; stroke-width:1.5; rx:2 }
+    .dg-lbl { font-family:'DM Mono',monospace; fill:#1c1917; font-size:13px; font-weight:500; text-anchor:middle; dominant-baseline:middle }
+    .dg-sub { font-family:'DM Mono',monospace; fill:#9c948a; font-size:11px; font-weight:400; text-anchor:middle; dominant-baseline:middle }
+    .dg-edge { fill:none; stroke:#9c948a; stroke-width:1.5; marker-end:url(#arr) }
+    .dg-edge-dk { fill:none; stroke:#3a3530; stroke-width:1.5; marker-end:url(#arr-dk) }
+    .dg-tag { font-family:'DM Mono',monospace; fill:#9c948a; font-size:10px; font-weight:500; letter-spacing:.06em; text-anchor:middle }
+    .dg-loop-lbl { font-family:'DM Mono',monospace; fill:#c8c0b8; font-size:11px; font-weight:500; letter-spacing:.08em; text-anchor:middle }
+  </style>
+
+  <!-- ALNS loop background -->
+  <rect x="300" y="148" width="900" height="308" rx="2" class="dg-box-loop" stroke-dasharray="6,3"/>
+  <text x="750" y="165" class="dg-loop-lbl">ALNS MAIN LOOP</text>
+
+  <!-- 1: Problem Instance -->
+  <rect x="440" y="10" width="360" height="58" rx="2" class="dg-box"/>
+  <text x="620" y="33" class="dg-lbl">Problem Instance</text>
+  <text x="620" y="51" class="dg-sub">n items, sizes sᵢ, capacity C</text>
+
+  <!-- 2: BFD -->
+  <rect x="460" y="94" width="320" height="52" rx="2" class="dg-box"/>
+  <text x="620" y="114" class="dg-lbl">BFD Initialization</text>
+  <text x="620" y="131" class="dg-sub">Sort → Best-Fit Decreasing → x₀</text>
+
+  <!-- edges: instance→BFD, BFD→loop -->
+  <line x1="620" y1="68" x2="620" y2="92" class="dg-edge"/>
+  <line x1="620" y1="146" x2="620" y2="175" class="dg-edge"/>
+
+  <!-- Context Vector box -->
+  <rect x="870" y="176" width="228" height="72" rx="2" class="dg-box"/>
+  <text x="984" y="200" class="dg-lbl">Context Vector</text>
+  <text x="984" y="218" class="dg-sub">T, stagnation, gap, k/n, t</text>
+  <text x="984" y="238" class="dg-tag">FEATURES</text>
+
+  <!-- LinUCB box (ML — dashed border) -->
+  <rect x="316" y="176" width="218" height="72" rx="2" fill="#f2efe9" stroke="#3a3530" stroke-width="1.5" stroke-dasharray="5,3"/>
+  <text x="425" y="200" class="dg-lbl">LinUCB Bandit</text>
+  <text x="425" y="218" class="dg-sub">Operator selection</text>
+  <text x="425" y="238" class="dg-tag">ML — ONLINE</text>
+
+  <!-- Context→LinUCB -->
+  <path d="M870,212 L538,212" class="dg-edge-dk"/>
+
+  <!-- Destroy box -->
+  <rect x="316" y="286" width="218" height="72" rx="2" class="dg-box"/>
+  <text x="425" y="310" class="dg-lbl">Destroy Step</text>
+  <text x="425" y="328" class="dg-sub">Random / Worst-load / Related</text>
+  <text x="425" y="348" class="dg-tag">OPERATOR</text>
+
+  <!-- LinUCB→Destroy -->
+  <line x1="425" y1="248" x2="425" y2="284" class="dg-edge"/>
+
+  <!-- GBT Repair box (ML — dashed border) -->
+  <rect x="660" y="286" width="218" height="72" rx="2" fill="#f2efe9" stroke="#3a3530" stroke-width="1.5" stroke-dasharray="5,3"/>
+  <text x="769" y="310" class="dg-lbl">GBT Repair</text>
+  <text x="769" y="328" class="dg-sub">Score (item, bin) pairs</text>
+  <text x="769" y="348" class="dg-tag">ML — OFFLINE</text>
+
+  <!-- Destroy→GBT label x̂ -->
+  <line x1="534" y1="322" x2="658" y2="322" class="dg-edge"/>
+  <text x="596" y="313" class="dg-tag">x̂</text>
+
+  <!-- SA Acceptance box -->
+  <rect x="580" y="392" width="280" height="52" rx="2" class="dg-box"/>
+  <text x="720" y="412" class="dg-lbl">SA Acceptance Criterion</text>
+  <text x="720" y="430" class="dg-sub">Accept x′ or keep x · update x*</text>
+
+  <!-- GBT→SA -->
+  <path d="M769,358 L769,376 L720,376 L720,390" class="dg-edge"/>
+  <text x="786" y="372" class="dg-tag">x′</text>
+
+  <!-- SA→reward back to LinUCB -->
+  <path d="M580,418 L290,418 L290,212 L314,212" class="dg-edge-dk"/>
+  <text x="246" y="318" class="dg-tag" transform="rotate(-90,246,318)">REWARD</text>
+
+  <!-- 5: Best Solution -->
+  <rect x="496" y="468" width="248" height="56" rx="2" class="dg-box"/>
+  <text x="620" y="490" class="dg-lbl">Best Solution x*</text>
+  <text x="620" y="508" class="dg-sub">gap = bins used − LB₁</text>
+
+  <!-- SA→Best -->
+  <line x1="720" y1="444" x2="720" y2="460" class="dg-edge"/>
+  <path d="M720,460 L620,460 L620,466" class="dg-edge"/>
+
+  <!-- ML legend -->
+  <rect x="1080" y="400" width="168" height="68" rx="2" fill="#faf9f7" stroke="#e2ddd8" stroke-width="1"/>
+  <rect x="1092" y="415" width="30" height="14" rx="1" fill="#f2efe9" stroke="#3a3530" stroke-width="1.2" stroke-dasharray="4,2"/>
+  <text x="1132" y="423" class="dg-sub" style="text-anchor:start">ML component</text>
+  <rect x="1092" y="438" width="30" height="14" rx="1" class="dg-box"/>
+  <text x="1132" y="446" class="dg-sub" style="text-anchor:start">Deterministic</text>
+</svg>
+<p><strong>Two ML decision points:</strong> (1) LinUCB selects the destroy operator at each iteration based on search context; (2) GBT scores all feasible bin candidates during repair. Both components are independently togglable for ablation.</p>`,
   },
   {
     kind: "content",
