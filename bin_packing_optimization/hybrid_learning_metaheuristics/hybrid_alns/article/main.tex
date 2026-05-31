@@ -246,154 +246,95 @@ stored with the model, and a fast predictor applies it in NumPy and reads class
 probabilities directly, avoiding per-call validation overhead. Algorithm~\ref{alg:alns}
 summarizes the complete loop.
 
+
 \subsection{Parameter Tuning}
 
-The hybrid ALNS exposes nine tunable metaheuristic knobs that govern the cooling
-schedule, destruction radius, reheat and restart thresholds, and bandit
-exploration (Table~\ref{tab:tuning-params}). These parameters interact
-non-trivially --- a faster cooling rate may be compensated by more aggressive
-reheating, and the optimal destruction radius depends on the stagnation budget.
-Manual or grid-based tuning of all nine dimensions is brittle and does not
-generalise across datasets.  We therefore design a three-stage automated pipeline
-powered by Optuna~\cite{bAkiba} that progressively focuses the search from wide
-exploration to fine-grained refinement.
+Table~\ref{tab:tuning-params} lists the nine parameters controlling the solver's
+cooling schedule, destruction radius, reheat thresholds, and bandit behaviour.
+Tuning is handled by a three-stage Optuna~\cite{bAkiba} pipeline that narrows
+the search progressively, moving from broad exploration to focused refinement.
 
 \begin{table}[htbp]
-\caption{The nine tunable hyperparameters.  Stage~1 ranges define the full
-coarse search space; Stage~2 windows are computed dynamically as $\pm15$--$25\%$
-of the Stage~1 best.  Log-scale sampling is used where the effect spans orders
-of magnitude.}
+\caption{Tunable hyperparameters, their defaults, and Stage~1 search ranges.
+Stage~2 windows are computed dynamically as $\pm15$--$25\%$ of the Stage~1 best.
+Log-scale sampling is applied where the effect spans orders of magnitude.}
 \label{tab:tuning-params}
 \centering
 \small
-\begin{tabular}{l c c c}
+\begin{tabular}{l c c}
 \hline
-\textbf{Parameter} & \textbf{Default} & \textbf{Stage~1 range} & \textbf{Role} \\
+\textbf{Parameter} & \textbf{Default} & \textbf{Stage~1 range} \\
 \hline
-$\alpha_{\mathrm{cool}}$ & $0.9995$ & $(0.998,\;0.9999)$ & SA geometric cooling factor \\
-$\mathrm{bandit\_alpha}$ & $0.30$ & $(0.05,\;1.0)\;\text{log}$ & LinUCB exploration bonus \\
-$\mathrm{initial\_temperature}$ & $1/\ln 2$ & $(0.5,\;5.0)\;\text{log}$ & SA starting temperature \\
-$k_{\min}$ & $0.05\,n$ & $(0.01n,\;0.20n)$ & Min destruction radius \\
-$k_{\max}$ & $0.25\,n$ & $(0.10n,\;0.40n)$ & Max destruction radius \\
-$\mathrm{no\_improve\_frac}$ & $0.05$ & $(0.01,\;0.20)$ & Stagnation budget fraction \\
-$\mathrm{reheat\_soft\_mult}$ & $0.35$ & $(0.10,\;0.90)$ & Soft-reheat temperature multiplier \\
-$\mathrm{reheat\_hard\_mult}$ & $0.20$ & $(0.05,\;0.80)$ & Hard-restart temperature multiplier \\
-$\mathrm{warmup\_calls}$ & $300$ & $[50,\;600]$ & TS warm-up length before LinUCB \\
+$\alpha_{\mathrm{cool}}$        & $0.9995$    & $(0.998,\;0.9999)$      \\
+$\mathrm{bandit\_alpha}$        & $0.30$      & $(0.05,\;1.0)$\;log     \\
+$\mathrm{initial\_temperature}$ & $1/\ln 2$   & $(0.5,\;5.0)$\;log      \\
+$k_{\min}$                      & $0.05\,n$   & $(0.01n,\;0.20n)$       \\
+$k_{\max}$                      & $0.25\,n$   & $(0.10n,\;0.40n)$       \\
+$\mathrm{no\_improve\_frac}$    & $0.05$      & $(0.01,\;0.20)$         \\
+$\mathrm{reheat\_soft\_mult}$   & $0.35$      & $(0.10,\;0.90)$         \\
+$\mathrm{reheat\_hard\_mult}$   & $0.20$      & $(0.05,\;0.80)$         \\
+$\mathrm{warmup\_calls}$        & $300$       & $[50,\;600]$            \\
 \hline
 \end{tabular}
 \end{table}
 
-\subsubsection{Composite Objective}
+The parameters govern five distinct aspects of the solver.
+$\alpha_{\mathrm{cool}}$ and $\mathrm{initial\_temperature}$ control the SA
+cooling schedule; $\mathrm{reheat\_soft\_mult}$ and $\mathrm{reheat\_hard\_mult}$
+set the temperature multipliers applied at soft and hard reheats respectively.
+$k_{\min}$ and $k_{\max}$ bound the destruction radius, while
+$\mathrm{no\_improve\_frac}$ defines the stagnation budget that triggers a reheat.
+Finally, $\mathrm{bandit\_alpha}$ and $\mathrm{warmup\_calls}$ govern the LinUCB
+exploration bonus and the warm-up length before the bandit takes control.
 
-Every candidate configuration is evaluated on a fixed bank of $100$ bin-packing
-instances (see below), and scored by a composite objective that balances solution
-quality against computational cost:
+
+\subsubsection{Composite Objective and Instance Bank}
+
+Each configuration is evaluated on a fixed bank of $100$ instances drawn from
+five benchmark families --- Falkenauer-U, Falkenauer-T, Scholl-1, Scholl-2, and
+Scholl-3 --- covering a representative range of problem sizes and structures.
+The same bank is reused across all evaluations, for consistent and comparable rankings.
+Configurations are scored by a composite objective that balances solution quality against computational cost:
 
 \begin{equation}
 \label{eq:composite}
 \Phi(\theta) \;=\;
-w_q \cdot \frac{1}{N}\sum_{i=1}^{N} \frac{b_i(\theta) - \mathrm{LB}_{1,i}}{\max(\mathrm{LB}_{1,i},1)}
+w_q \cdot \frac{1}{N}\sum_{i=1}^{N}
+\frac{b_i(\theta) - \mathrm{LB}_{1,i}}{\max(\mathrm{LB}_{1,i},1)}
 \;+\;
-w_t \cdot \frac{1}{N}\sum_{i=1}^{N} \frac{t_i(\theta)}{\max(\tau,10^{-9})},
+w_t \cdot \frac{1}{N}\sum_{i=1}^{N}
+\frac{t_i(\theta)}{\max(\tau,10^{-9})},
 \end{equation}
 
-\noindent where $b_i(\theta)$ is the bin count produced by configuration $\theta$
-on instance $i$, $\mathrm{LB}_{1,i}$ is the continuous lower bound
-(\ref{eq:lb}), $t_i(\theta)$ is the wall-clock time, $\tau=60$\,s is the
-time-normalisation constant, and $N=100$.  The weights $w_q=0.9$,
-$w_t=0.1$ reflect that solution quality is the primary concern but a non-zero
-time component is essential to prevent the optimiser from selecting
-impractically slow (e.g., overly exploratory) configurations.  The relative gap
-formulation renders the quality metric scale-invariant across instances of
-different optimal bin counts, and the $\max$ guards protect against degenerate
-division.
+\noindent where $b_i(\theta)$ is the bin count, $\mathrm{LB}_{1,i}$ the continuous lower bound, $t_i(\theta)$ 
+the wall-clock time, and $\tau=60$\,s the time normaliser. Weights $w_q=0.9$ and $w_t=0.1$ prioritise solution 
+quality while penalising impractically slow configurations. The relative gap formulation makes the quality 
+term scale-invariant across instances of different sizes.
 
-\subsubsection{Instance Bank}
-
-To ensure that tuning signal generalises across problem sizes and dataset
-structures, the evaluation bank samples $100$ instances from the combined
-pool of five benchmark families via strided, jittered selection: Falkenauer-T
-(5 instances), Falkenauer-U (40), Scholl-1 (10), Scholl-2 (35), and Scholl-3
-(10).  The same bank is reused for every evaluation, giving every candidate a
-deterministic ranking.  A smaller $20$-instance stratified subset serves the
-isolation step (Stage~0) for computational efficiency.
 
 \subsubsection{Three-Stage Pipeline}
 
+The pipeline balances broad exploration with precise refinement through a structured
+three-stage handoff. Stage~0 evaluates parameter groups independently to construct
+an isolation anchor, which seeds Stage~1's global Bayesian search without restricting
+its domain. Stage~1 then hands off to Stage~2 by physically contracting the search
+boundaries around its best result.
+
 \paragraph{Stage~0: Isolation Grid Search.}
-Rather than submitting all nine parameters directly to a Bayesian optimiser, we
-first disentangle them into three independent groups and perform a grid search
-on each group while holding the others at their defaults.  The three groups are:
-(i)~SA thermal parameters (initial temperature, cooling rate, soft and hard
-reheat multipliers); (ii)~destruction parameters (min and max destruction
-radius, stagnation budget); and (iii)~bandit parameters (exploration coefficient
-$\alpha$, warm-up length).  To prevent the bandit's online adaptivity from
-confounding the measurement of a group's standalone effect, the destroy operator
-is forced to uniform random throughout every isolation evaluation
-(\texttt{force\_uniform\_random=True}).
-
-Each group is searched over a small Cartesian grid of $3$ values per dimension
---- $54$ valid configurations for the SA group (after imposing the constraint
-$\mathrm{reheat\_hard} < \mathrm{reheat\_soft}$, which encodes the design
-principle that a diversification restart must apply a stronger cooldown than a
-periodic soft reheat), $24$ for the destruction group (filtering
-$k_{\max} \leq k_{\min}$), and $9$ for the bandit group.  Every grid point is
-evaluated on the $20$-instance isolation bank at $2\,000$ ALNS iterations.  The
-best configuration from each group is merged into a single ``after-isolation''
-anchor.
-
-Critically, the isolation anchor is \emph{not} used to shrink the search ranges
-of the subsequent stage.  Instead it is enqueued via
-\texttt{study.enqueue\_trial()} so that the TPE surrogate model receives an
-additional known-good observation from which to learn.  The range boundaries of
-Stage~1 remain the full, wide $S_1$ intervals.  This is the fundamental
-distinction between the isolation-to-Stage~1 handoff and the Stage~1-to-Stage~2
-handoff: the former provides a training point without restricting the search
-domain; the latter physically contracts the domain.
+Parameters are split into three functional groups (SA thermal, destruction, and bandit)
+and grid-searched independently, with all others held at their defaults. The best
+setting from each group is merged into the \emph{isolation anchor}, passed to Stage~1
+as a seed.
 
 \paragraph{Stage~1: Coarse Bayesian Search.}
-Stage~1 deploys Optuna's Tree-structured Parzen Estimator (TPE) over the full
-$S_1$ search space (Table~\ref{tab:tuning-params}, Column~3).  TPE constructs a
-probabilistic surrogate model by comparing the density of good versus poor
-trials, favouring regions where promising configurations concentrate.  Ten
-warm-up trials seed the model before the acquisition function drives the
-remaining draws.  The default configuration is always enqueued as trial~0 to
-give the surrogate an absolute reference point; the isolation anchor occupies
-trial~1 when available.
-
-Two domain constraints are enforced at the objective level via
-\texttt{optuna.TrialPruned()}: trials proposing $k_{\min} \geq k_{\max}$ or
-$\mathrm{reheat\_hard} \geq \mathrm{reheat\_soft}$ are pruned before
-consuming evaluation budget.  This avoids wasting compute on parameter
-combinations that violate the structural logic of the solver.  At $5\,000$ ALNS
-iterations per instance and $N=100$ instances per trial, the Stage~1 budget is
-$50$ trials.
+TPE explores the full search space, seeded by both the solver defaults and the
+isolation anchor. Structurally invalid pairs (e.g.\ $k_{\min} \ge k_{\max}$) are
+pruned before consuming any evaluation budget.
 
 \paragraph{Stage~2: Fine Bayesian Search.}
-Stage~2 refines within the most promising basin identified by Stage~1.  The
-search ranges are \emph{physically narrowed} to a window centred on the
-Stage~1 best value for each parameter.  Parameters whose effects are
-scale-free receive multiplicative offsets: $\pm15$--$25\%$ of the anchor value.
-Parameters with narrow or integer domains receive additive offsets (e.g.,
-$\pm0.02$ for $k_{\min}$).  Upper bounds are clamped by solver-imposed limits
-where necessary --- in particular $\alpha_{\mathrm{cool}} < 1.0$ --- to prevent
-the offset arithmetic from producing values that the solver would reject.
+The search boundaries are contracted to a $\pm15$--$25\%$ window around the Stage~1
+best. TPE refines within this focused basin to produce the final tuned parameter set.
 
-The anchor --- the Stage~1 best merged with defaults --- is enqueued as trial~0.
-The default configuration is deliberately \emph{not} re-enqueued: Stage~2 trusts
-the basin found in Stage~1 and would gain no signal from the distant default.
-TPE operates within the narrow window for $50$ trials at $5\,000$ iterations per
-instance.
-
-\paragraph{Final Evaluation.}
-After Stage~2, the best-found configuration is re-evaluated on the full
-$100$-instance bank at $5\,000$ iterations, producing an apples-to-apples
-comparison against the baseline default (evaluated identically at the start of
-the pipeline).  All structural parameters listed in
-Table~\ref{tab:tuning-params} are held fixed at their default values throughout
-every stage; they constitute safety floors and design constants whose joint
-tuning with the metaheuristic knobs would dilute the optimiser's signal and
-unnecessarily expand the search dimensionality.
 
 \begin{figure}[t]
 	\centering
@@ -412,7 +353,6 @@ unnecessarily expand the search dimensionality.
 	\caption{Dual-learning hybrid ALNS.}
 	\label{alg:alns}
 \end{figure}
-
 
 \section{Experiments, Results and Analysis}\label{sec:experiments}
 
