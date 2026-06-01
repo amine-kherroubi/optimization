@@ -1,4 +1,4 @@
-# Scripts de présentation — Hybrid ALNS
+# Scripts de présentation — Hybrid ALNS for the Bin Packing Problem
 
 ---
 
@@ -6,26 +6,35 @@
 
 > **Slides couverts : 1 à 3.**
 
-**Slide actuel : 1 — Titre**
+---
 
-Bonjour à tous. Nous présentons aujourd'hui Hybrid ALNS, notre solution au problème de bin packing 1D : comment placer des objets de tailles variées dans le minimum de boîtes de capacité fixe.
+**Slide 1 — Titre**
 
-Notre méthode combine une métaheuristique ALNS, une sélection adaptative d'opérateurs via LinUCB, et une réparation guidée par un modèle supervisé.
+Bonjour à tous. Nous allons vous présenter aujourd'hui notre projet : une métaheuristique hybride pour le problème de bin packing à une dimension.
 
-**Slide actuel : 2 — Introduction**
+Le titre de notre solution est Hybrid ALNS. Nous expliquerons en détail ce que cela signifie au fil de la présentation.
 
-Le bin packing est NP-difficile. Les méthodes exactes trouvent l'optimum mais ne passent pas à l'échelle. Les heuristiques classiques sont rapides, mais leurs règles fixes les laissent souvent piégées dans un optimum local.
+---
 
-Notre approche intègre de l'apprentissage automatique à deux points précis d'une métaheuristique existante, sans la remplacer :
+**Slide 2 — Introduction**
 
-- **en ligne**, LinUCB apprend quel opérateur de destruction choisir selon l'état courant de la recherche ;
-- **hors ligne**, un modèle supervisé apprend dans quelle boîte replacer chaque objet déplacé, en imitant Best-Fit Decreasing.
+Le problème du bin packing à une dimension est omniprésent dans l'industrie : découpe de matériaux, chargement de véhicules, allocation de ressources dans le cloud. Dans tous ces contextes, on cherche à placer des objets de tailles variées dans le minimum de conteneurs de capacité fixe.
 
-Ces deux composants sont activables séparément, ce qui permet une étude d'ablation propre.
+Ce problème est NP-difficile au sens fort. Les méthodes exactes trouvent la solution optimale, mais leur temps de calcul explose dès que le nombre d'objets augmente. Les heuristiques classiques, à l'inverse, sont rapides mais reposent sur des règles de décision fixes qui ne s'adaptent pas à la structure du problème en cours de résolution. Elles se retrouvent ainsi fréquemment bloquées dans des optima locaux.
 
-**Slide actuel : 3 — Plan**
+C'est précisément là qu'intervient notre motivation pour une approche hybride. L'idée centrale est la suivante : intégrer de l'apprentissage automatique à l'intérieur d'une métaheuristique, à des points de décision précis, sans remplacer la boucle d'optimisation.
 
-La présentation suit le plan affiché : définition du problème, revue de littérature, solution proposée, expériences, synthèse et limites.
+Nous avons ajouté deux composants d'apprentissage indépendants à un cadre de type ALNS, c'est-à-dire Adaptive Large-Neighborhood Search. Le premier composant apprend, en ligne, quel opérateur de destruction choisir en fonction de l'état courant de la recherche. Le second apprend, hors ligne, dans quelle boîte replacer chaque objet déplacé, en imitant le comportement d'une heuristique de référence.
+
+Ces deux composants sont activables séparément, ce qui permet une étude d'ablation rigoureuse.
+
+---
+
+**Slide 3 — Plan**
+
+La présentation est organisée en six parties. Nous commençons par la définition formelle du problème, puis la revue de littérature sur l'hybridation entre métaheuristiques et apprentissage automatique. Nous présentons ensuite notre solution dans le détail : architecture globale, cadre algorithmique, puis chacun des deux composants d'apprentissage. Nous enchaînons avec les tests et résultats, suivis d'une synthèse et d'une conclusion.
+
+Je laisse maintenant la parole à Rayan, qui va définir formellement le problème.
 
 ---
 
@@ -33,19 +42,35 @@ La présentation suit le plan affiché : définition du problème, revue de litt
 
 > **Slides couverts : 4 à 6.**
 
-**Slide actuel : 4 — Définition formelle**
+---
 
-On a un ensemble d'objets à tailles entières positives et des boîtes de capacité entière uniforme. Une solution est faisable si chaque objet est placé une seule fois sans dépasser la capacité. L'objectif est de minimiser le nombre de boîtes utilisées.
+**Slide 4 — Définition formelle**
 
-**Slide actuel : 5 — Borne inférieure LB1**
+Définissons le problème formellement. On dispose d'un ensemble de n objets, chacun ayant une taille entière positive notée s indice i, et d'un ensemble de boîtes identiques de capacité entière C. On suppose que chaque objet tient dans une boîte seule, c'est-à-dire que s indice i est inférieur ou égal à C pour tout i.
 
-La borne LB1 est la somme des tailles divisée par la capacité, arrondie au supérieur. Elle donne le minimum théorique sous utilisation parfaite du volume. Elle n'est pas toujours serrée — sur Falkenauer-T notamment, elle sous-estime systématiquement l'optimum réel — mais c'est le critère de convergence que nous utilisons : un gap nul signifie optimalité certifiée par LB1.
+Une solution faisable est une partition de l'ensemble des objets en groupes B un, B deux, jusqu'à B m, telle que pour chaque groupe, la somme des tailles des objets qu'il contient ne dépasse pas C.
 
-Des bornes plus fortes comme Martello-Toth L2 existent, mais LB1 suffit comme indicateur de progression pour ce projet.
+L'objectif est de minimiser m, le nombre de boîtes utilisées.
 
-**Slide actuel : 6 — Complexité et stratégie**
+---
 
-Face à la NP-difficulté du problème, notre stratégie est simple : construire une solution initiale avec Best-Fit Decreasing, puis utiliser ALNS pour s'échapper des optima locaux et se rapprocher de LB1.
+**Slide 5 — Borne inférieure LB un**
+
+Pour évaluer la qualité d'une solution, nous utilisons une borne inférieure notée LB un. Elle est définie comme le plafond de la somme des tailles divisée par la capacité C. La preuve est immédiate : toute solution faisable doit contenir la totalité du volume des objets, et chaque boîte ne peut en stocker qu'au plus C unités. Le nombre de boîtes est donc au moins égal à ce quotient, arrondi au supérieur.
+
+Un écart nul entre le nombre de boîtes utilisées et LB un signifie que la solution est optimale selon cette borne. C'est le critère de convergence que nous utilisons tout au long de nos tests.
+
+Il existe des bornes plus précises, comme la borne L deux de Martello et Toth, qui tient compte des gros objets ne pouvant pas coexister dans une même boîte. Mais LB un suffit comme indicateur de progression dans le cadre de ce projet. Nous y reviendrons dans la section résultats, notamment pour la famille Falkenauer-T où cette borne est systématiquement trop faible.
+
+---
+
+**Slide 6 — Complexité et stratégie algorithmique**
+
+Le bin packing à une dimension est NP-difficile au sens fort, par réduction depuis le problème trois-partition. Face à cette difficulté, trois grandes familles d'approches existent.
+
+Les méthodes exactes, comme branch-and-bound ou branch-and-price, garantissent l'optimalité mais ne passent pas à l'échelle au-delà de quelques centaines d'objets. Les heuristiques d'approximation, comme FFD et BFD, sont très rapides et garantissent un rapport d'approximation borné, mais leur qualité est limitée par leurs règles fixes. Les métaheuristiques, enfin, n'offrent aucune garantie théorique mais explorent l'espace de solutions de façon adaptative.
+
+Notre stratégie combine ces approches : on utilise BFD comme initialisation déterministe rapide, puis ALNS pour s'échapper des optima locaux et se rapprocher de LB un. Je laisse la parole à Idris Yassine, qui va présenter la littérature et l'architecture globale de notre solution.
 
 ---
 
@@ -53,23 +78,39 @@ Face à la NP-difficulté du problème, notre stratégie est simple : construire
 
 > **Slides couverts : 7 à 10.**
 
-**Slide actuel : 7 — Revue de littérature**
+---
 
-Notre méthode s'inscrit dans trois familles de travaux.
+**Slide 7 — Revue de littérature**
 
-La **sélection adaptative d'opérateurs** : au lieu de probabilités fixes, la méthode apprend pendant l'exécution quels opérateurs sont utiles. Nous l'implémentons avec LinUCB, un bandit contextuel. À chaque étape, on choisit un opérateur, on observe une récompense, et on met à jour les estimations.
+Notre travail s'inscrit dans un courant précis : l'utilisation de l'apprentissage automatique à l'intérieur des métaheuristiques. Il est important de distinguer ce courant de son inverse, qui consiste à utiliser des métaheuristiques pour optimiser des modèles d'apprentissage — ce n'est pas notre sujet ici.
 
-La **réparation apprise** : un modèle entraîné à imiter une bonne heuristique. Ici, il reproduit les choix de BFD pour réinsérer des objets dans une solution partielle.
+Trois axes de la littérature nous concernent directement.
 
-L'**apprentissage dans LNS** : notre approche est volontairement plus légère et interprétable que les travaux qui remplacent ALNS par un modèle profond. Nous ajoutons deux aides ciblées à des décisions précises.
+Le premier est la sélection adaptative d'opérateurs. Plutôt que d'attribuer des probabilités fixes à chaque opérateur de recherche, on apprend en ligne lesquels sont les plus efficaces. Fialho et collaborateurs ont formalisé cette idée comme un problème de bandit en deux mille dix. Des travaux ultérieurs l'ont intégrée dans des cadres évolutionnaires. Nous utilisons LinUCB, proposé par Chu et collaborateurs en deux mille onze, qui est une extension contextuelle : le choix de l'opérateur dépend de l'état courant de la recherche, et non seulement de récompenses passées.
 
-**Slide actuel : 9 — Architecture globale**
+Le deuxième axe est la réparation apprise. Khalil et collaborateurs ont montré en deux mille dix-sept que des réseaux de neurones peuvent apprendre des politiques de construction compétitives avec les heuristiques classiques sur des problèmes combinatoires. Notre approche s'appuie sur le clonage comportemental : on entraîne un modèle à imiter les décisions de BFD à partir de démonstrations, sans signal de récompense.
 
-On part d'une solution BFD. À chaque itération ALNS, LinUCB choisit un opérateur de destruction à partir d'un contexte à cinq variables. Après destruction, le modèle GBT note les boîtes faisables pour guider la réinsertion. Le critère d'acceptation est celui du recuit simulé. La meilleure solution rencontrée est conservée.
+Le troisième axe est l'apprentissage dans LNS, Large-Neighborhood Search. Des travaux comme ceux de Hottung et Tierney en deux mille vingt, ou de Lu et collaborateurs en deux mille vingt-et-un, utilisent l'apprentissage par renforcement profond pour apprendre des opérateurs de destruction et réparation complets. Notre approche est volontairement plus légère et plus interprétable : nous ajoutons deux aides ciblées à des décisions précises, sans remplacer la métaheuristique par un modèle de bout en bout.
 
-**Slide actuel : 10 — Initialisation BFD**
+Notre contribution se situe à l'intersection des deux premiers axes : un ALNS avec double apprentissage, combinant un bandit contextuel en ligne pour la sélection d'opérateurs, et un réparateur supervisé hors ligne.
 
-BFD trie les objets du plus grand au plus petit, puis insère chaque objet dans la boîte faisable laissant le moins d'espace libre. Si aucune ne convient, une nouvelle boîte est ouverte. Ce point de départ compact donne à ALNS une base solide plutôt qu'une solution initiale trop faible.
+---
+
+**Slide 9 — Architecture globale**
+
+Voici l'architecture complète de notre solveur. On part d'une instance du problème, c'est-à-dire n objets avec leurs tailles et une capacité C. L'initialisation est réalisée par BFD, qui produit une solution de départ compacte.
+
+La boucle principale est celle d'ALNS. À chaque itération, le bandit LinUCB choisit un opérateur de destruction en fonction d'un vecteur de contexte à cinq dimensions décrivant l'état de la recherche. L'opérateur sélectionné retire un sous-ensemble d'objets de la solution courante. Le modèle de réparation, un classifieur à gradient boosting, note ensuite les boîtes faisables pour guider la réinsertion de chaque objet déplacé. La solution reconstruite est évaluée par un critère d'acceptation de type recuit simulé. La meilleure solution rencontrée est conservée tout au long de la recherche. Enfin, la récompense observée est renvoyée à LinUCB pour mettre à jour ses estimations.
+
+Les deux composants d'apprentissage sont indépendants et activables séparément, ce qui est indispensable pour les tester en ablation.
+
+---
+
+**Slide 10 — Initialisation BFD**
+
+Avant que la boucle ALNS démarre, BFD construit la solution initiale. L'algorithme trie d'abord les objets du plus grand au plus petit. Pour chaque objet, il évalue toutes les boîtes ouvertes qui peuvent l'accueillir et place l'objet dans celle qui laissera le moins d'espace libre après insertion. Si aucune boîte existante ne convient, une nouvelle boîte est ouverte.
+
+Ce point de départ compact est important : ALNS aura moins de boîtes à améliorer dès le départ, ce qui accélère la convergence vers LB un. Je laisse maintenant la parole à Idris Himeur, qui va présenter le cadre ALNS en détail.
 
 ---
 
@@ -77,35 +118,81 @@ BFD trie les objets du plus grand au plus petit, puis insère chaque objet dans 
 
 > **Slides couverts : 11 à 18.**
 
-**Slide actuel : 12 — Limite de la recherche locale**
+---
 
-Une recherche locale classique fait de petits changements : c'est rapide, mais cela mène souvent à un optimum local d'où aucune modification marginale ne peut sortir. Dans le bin packing, ces optima sont fréquents car la qualité dépend fortement des groupements d'objets dans les boîtes.
+**Slide 11 — Séparateur : cadre métaheuristique ALNS**
 
-**Slide actuel : 13 — Itération LNS**
+*(slide de transition — aucun script oral nécessaire)*
 
-ALNS répond à ce problème avec un cycle destruction-réparation. On retire une partie des objets, puis on les réinsère pour reconstruire une solution complète. Modifier plusieurs objets simultanément permet d'explorer un voisinage bien plus large. ALNS y ajoute une sélection adaptative de l'opérateur de destruction.
+---
 
-**Slide actuel : 14 — Opérateurs de destruction**
+**Slide 12 — Pourquoi la recherche locale seule échoue**
 
-Trois opérateurs sont disponibles :
+La recherche locale classique explore le voisinage de la solution courante en effectuant de petites modifications, par exemple déplacer un seul objet d'une boîte à une autre. Cette approche est rapide, mais elle converge vers des optima locaux : des solutions dont aucune modification marginale n'améliore l'objectif, même si elles sont loin de l'optimum global.
 
-- **Aléatoire** : retire des objets uniformément au hasard — favorise l'exploration.
-- **Worst-fit** : cible les boîtes les moins remplies — corrige les parties faibles de la solution.
-- **Relatif** : retire des objets de tailles proches d'une graine — permet de recombiner des groupes similaires.
+Dans le bin packing, ces optima sont particulièrement denses car la qualité d'une solution dépend fortement des groupements d'objets au sein de chaque boîte. Aucune séquence bornée de déplacements unitaires ne peut de façon fiable s'en échapper.
 
-Les trois garantissent qu'au moins un objet reste placé.
+La réponse à ce problème est la Large-Neighborhood Search, proposée par Shaw en mille neuf cent quatre-vingt-dix-huit. L'idée est d'opérer sur des voisinages implicitement exponentiels en détruisant partiellement la solution courante, puis en la réparant.
 
-**Slide actuel : 15 — Rayon de destruction**
+---
 
-On retire entre 5 % et 25 % des objets. En cas de stagnation, la borne supérieure augmente progressivement pour forcer une diversification plus forte.
+**Slide 13 — L'itération LNS**
 
-**Slide actuel : 17 — Acceptation et refroidissement**
+Chaque itération de LNS comporte deux phases.
 
-Une solution meilleure ou égale est acceptée directement. Une solution moins bonne peut l'être avec une probabilité qui décroît avec la température, selon un refroidissement géométrique. En cas de stagnation, la température est légèrement réchauffée pour éviter un refroidissement prématuré.
+La phase de destruction retire un sous-ensemble d'objets de leurs boîtes, produisant une solution partielle. La phase de réparation réinsère tous ces objets pour restaurer la faisabilité et obtenir une nouvelle solution complète.
 
-**Slide actuel : 18 — Redémarrage de diversification**
+Le voisinage exploré est implicitement exponentiel en fonction du nombre d'objets déplacés : la réparation peut produire n'importe quelle complétion faisable de la solution partielle, permettant d'atteindre des régions de l'espace de solutions inaccessibles par de petits déplacements.
 
-En cas de stagnation prolongée, on repart de la meilleure solution connue, on réchauffe la température, on réduit la fenêtre de patience, et on remet le compteur à zéro. Le seul critère d'arrêt dur reste le nombre maximal d'itérations.
+ALNS, proposé par Ropke et Pisinger en deux mille six, étend LNS en sélectionnant adaptativement l'opérateur de destruction parmi un portefeuille d'opérateurs. C'est ce mécanisme de sélection que notre bandit LinUCB vient améliorer.
+
+---
+
+**Slide 14 — Opérateurs de destruction**
+
+Trois opérateurs de destruction sont disponibles dans notre implémentation.
+
+L'opérateur aléatoire retire exactement k objets choisis uniformément au hasard parmi tous les objets placés. Il favorise l'exploration globale.
+
+L'opérateur worst-load trie les boîtes par charge croissante et retire des objets en commençant par les boîtes les moins remplies. Il cible les parties les plus faibles de la solution courante.
+
+L'opérateur related-item choisit un objet graine uniformément au hasard, puis retire les k moins un objets dont la taille est la plus proche de celle de la graine. Il permet de recombiner des groupes d'objets de tailles similaires.
+
+Les trois opérateurs garantissent qu'au moins un objet reste placé à chaque itération.
+
+---
+
+**Slide 15 — Rayon de destruction**
+
+Le nombre d'objets retirés à chaque itération, noté k, est tiré uniformément dans un intervalle dont les bornes dépendent de n. La borne inférieure est cinq pour cent de n et la borne supérieure est vingt-cinq pour cent de n.
+
+Lorsque la recherche stagne, c'est-à-dire que le nombre d'itérations sans amélioration augmente, la borne supérieure de cet intervalle s'élargit progressivement. Cela force une diversification plus forte pour sortir du bassin d'attraction de l'optimum local courant.
+
+---
+
+**Slide 16 — Séparateur : mécanisme d'acceptation**
+
+*(slide de transition — aucun script oral nécessaire)*
+
+---
+
+**Slide 17 — Acceptation et refroidissement**
+
+Une solution candidate est acceptée si elle est meilleure ou égale à la solution courante. Si elle est moins bonne, elle peut tout de même être acceptée avec une probabilité qui décroît avec la température, selon le critère du recuit simulé classique.
+
+Un refroidissement géométrique est appliqué après chaque itération : la température est multipliée par un coefficient alpha légèrement inférieur à un, valant zéro virgule neuf neuf neuf cinq dans nos expériences.
+
+Pour éviter un refroidissement prématuré lors de stagnations prolongées, un mécanisme de réchauffage progressif est activé : si la stagnation dépasse un certain seuil multiple de la limite de patience, la température est remontée à au moins trente-cinq pour cent de la température initiale.
+
+---
+
+**Slide 18 — Redémarrage de diversification**
+
+Lorsque la stagnation atteint la limite de patience maximale, un redémarrage est déclenché. La solution courante est réinitialisée à la meilleure solution trouvée jusqu'ici. La température est réchauffée à au moins vingt pour cent de la température initiale. La fenêtre de patience est réduite de un tiers, de sorte que les redémarrages suivants se déclenchent plus tôt.
+
+Le seul critère d'arrêt dur reste le nombre maximum d'itérations. Le mécanisme de redémarrage ne termine jamais la recherche prématurément.
+
+Je passe maintenant la parole à Adem, qui va présenter en détail nos deux composants d'apprentissage automatique.
 
 ---
 
@@ -113,37 +200,99 @@ En cas de stagnation prolongée, on repart de la meilleure solution connue, on r
 
 > **Slides couverts : 19 à 27.**
 
-**Slide actuel : 20 — Deux composants indépendants**
+---
 
-Le premier composant choisit l'opérateur de destruction à chaque itération. Le second choisit la boîte de réinsertion pour chaque objet déplacé. Ils sont indépendants : on peut tester chacun séparément, les deux ensemble, ou aucun.
+**Slide 19 — Séparateur : composants d'apprentissage automatique**
 
-**Slide actuel : 21 — Phase 1 : démarrage Thompson Sampling**
+*(slide de transition — aucun script oral nécessaire)*
 
-Pendant les 300 premiers appels, on utilise un Thompson Sampling bêta-bernoulli. Chaque opérateur démarre avec une loi Beta uniforme ; on tire un échantillon pour chacun, on prend le meilleur, et on met à jour uniquement celui choisi. Cette phase explore les opérateurs sans dépendre d'un vecteur de contexte insuffisamment estimé, ce qui atténue le problème de démarrage à froid de LinUCB.
+---
 
-**Slide actuel : 22 — Phase 2 : LinUCB**
+**Slide 20 — Deux composants indépendants**
 
-Passé les 300 appels, LinUCB prend le relais. Pour chaque opérateur, il calcule un score combinant performance estimée et marge d'exploration (alpha = 0,3). L'opérateur avec le meilleur score est choisi, puis ses paramètres sont mis à jour avec la récompense observée.
+Notre solveur intègre deux composants d'apprentissage automatique. Le premier décide quel opérateur de destruction appliquer à chaque itération. Le second décide dans quelle boîte réinsérer chaque objet déplacé lors de la réparation. Ils sont indépendants dans leur implémentation et peuvent être activés ou désactivés séparément. C'est cette indépendance qui rend l'étude d'ablation possible et rigoureuse.
 
-**Slide actuel : 23 — Vecteur de contexte**
+---
 
-Le contexte contient cinq variables normalisées entre 0 et 1 : température relative, progression de la stagnation, rapport LB1/coût courant, rayon de destruction relatif, et avancement dans le budget d'itérations.
+**Slide 21 — Composant un, phase un : Thompson Sampling**
 
-**Slide actuel : 24 — Récompense**
+La sélection d'opérateur s'effectue en deux phases.
 
-Si on réduit le nombre de boîtes, la récompense est proportionnelle au gain normalisé par l'écart courant à LB1, bornée à 1. Si la solution est acceptée sans réduction, la récompense vaut 0,2. Si elle est refusée, 0. Cette normalisation valorise davantage les gains obtenus quand on est déjà proche de LB1.
+Pendant les trois cents premiers appels, on utilise le Thompson Sampling bêta-bernoulli. Chaque opérateur démarre avec une distribution bêta uniforme, c'est-à-dire bêta un virgule un. À chaque appel, on tire un échantillon depuis la distribution de chaque opérateur, on choisit celui dont l'échantillon est le plus élevé, puis on met à jour uniquement la distribution de l'opérateur sélectionné en fonction de la récompense observée.
 
-**Slide actuel : 25 — Réparation apprise**
+Cette phase de démarrage permet d'identifier les opérateurs les plus performants sans dépendre du vecteur de contexte, qui serait mal estimé en tout début de recherche. Elle atténue ainsi le problème de démarrage à froid inhérent à LinUCB.
 
-Après une destruction, chaque objet retiré est réinséré du plus grand au plus petit. Pour chaque objet, le modèle note toutes les boîtes faisables et retient la meilleure. S'il n'y en a aucune, une nouvelle boîte est ouverte.
+---
 
-**Slide actuel : 26 — Représentation des caractéristiques**
+**Slide 22 — Composant un, phase deux : LinUCB**
 
-Le modèle utilise 11 caractéristiques normalisées décrivant l'objet et la boîte candidate : taille normalisée au carré $(s_i/C)^2$, taille normalisée, rang parmi les restants, fraction d'objets restant à réinsérer, charge et espace résiduel de la boîte, espace après insertion, nombre d'objets présents, plus grand et plus petit objet déjà placé, et ratio de remplissage résiduel.
+À partir du trois-cent-unième appel, LinUCB prend le relais. Pour chaque opérateur k, le score est la somme de la performance estimée et d'un terme d'exploration pondéré par alpha, qui vaut zéro virgule trois. La performance estimée est le produit scalaire entre les paramètres appris de l'opérateur et le vecteur de contexte courant. Le terme d'exploration est proportionnel à l'incertitude sur cette estimation.
 
-**Slide actuel : 27 — Architecture et données d'entraînement**
+L'opérateur dont le score est le plus élevé est sélectionné. Ses paramètres sont ensuite mis à jour selon une formule de rang un de Sherman-Morrison, ce qui est efficace en temps quadratique en la dimension du contexte.
 
-Le modèle est un `GradientBoostingClassifier` de scikit-learn utilisé en classeur de paires objet-boîte : les probabilités servent à classer les boîtes faisables. L'entraînement imite BFD — la boîte choisie par BFD reçoit l'étiquette positive, les autres négative. Pour réduire le décalage entraînement/inférence, on utilise deux types de traces : des traces BFD complètes, et des traces issues de solutions BFD partiellement détruites.
+---
+
+**Slide 23 — Vecteur de contexte**
+
+Le vecteur de contexte est à cinq dimensions, toutes normalisées entre zéro et un.
+
+La première est la température relative : température courante divisée par la température initiale. Elle vaut un au début de la recherche et décroît vers zéro.
+
+La deuxième est la progression de la stagnation : nombre d'itérations sans amélioration divisé par la limite de patience courante.
+
+La troisième est le rapport LB un sur le coût de la solution courante. Elle vaut un lorsque la solution est optimale selon cette borne.
+
+La quatrième est le rayon de destruction relatif : le nombre d'objets déplacés k divisé par n.
+
+La cinquième est l'avancement global dans le budget d'itérations.
+
+Cette normalisation garantit que le terme d'exploration de LinUCB est comparable d'une dimension à l'autre, sans normalisation supplémentaire.
+
+---
+
+**Slide 24 — Signal de récompense**
+
+La récompense renvoyée à LinUCB après chaque itération dépend du résultat observé.
+
+Si des boîtes ont été économisées, c'est-à-dire si la solution candidate est meilleure que l'incumbent, la récompense est proportionnelle au gain normalisé par l'écart courant à LB un, plafonnée à un. Cette normalisation est importante : elle valorise davantage un gain obtenu quand on est déjà proche de LB un, reflétant la difficulté croissante des améliorations.
+
+Si la solution est acceptée sans économie de boîtes, la récompense vaut zéro virgule deux.
+
+Si la solution est rejetée, la récompense est nulle.
+
+---
+
+**Slide 25 — Composant deux : réparation apprise, vue d'ensemble**
+
+Après une destruction, chaque objet déplacé doit être réinséré. Les objets sont traités du plus grand au plus petit.
+
+Pour chaque objet, on identifie l'ensemble des boîtes faisables, c'est-à-dire les boîtes dont la charge actuelle plus la taille de l'objet ne dépasse pas la capacité C. Si cet ensemble est vide, une nouvelle boîte est ouverte. Sinon, le modèle attribue un score à chaque boîte faisable et l'objet est placé dans la boîte au score le plus élevé.
+
+L'objectif d'entraînement est un classifieur binaire sur des paires objet-boîte faisables : la boîte que BFD aurait choisie reçoit l'étiquette positive, toutes les autres reçoivent l'étiquette négative. Il s'agit d'un clonage comportemental depuis l'expert BFD.
+
+---
+
+**Slide 26 — Représentation des caractéristiques**
+
+Chaque paire objet-boîte faisable est représentée par un vecteur à onze dimensions, toutes normalisées par C ou par n.
+
+Les quatre premières décrivent l'objet : sa taille normalisée, sa taille normalisée au carré, son rang parmi les n objets du problème, et la fraction d'objets déplacés non encore réinsérés.
+
+Les quatre suivantes décrivent la boîte candidate : sa charge normalisée, sa capacité résiduelle normalisée, le slack résiduel après insertion de l'objet, et le nombre d'objets déjà présents normalisé par n.
+
+Les trois dernières capturent les interactions : la taille normalisée du plus grand objet déjà dans la boîte, celle du plus petit, et le ratio de remplissage résiduel, c'est-à-dire la fraction de la capacité résiduelle que cet objet consommerait.
+
+---
+
+**Slide 27 — Architecture du modèle et données d'entraînement**
+
+Le modèle est un GradientBoostingClassifier de scikit-learn. Son inférence utilise les probabilités de classe pour classer les boîtes faisables, et non des décisions binaires dures.
+
+Pour l'efficacité en inférence, on utilise un prédicteur rapide qui applique le scaler NumPy directement et appelle la fonction de prédiction brute du modèle, court-circuitant les validations par appel de scikit-learn. Le bundle sérialisé stocke le numéro de version des caractéristiques et leur nombre, et lève une erreur au chargement en cas de désaccord — ce qui prévient les incompatibilités silencieuses.
+
+Les données d'entraînement combinent deux types de traces pour réduire le décalage entre distribution d'entraînement et distribution d'inférence. Les traces BFD complètes rejouent BFD depuis zéro sur des instances du benchmark. Les traces post-destruction construisent une solution BFD, évincent une fraction aléatoire de boîtes, puis relancent la réinsertion des objets déplacés avec le même étiquetage. Ce second type de traces simule des situations de réparation réelles telles qu'elles se produisent dans la boucle ALNS.
+
+Je laisse maintenant la parole à Amine, qui va présenter le protocole expérimental.
 
 ---
 
@@ -151,15 +300,33 @@ Le modèle est un `GradientBoostingClassifier` de scikit-learn utilisé en class
 
 > **Slides couverts : 28 à 30.**
 
-**Slide actuel : 29 — Protocole expérimental**
+---
 
-La graine aléatoire est fixée à 42. ALNS tourne sur 300 itérations, avec une température initiale de $1/\ln 2$ et un coefficient de refroidissement de 0,9995. Pour LinUCB, alpha = 0,3 avec 300 appels de démarrage. Un seul modèle GBT est pré-entraîné sur tous les jeux de données.
+**Slide 28 — Séparateur : évaluation expérimentale**
 
-La métrique principale est l'écart à LB1 : nombre de boîtes utilisées moins LB1. Un écart nul signifie optimalité certifiée par cette borne.
+*(slide de transition — aucun script oral nécessaire)*
 
-**Slide actuel : 30 — Jeux de données**
+---
 
-Cinq familles de référence : **Scholl-2** (tailles uniformes), **Falkenauer-T** (structure en triplets, LB1 moins fiable), **Falkenauer-U** (tailles uniformes, autre capacité), **Wäscher** (découpe industrielle), **Hard28** (instances volontairement difficiles). Cette diversité permet de vérifier la robustesse de la méthode au-delà d'un seul type d'instances.
+**Slide 29 — Protocole expérimental**
+
+Avant de présenter les résultats, décrivons le protocole. La graine aléatoire est fixée à quarante-deux pour la reproductibilité. ALNS tourne sur trois cents itérations. La température initiale vaut un sur le logarithme de deux, ce qui correspond au critère classique d'acceptation à cinquante pour cent d'une solution à un de plus que l'actuelle au départ. Le coefficient de refroidissement est zéro virgule neuf neuf neuf cinq.
+
+Pour le bandit, alpha LinUCB vaut zéro virgule trois et la phase de démarrage Thompson Sampling dure trois cents appels. Un seul modèle GBT est pré-entraîné une fois pour toutes, sur des traces issues de l'ensemble des familles de benchmark.
+
+La métrique principale est l'écart à LB un : nombre de boîtes utilisées moins LB un. Un écart nul signifie optimalité certifiée par cette borne.
+
+L'environnement d'exécution est Python trois virgule treize, scikit-learn, sous Windows onze, sur un processeur Intel i neuf treize mille neuf cent cinquante HX avec soixante-quatre gigaoctets de mémoire vive.
+
+---
+
+**Slide 30 — Jeux de données**
+
+Cinq familles de benchmark sont utilisées, couvrant des structures très différentes.
+
+Scholl deux a une capacité de mille et entre cinquante et cinq cents objets, avec des tailles uniformes. Falkenauer-T a une capacité de mille et présente une structure en triplets, ce qui affaiblit systématiquement LB un par rapport à l'optimum réel — les écarts rapportés pour cette famille ne sont donc pas directement comparables aux autres. Falkenauer-U a une capacité de cent cinquante et des tailles uniformes, mais dans un régime de capacité différent. Wäscher a une capacité de dix mille et est issu de la découpe industrielle. Hard28 a une capacité de mille, entre cent soixante et deux cents objets, et est conçu pour être adversarialement difficile.
+
+Cette diversité est importante : elle permet de vérifier que notre méthode se comporte correctement sur des structures très différentes, sans réglage spécifique par famille.
 
 ---
 
@@ -167,15 +334,25 @@ Cinq familles de référence : **Scholl-2** (tailles uniformes), **Falkenauer-T*
 
 > **Slides couverts : 31 à 32.**
 
-**Slide actuel : 31 — Test 1 : ablation**
+---
 
-Sur Scholl-2 avec cinq instances de 50 objets, la version sans apprentissage obtient un écart moyen de 0,20. LinUCB seul le ramène à 0,00 avec un temps de calcul faible. Le modèle GBT seul maintient l'écart à 0,20 mais augmente le temps. Les deux composants ensemble donnent aussi 0,20.
+**Slide 31 — Test un : étude d'ablation**
 
-La conclusion est claire : sur ces instances, le choix adaptatif des opérateurs est le composant décisif. Le GBT est bien intégré mais son coût n'est pas encore compensé par un gain sur les petites instances.
+Le premier test isole la contribution individuelle de chaque composant d'apprentissage. On active et désactive LinUCB et le modèle GBT séparément, sur cinq instances de Scholl deux à cinquante objets.
 
-**Slide actuel : 32 — Test 2 : généralisation multi-jeux**
+La configuration sans apprentissage obtient un écart moyen de zéro virgule vingt. LinUCB seul ramène cet écart à zéro, avec un temps de calcul légèrement supérieur, zéro virgule dix-neuf secondes contre zéro virgule quinze. Le modèle GBT seul maintient l'écart à zéro virgule vingt mais double le temps de calcul, à zéro virgule trente-cinq secondes. La combinaison des deux donne également un écart de zéro virgule vingt, pour un temps de zéro virgule trente-six secondes.
 
-Sur quatre familles sur cinq — Scholl-2, Falkenauer-U, Wäscher, Hard28 — la méthode reste strictement sous une boîte d'écart. Sur Falkenauer-T, l'écart est exactement 1,00 ; cette famille est isolée car sa structure en triplets affaiblit LB1, ce qui ne reflète pas nécessairement une mauvaise recherche. Globalement, la méthode se généralise sans réglage spécifique par famille.
+La conclusion est claire : sur ces petites instances, LinUCB est le composant décisif — seul, il ferme complètement l'écart. Le modèle GBT est bien intégré, mais son coût en temps n'est pas encore compensé par un gain de qualité à cette échelle. Son bénéfice est attendu sur des instances plus grandes, ce qui reste une question empirique ouverte.
+
+---
+
+**Slide 32 — Test deux : généralisation multi-familles**
+
+Le deuxième test évalue la généralisation de la méthode combinée sur l'ensemble des cinq familles de benchmark, sans aucun réglage spécifique par famille.
+
+Quatre familles sur cinq obtiennent un écart strictement inférieur à une boîte : zéro virgule vingt pour Scholl deux, zéro virgule vingt pour Falkenauer-U, zéro virgule soixante pour Wäscher, et zéro virgule soixante-sept pour Hard28. La famille Falkenauer-T présente un écart de un virgule zéro, mais ce résultat est isolé pour une raison structurelle déjà signalée : sa structure en triplets affaiblit LB un, si bien que cet écart reflète probablement la faiblesse de la borne et non une mauvaise qualité de recherche.
+
+Globalement, la méthode se généralise sans réglage spécifique par famille, ce qui valide la robustesse de l'approche.
 
 ---
 
@@ -183,13 +360,17 @@ Sur quatre familles sur cinq — Scholl-2, Falkenauer-U, Wäscher, Hard28 — la
 
 > **Slide couvert : 33.**
 
-**Slide actuel : 33 — Test 3 : comparaison**
+---
 
-Sur Scholl-2 (cinq instances, 50 objets), FFD/BFD, recuit simulé et recherche tabou ont tous un écart de 1,80. L'algorithme génétique descend à 1,00 mais prend plus de temps. Notre ALNS dual-learning atteint 0,20 en environ 0,36 s. ACO obtient 0,00 mais prend en moyenne 3,03 s.
+**Slide 33 — Test trois : étude comparative**
 
-Notre méthode n'est pas toujours la meilleure en qualité pure, mais elle offre le meilleur compromis qualité/temps parmi les alternatives testées. ACO est plus précise mais environ huit fois plus lente.
+Le troisième test compare notre ALNS à double apprentissage à un ensemble représentatif de méthodes classiques, sur les mêmes cinq instances de Scholl deux à cinquante objets.
 
-À noter : les méthodes stochastiques sont évaluées sur une seule exécution. Avec plusieurs graines, les classements pourraient évoluer.
+Les méthodes constructives, FFD et BFD, ont un écart de un virgule quatre-vingt pour un temps négligeable. Le recuit simulé et la recherche tabou ont également un écart de un virgule quatre-vingt, malgré un temps de calcul non nul. L'algorithme génétique descend à un virgule zéro, pour zéro virgule quatre-vingt-deux secondes. Notre ALNS à double apprentissage atteint zéro virgule vingt en zéro virgule trente-six secondes. L'optimisation par colonies de fourmis obtient zéro virgule zéro, mais nécessite en moyenne trois virgule zéro trois secondes, soit environ huit fois plus que notre méthode.
+
+Notre méthode n'est pas la meilleure en qualité pure — la colonie de fourmis est plus précise — mais elle offre le meilleur compromis qualité-vitesse parmi toutes les alternatives testées. Aucune autre méthode ne combine à la fois un écart plus faible et un temps plus court que le nôtre.
+
+Il faut noter que les méthodes stochastiques sont évaluées sur une seule exécution. En moyennant sur plusieurs graines, les classements pourraient évoluer.
 
 ---
 
@@ -197,24 +378,37 @@ Notre méthode n'est pas toujours la meilleure en qualité pure, mais elle offre
 
 > **Slides couverts : 34 à 36.**
 
-**Slide actuel : 35 — Synthèse des résultats**
+---
 
-Quatre points ressortent :
+**Slide 34 — Séparateur : synthèse et conclusion**
 
-1. LinUCB est le composant d'apprentissage le plus impactant : seul, il ferme l'écart de 0,20 à 0,00 dans l'ablation.
-2. Le modèle GBT fonctionne mais n'apporte pas encore de gain visible sur les petites instances, où il ajoute surtout du temps.
-3. La méthode combinée se généralise bien : quatre familles sur cinq sous une boîte d'écart, Falkenauer-T isolée à 1,00 pour des raisons liées à LB1.
-4. Par rapport aux métaheuristiques classiques testées, elle offre un bon compromis qualité/vitesse.
+*(slide de transition — aucun script oral nécessaire)*
 
-Limites principales : échantillons de cinq instances, une seule exécution par méthode stochastique, borne LB1 simple.
+---
 
-**Slide actuel : 36 — Conclusions**
+**Slide 35 — Synthèse des résultats**
 
-Notre contribution principale est une ALNS hybride avec deux composants activables séparément : LinUCB pour la sélection des opérateurs de destruction, et un GBT supervisé pour guider la réparation.
+Avant de conclure, faisons la synthèse de ce que les trois tests nous ont appris.
 
-Les contributions secondaires sont la chaîne d'apprentissage de la réparation (données augmentées, contrat de 11 caractéristiques, contrôles de qualité, versionnement pour éviter les incompatibilités silencieuses) et le bandit LinUCB avec phase de démarrage Thompson Sampling et récompense normalisée par l'écart à LB1.
+Premier constat : LinUCB est le composant d'apprentissage le plus impactant. Seul, il ferme l'écart de zéro virgule vingt à zéro sur les petites instances de l'ablation.
 
-Les suites naturelles : tester sur plus d'instances, moyenner sur plusieurs graines, adopter une borne plus serrée comme Martello-Toth L2, et explorer une réparation par renforcement de bout en bout.
+Deuxième constat : le modèle GBT est correctement implémenté et intégré, mais n'apporte pas encore de gain visible à petite échelle, où il ajoute principalement du temps de calcul. Son bénéfice reste à quantifier sur des instances plus grandes.
+
+Troisième constat : les deux composants contribuent de façon asymétrique. L'ablation révèle un déséquilibre clair, qui constitue un axe d'amélioration évident.
+
+Quatrième constat : la méthode combinée se généralise bien sur quatre familles sur cinq, et se positionne favorablement face aux métaheuristiques classiques sur le plan qualité-vitesse.
+
+Les limites principales à garder en tête sont les suivantes : toutes les conclusions sont fondées sur des tranches d'évaluation de cinq instances, les méthodes stochastiques sont comparées sur une seule exécution, et nous utilisons uniquement la borne LB un, qui est plus faible que la borne de Martello-Toth.
+
+---
+
+**Slide 36 — Conclusions**
+
+Notre contribution principale est une ALNS hybride pour le bin packing à une dimension, avec deux composants d'apprentissage activables séparément.
+
+La première contribution secondaire est le bandit LinUCB avec phase de démarrage Thompson Sampling et signal de récompense normalisé par l'écart à LB un. La deuxième est la chaîne de réparation supervisée : augmentation des données par traces post-destruction, contrat à onze caractéristiques, contrôles de qualité par ROC-AUC, et versionnement pour prévenir les incompatibilités silencieuses.
+
+Les suites naturelles à ce travail incluent une évaluation sur un plus grand nombre d'instances avec moyenne sur plusieurs graines, l'adoption d'une borne plus serrée comme Martello-Toth L deux, et l'exploration d'une réparation par renforcement de bout en bout pour supprimer la dépendance au supervisé.
 
 ---
 
@@ -222,8 +416,12 @@ Les suites naturelles : tester sur plus d'instances, moyenner sur plusieurs grai
 
 > **Slide couvert : 36, après la conclusion technique.**
 
-**Slide actuel : 36 — Mot de fin**
+---
 
-Notre objectif n'était pas de remplacer les heuristiques classiques par un modèle opaque. Nous avons gardé ALNS et ajouté de l'apprentissage uniquement aux décisions répétées où il peut aider. Les résultats montrent que cette approche est prometteuse, surtout pour le choix adaptatif des opérateurs.
+**Slide 36 — Mot de fin**
 
-Merci pour votre attention. Nous sommes prêts pour vos questions.
+Notre démarche a été de rester au plus près de la métaheuristique : nous n'avons pas cherché à remplacer ALNS par un modèle opaque, mais à l'enrichir aux deux décisions répétées où l'apprentissage peut apporter une valeur ajoutée concrète — le choix de l'opérateur et le placement de réinsertion.
+
+Les résultats montrent que cette approche est prometteuse, en particulier pour la sélection adaptative des opérateurs. La réparation apprise ouvre une piste de recherche intéressante, notamment à plus grande échelle.
+
+Merci pour votre attention. Nous sommes disponibles pour vos questions.
