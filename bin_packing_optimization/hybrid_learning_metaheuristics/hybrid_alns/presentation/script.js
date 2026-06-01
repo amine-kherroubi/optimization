@@ -331,7 +331,7 @@ const slides = [
     kind: "dividerContent thankYou",
     title: "Thank you for listening",
     content:
-      "<h2>Thank you for listening</h2>\n<h3>Questions?</h3>",
+      "<h2>Thank you for listening</h2>\n<h3>We're happy to answer your questions</h3>",
   },
 ];
 
@@ -473,7 +473,6 @@ function renderSlide(slide, i) {
 }
 
 slides.forEach((slide, i) => deck.appendChild(renderSlide(slide, i)));
-
 
 /* ─────────────────────────────────────────────────
    Apply best-row highlights to tables
