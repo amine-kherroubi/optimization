@@ -249,6 +249,26 @@ footer {
   z-index: 10;
 }
 
+/*
+ * .slide > * (specificity 0-1-0) overrides the bare `footer` element selector
+ * (0-0-1), pulling the footer into normal flow on content slides.
+ * This scoped rule (0-1-1) wins over .slide > * and keeps the footer pinned to
+ * the bottom on every slide kind.
+ */
+.slide footer {
+  position: absolute;
+  z-index: 10;
+}
+
+/*
+ * On .slide.content the padding-left is reduced by 8 px to compensate for the
+ * accent border, but the footer left was not adjusted — it sat 8 px right of
+ * everything else.  This realigns it.
+ */
+.slide.content footer {
+  left: calc(var(--pad-x) - 8px);
+}
+
 /* ── TITLE SLIDE ─────────────────────────────────────────────────── */
 .hero {
   height: 100%;
@@ -740,11 +760,6 @@ tbody tr.best td:first-child {
 .dividerContent footer {
   border-top-color: rgba(255, 255, 255, 0.12);
   color: rgba(255, 255, 255, 0.4);
-  /* Re-assert absolute pin — flex parent must not reposition it */
-  position: absolute;
-  left: var(--pad-x);
-  right: var(--pad-x);
-  bottom: 32px;
 }
 
 /* Section number watermark on dividers */
