@@ -1,3 +1,7 @@
+const SLIDE_WIDTH = 1920;
+const SLIDE_HEIGHT = 1080;
+const VIEWPORT_MARGIN = 86;
+
 const slides = [
   {
     kind: "hero",
@@ -51,7 +55,7 @@ const slides = [
     kind: "content",
     title: "III.0 Global Architecture",
     content: `<h2>III.0 Global Architecture</h2>
-<svg viewBox="0 0 1280 540" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-height:480px;display:block;margin:var(--s5) 0" aria-label="ALNS pipeline diagram" role="img">
+<svg viewBox="0 0 1280 540" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-height:576px;display:block;margin:var(--s5) 0" aria-label="ALNS pipeline diagram" role="img">
   <defs>
     <marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="3.5" orient="auto">
       <path d="M0,0 L0,7 L8,3.5 Z" fill="#8a92a3"/>
@@ -553,7 +557,7 @@ function initResultCharts() {
         plugins: { legend: { display: false }, tooltip: { enabled: true } },
         scales: {
           x: {
-            ticks: { color: "#4a5168", font: { size: 13 } },
+            ticks: { color: "#4a5168", font: { size: 16 } },
             grid: { display: false },
           },
           y: {
@@ -571,6 +575,167 @@ applyBestRows();
 injectStatRows();
 addResultCharts();
 requestAnimationFrame(() => initResultCharts());
+
+/* ─────────────────────────────────────────────────
+   Rasterize KaTeX formulas for Canva/PDF export
+───────────────────────────────────────────────────*/
+let formulaRasterizationPromise = null;
+
+function copyComputedStyles(source, target) {
+  if (!target) return;
+
+  const computed = window.getComputedStyle(source);
+  for (const property of computed) {
+    target.style.setProperty(
+      property,
+      computed.getPropertyValue(property),
+      computed.getPropertyPriority(property),
+    );
+  }
+
+  Array.from(source.children).forEach((child, index) => {
+    copyComputedStyles(child, target.children[index]);
+  });
+}
+
+function waitForKatexReady() {
+  const formulaBlocks = Array.from(document.querySelectorAll(".formula-katex"));
+  if (!formulaBlocks.length) return Promise.resolve();
+
+  return new Promise((resolve) => {
+    let attempts = 0;
+    const check = () => {
+      const ready = formulaBlocks.every((block) =>
+        block.querySelector(".katex"),
+      );
+      if (ready || attempts >= 120) {
+        resolve();
+        return;
+      }
+      attempts += 1;
+      window.setTimeout(check, 50);
+    };
+    check();
+  });
+}
+
+function prepareFormulaRasterizationLayout() {
+  const nodes = Array.from(
+    document.querySelectorAll(".slide, .markdown-content"),
+  );
+  const previousStyles = nodes.map((node) => ({
+    node,
+    transform: node.style.transform,
+    width: node.style.width,
+    height: node.style.height,
+    marginBottom: node.style.marginBottom,
+  }));
+
+  document.querySelectorAll(".slide").forEach((slide) => {
+    slide.style.transform = "none";
+    slide.style.marginBottom = "0";
+  });
+
+  document.querySelectorAll(".markdown-content").forEach((content) => {
+    content.style.transform = "none";
+    content.style.width = "";
+    content.style.height = "";
+  });
+
+  return previousStyles;
+}
+
+function restoreFormulaRasterizationLayout(previousStyles) {
+  previousStyles.forEach(({ node, transform, width, height, marginBottom }) => {
+    node.style.transform = transform;
+    node.style.width = width;
+    node.style.height = height;
+    node.style.marginBottom = marginBottom;
+  });
+}
+
+async function rasterizeFormulaBlock(block, index) {
+  if (block.dataset.rasterized === "true") return;
+
+  const width = Math.ceil(Math.max(block.offsetWidth, block.scrollWidth));
+  const height = Math.ceil(Math.max(block.offsetHeight, block.scrollHeight));
+  if (!width || !height) return;
+
+  const clone = block.cloneNode(true);
+  clone.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
+  clone.style.width = `${width}px`;
+  clone.style.height = `${height}px`;
+  clone.style.margin = "0";
+  copyComputedStyles(block, clone);
+
+  const serialized = new XMLSerializer().serializeToString(clone);
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+      <foreignObject width="100%" height="100%">${serialized}</foreignObject>
+    </svg>`;
+
+  const image = new Image();
+  const svgUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  await new Promise((resolve, reject) => {
+    image.onload = resolve;
+    image.onerror = reject;
+    image.src = svgUrl;
+  });
+
+  const scale = Math.max(window.devicePixelRatio || 1, 2);
+  const canvas = document.createElement("canvas");
+  canvas.width = width * scale;
+  canvas.height = height * scale;
+  const context = canvas.getContext("2d");
+  if (!context) return;
+  context.scale(scale, scale);
+  context.drawImage(image, 0, 0, width, height);
+
+  const png = document.createElement("img");
+  png.className = "formula-png";
+  png.src = canvas.toDataURL("image/png");
+  png.alt =
+    block.textContent.replace(/\s+/g, " ").trim() || `Formula ${index + 1}`;
+  png.width = width;
+  png.height = height;
+  png.loading = "eager";
+  png.decoding = "sync";
+
+  block.replaceChildren(png);
+  block.dataset.rasterized = "true";
+}
+
+async function rasterizeFormulasForExport() {
+  await waitForKatexReady();
+  if (document.fonts?.ready) await document.fonts.ready;
+
+  const previousStyles = prepareFormulaRasterizationLayout();
+  try {
+    const formulaBlocks = Array.from(
+      document.querySelectorAll(".formula-katex"),
+    );
+    await Promise.all(
+      formulaBlocks.map((block, index) => rasterizeFormulaBlock(block, index)),
+    );
+  } finally {
+    restoreFormulaRasterizationLayout(previousStyles);
+  }
+}
+
+function ensureFormulaPngs() {
+  if (!formulaRasterizationPromise) {
+    formulaRasterizationPromise = rasterizeFormulasForExport().catch(
+      (error) => {
+        console.warn(
+          "Formula PNG conversion failed; keeping KaTeX markup.",
+          error,
+        );
+        formulaRasterizationPromise = null;
+      },
+    );
+  }
+  return formulaRasterizationPromise;
+}
 
 /* ─────────────────────────────────────────────────
    Responsive scaling
@@ -596,24 +761,54 @@ function fitMarkdownContent() {
 function fitSlides() {
   if (window.matchMedia("print").matches) return;
   const scale = Math.min(
-    (window.innerWidth - 72) / 1600,
-    (window.innerHeight - 72) / 900,
+    (window.innerWidth - VIEWPORT_MARGIN) / SLIDE_WIDTH,
+    (window.innerHeight - VIEWPORT_MARGIN) / SLIDE_HEIGHT,
     1,
   );
   document.querySelectorAll(".slide").forEach((slide) => {
     slide.style.transform = `scale(${scale})`;
     slide.style.transformOrigin = "top center";
-    slide.style.marginBottom = `${900 * (scale - 1)}px`;
+    slide.style.marginBottom = `${SLIDE_HEIGHT * (scale - 1)}px`;
   });
   fitMarkdownContent();
 }
 
-window.addEventListener("resize", fitSlides);
-window.addEventListener("beforeprint", () =>
+function resetSlideViewportStyles() {
   document.querySelectorAll(".slide").forEach((slide) => {
     slide.style.transform = "none";
     slide.style.marginBottom = "0";
-  }),
-);
-window.addEventListener("afterprint", fitSlides);
-window.addEventListener("load", fitSlides);
+  });
+}
+
+function prepareSlidesForPrint() {
+  resetSlideViewportStyles();
+  fitMarkdownContent();
+  ensureFormulaPngs();
+}
+
+function restoreSlidesAfterPrint() {
+  fitSlides();
+}
+
+window.addEventListener("resize", fitSlides);
+window.addEventListener("beforeprint", prepareSlidesForPrint);
+window.addEventListener("afterprint", restoreSlidesAfterPrint);
+window.addEventListener("load", () => {
+  fitSlides();
+  window.setTimeout(() => ensureFormulaPngs(), 0);
+});
+
+const printMedia = window.matchMedia("print");
+const handlePrintMediaChange = (event) => {
+  if (event.matches) {
+    prepareSlidesForPrint();
+  } else {
+    restoreSlidesAfterPrint();
+  }
+};
+
+if (typeof printMedia.addEventListener === "function") {
+  printMedia.addEventListener("change", handlePrintMediaChange);
+} else if (typeof printMedia.addListener === "function") {
+  printMedia.addListener(handlePrintMediaChange);
+}
