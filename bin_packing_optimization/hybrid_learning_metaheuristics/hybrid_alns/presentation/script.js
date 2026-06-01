@@ -303,7 +303,7 @@ const slides = [
     kind: "content",
     title: "V.5 Test 3 — Findings & Caveats",
     content:
-      '<h2>V.5 Test 3 — Findings &amp; Caveats</h2>\n<blockquote><p>Stochastic baselines are single-run results; multi-seed averaging may alter relative rankings.</p></blockquote>\n<p><strong>Summary:</strong> Our approach does not achieve the lowest absolute gap — ACO reaches 0.00 — but it is the only method combining near-optimal quality (<strong>gap 0.20</strong>) with low runtime (<strong>0.36 s</strong>). Every method with a lower gap runs at least 8× slower.</p>\n<p><strong>Practical implication:</strong> For time-sensitive or embedded applications, the dual-learning ALNS occupies a unique position on the quality–speed Pareto frontier that no classical method in this comparison matches.</p>',
+      "<h2>V.5 Test 3 — Findings &amp; Caveats</h2>\n<blockquote><p>Stochastic baselines are single-run results; multi-seed averaging may alter relative rankings.</p></blockquote>\n<p><strong>Summary:</strong> Our approach does not achieve the lowest absolute gap — ACO reaches 0.00 — but it is the only method combining near-optimal quality (<strong>gap 0.20</strong>) with low runtime (<strong>0.36 s</strong>). Every method with a lower gap runs at least 8× slower.</p>\n<p><strong>Practical implication:</strong> For time-sensitive or embedded applications, the dual-learning ALNS occupies a unique position on the quality–speed Pareto frontier that no classical method in this comparison matches.</p>",
   },
   {
     kind: "dividerContent",
@@ -425,13 +425,15 @@ function renderSlide(slide, i) {
   }
 
   if (slide.kind === "hero") {
-    // Two-column hero layout: text left, decorative bin visual right.
+    // Text-only hero layout — no decorative visual panel.
     // slide.content may contain a duplicate <h1> (same as slide.title) —
     // strip it so the title is only rendered once via slide.title below.
-    const heroBody = slide.content.replace(/<h1[^>]*>[\s\S]*?<\/h1>/i, "").trim();
+    const heroBody = slide.content
+      .replace(/<h1[^>]*>[\s\S]*?<\/h1>/i, "")
+      .trim();
     section.insertAdjacentHTML(
       "beforeend",
-      `<div class="hero">
+      `<div class="hero hero--text-only">
         <div>
           <span class="eyebrow">BIN PACKING · HYBRID ALNS</span>
           <h1>${slide.title}</h1>
@@ -441,18 +443,6 @@ function renderSlide(slide, i) {
             <span>LinUCB</span>
             <span>GBT REPAIR</span>
             <span>1D-BPP</span>
-          </div>
-        </div>
-        <div class="hero-visual" aria-hidden="true">
-          <div class="bin big">
-            <i style="height:68%"></i>
-            <i style="height:52%"></i>
-            <i style="height:38%"></i>
-          </div>
-          <div class="orbit">
-            <span></span>
-            <span></span>
-            <span></span>
           </div>
         </div>
       </div>`,
