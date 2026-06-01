@@ -130,11 +130,14 @@ body {
 /* ── Hero slide ──────────────────────────────────────────────────── */
 /* No border-left on the title slide; full padding-left applies. */
 .slide.hero {
-  /* Override default slide padding so .hero can manage its own layout.
-     The hero grid handles vertical centering using the full 900px height. */
+  /* Override default slide padding so .hero can manage its own layout. */
   padding: 0;
-  /* Explicit height to match --h so the slide never auto-expands */
+  /* Explicit dimensions prevent the slide from auto-expanding and ensure
+     .hero's width:100% + height:100% resolve against the correct values. */
+  width: var(--w);
   height: var(--h);
+  /* display:block (default) — must NOT be flex/grid so .hero fills width */
+  display: block;
 }
 
 
@@ -278,17 +281,23 @@ footer {
 
 /* ── TITLE SLIDE ─────────────────────────────────────────────────── */
 .hero {
-  /* Fill the full slide height (900px); footer is absolute inside .slide */
+  /* Explicit width: 100% — a display:grid element with position:relative
+     (inherited from .slide > *) + height:100% can shrink-wrap content in
+     some browsers instead of stretching to the parent width. Force it. */
+  width: 100%;
   height: 100%;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* minmax(0,1fr) prevents a column from blowing past the grid container
+     if an item has wide content; plain 1fr can silently overflow. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   align-items: center;
   gap: var(--s16);
   /* Carry the horizontal padding (slide no longer provides it).
      Bottom padding (100px) clears the absolute-positioned footer. */
   padding: var(--pad-y) var(--pad-x) 100px var(--pad-x);
-  /* Do not exceed slide height — clip rather than overflow */
-  overflow: hidden;
+  /* overflow clip is handled by .slide itself — don't add it here,
+     it can interfere with grid/percentage-height child calculations. */
+  box-sizing: border-box;
 }
 
 .hero h1 {
