@@ -211,6 +211,61 @@ class WarmStartLinUCBBandit:
             self._linucb.update(arm, context, reward)
         self._calls += 1
 
+    # ------------------------------------------------------------------
+    # Persistence: save / restore the bandit state across solver runs.
+    # ------------------------------------------------------------------
+    _STATE_VERSION = 1
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialise the bandit state so it can be re-used on a future
+        instance. Pair with :meth:`from_dict` to restore a pre-trained bandit."""
+        return {
+            "version": self._STATE_VERSION,
+            "n_arms": self._linucb._n_arms,
+            "n_features": len(self._linucb._b[0]) if self._linucb._b else 0,
+            "alpha": float(self._linucb.alpha),
+            "warmup_calls": int(self._warmup_calls),
+            "A_inv": [np.asarray(A, dtype=np.float64).copy() for A in self._linucb._A_inv],
+            "b": [np.asarray(b, dtype=np.float64).copy() for b in self._linucb._b],
+            "ts_alpha": self._ts_alpha.copy(),
+            "ts_beta": self._ts_beta.copy(),
+            "calls": int(self._calls),
+            "arm_counts": list(self.arm_counts),
+        }
+
+    @classmethod
+    def from_dict(
+        cls,
+        state: dict[str, Any],
+        alpha: float | None = None,
+        warmup_calls: int | None = None,
+    ) -> "WarmStartLinUCBBandit":
+        """Restore a pre-trained bandit from a state dict produced by
+        :meth:`to_dict`. ``alpha`` and ``warmup_calls`` default to the values
+        stored in the state; callers can override them at load time."""
+        version = state.get("version")
+        if version != cls._STATE_VERSION:
+            raise ValueError(
+                f"Unsupported bandit_state version {version!r}; "
+                f"expected {cls._STATE_VERSION}."
+            )
+        n_arms = int(state["n_arms"])
+        n_features = int(state["n_features"])
+        a = float(alpha) if alpha is not None else float(state["alpha"])
+        w = int(warmup_calls) if warmup_calls is not None else int(state["warmup_calls"])
+        obj = cls(n_arms=n_arms, n_features=n_features, alpha=a, warmup_calls=w)
+        obj._linucb._A_inv = [
+            np.asarray(A, dtype=np.float64).copy() for A in state["A_inv"]
+        ]
+        obj._linucb._b = [
+            np.asarray(b, dtype=np.float64).copy() for b in state["b"]
+        ]
+        obj._ts_alpha = np.asarray(state["ts_alpha"], dtype=np.float64).copy()
+        obj._ts_beta = np.asarray(state["ts_beta"], dtype=np.float64).copy()
+        obj._calls = int(state["calls"])
+        obj.arm_counts = list(state["arm_counts"])
+        return obj
+
 
 class BinPackingSolver:
     """Single-path hybrid ALNS solver: LinUCB contextual bandit + learned repair."""
@@ -219,6 +274,7 @@ class BinPackingSolver:
         "_item_sizes",
         "_bin_capacity",
         "_final_solution",
+        "_final_bandit_state",
         "_model",
         "_scaler",
         "_predictor",
@@ -240,6 +296,7 @@ class BinPackingSolver:
         self._item_sizes = list(item_sizes)
         self._bin_capacity = int(bin_capacity)
         self._final_solution: BinPackingSolution | None = None
+        self._final_bandit_state: dict[str, Any] | None = None
         self._model: Any = None
         self._scaler: Any = None
         self._predictor: _FastPredictor | None = None
@@ -392,16 +449,23 @@ class BinPackingSolver:
         k_min = max(1, int(k_min_frac * n))
         k_max = max(k_min + 1, int(k_max_frac * n))
         lower_bound = math.ceil(sum(self._item_sizes) / self._bin_capacity)
-        bandit = (
-            WarmStartLinUCBBandit(
-                n_arms=3,
-                n_features=N_CONTEXT_FEATURES,
-                alpha=bandit_alpha,
-                warmup_calls=warmup_calls,
-            )
-            if use_online_rl
-            else None
-        )
+        bandit_state = params.get("bandit_state")
+        if use_online_rl:
+            if bandit_state is not None:
+                bandit = WarmStartLinUCBBandit.from_dict(
+                    bandit_state,
+                    alpha=bandit_alpha,
+                    warmup_calls=warmup_calls,
+                )
+            else:
+                bandit = WarmStartLinUCBBandit(
+                    n_arms=3,
+                    n_features=N_CONTEXT_FEATURES,
+                    alpha=bandit_alpha,
+                    warmup_calls=warmup_calls,
+                )
+        else:
+            bandit = None
         self._bandit = bandit
 
         temperature = t0
@@ -502,11 +566,20 @@ class BinPackingSolver:
                 no_improve_limit = max(100, no_improve_limit * 2 // 3)
 
         self._final_solution = self._to_presentable_solution(best)
+        # Persist the final bandit state so it can be reused on a future instance.
+        self._final_bandit_state = bandit.to_dict() if bandit is not None else None
 
     def get_solution(self) -> BinPackingSolution:
         if self._final_solution is None:
             raise RuntimeError("No solution available. Call solve() first.")
         return self._final_solution
+
+    def get_bandit_state(self) -> dict[str, Any] | None:
+        """Return the bandit's state after :meth:`solve`, or ``None`` if the
+        online RL component was disabled. Feed this back into
+        ``method_args["bandit_state"]`` on a future ``solve()`` call to reuse
+        the learned policy instead of starting from scratch."""
+        return self._final_bandit_state
 
     def _build_ffd_start_solution(self) -> _WorkingSolution:
         sol = _WorkingSolution(self._item_sizes, self._bin_capacity)
