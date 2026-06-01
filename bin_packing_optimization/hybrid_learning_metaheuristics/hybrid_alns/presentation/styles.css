@@ -543,7 +543,6 @@ footer {
 }
 
 .formula-card .katex {
-  color: var(--ink);
   font-size: 2.3rem;
 }
 

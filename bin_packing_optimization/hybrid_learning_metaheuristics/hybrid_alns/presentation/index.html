@@ -14,12 +14,12 @@
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/auto-render.min.js"
     onload="renderMathInElement(document.body, { delimiters: [{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}], throwOnError: false });"></script>
   <style>
-    /* KaTeX dark-mode overrides */
-    .katex { color: #eef0f4; }
-    .katex-display { color: #eef0f4; }
+    /* KaTeX colour — match body text throughout */
+    .katex,
+    .katex-display,
     .katex .mord, .katex .mrel, .katex .mbin,
     .katex .mop, .katex .mpunct,
-    .katex .mopen, .katex .mclose { color: inherit; }
+    .katex .mopen, .katex .mclose { color: var(--ink); }
   </style>
 </head>
 <body>
