@@ -5,29 +5,37 @@
   --w: 1600px;
   --h: 900px;
 
-  /* Warm-neutral palette */
-  --ink: #1c1917;
-  --ink-2: #3a3530;
-  --ink-3: #5c5650;
-  --muted: #9c948a;
-  --rule: #e2ddd8;
-  --rule-light: #eeebe8;
-  --surface: #faf9f7;
-  --bg: #f2efe9;
+  /* Light tech palette */
+  --bg: #f0f2f5;
+  --surface: #ffffff;
+  --surface-2: #f5f7fa;
+  --surface-3: #ebeef3;
 
-  /* Core accent */
-  --accent: #2c2420;
-  --accent-inv: #faf9f7;
+  --ink: #0d0f12;
+  --ink-2: #1e2330;
+  --ink-3: #4a5168;
+  --muted: #8a92a3;
 
-  /* Extended palette — deliberately used */
-  --clay: #bf5a2f; /* terracotta: alternate dividers, callouts */
-  --clay-mid: #d4784f;
-  --clay-pale: #fdf0e8;
-  --slate: #253d52; /* dark navy: formula cards */
-  --slate-2: #1a2e3e;
-  --slate-pale: #eef3f8;
-  --good: #2c6644; /* green: best-result rows */
-  --good-pale: #eef6f2;
+  --rule: rgba(13, 15, 18, 0.1);
+  --rule-light: rgba(13, 15, 18, 0.05);
+
+  /* Accent — electric cyan */
+  --accent: #00a887;
+  --accent-dim: rgba(0, 168, 135, 0.1);
+  --accent-mid: rgba(0, 168, 135, 0.25);
+  --accent-glow: 0 0 24px rgba(0, 168, 135, 0.18);
+
+  /* Secondary accent — indigo */
+  --indigo: #4a5af0;
+  --indigo-dim: rgba(74, 90, 240, 0.1);
+
+  /* Warm amber — callouts, highlights */
+  --amber: #d4820a;
+  --amber-dim: rgba(212, 130, 10, 0.1);
+
+  /* Green — best rows */
+  --good: #00a887;
+  --good-pale: rgba(0, 168, 135, 0.08);
 
   /* Spacing scale (4-base) */
   --s1: 4px;
@@ -42,7 +50,7 @@
   --s12: 48px;
   --s16: 64px;
 
-  /* Type scale */
+  /* Type */
   --mono: "DM Mono", ui-monospace, monospace;
   font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif;
 }
@@ -60,14 +68,16 @@ body {
   background: var(--bg);
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: auto;
 }
 
 /* ── Deck layout ─────────────────────────────────────────────────── */
 .deck {
   display: grid;
   justify-content: center;
-  gap: 40px;
-  padding: 40px;
+  gap: 56px;
+  padding: 56px;
+  background: var(--bg);
 }
 
 /* ── Slide base ──────────────────────────────────────────────────── */
@@ -77,43 +87,67 @@ body {
   position: relative;
   overflow: hidden;
   background: var(--surface);
+  border: 1px solid var(--rule);
   box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.06),
-    0 4px 16px rgba(0, 0, 0, 0.06);
+    0 0 0 1px rgba(13, 15, 18, 0.06),
+    0 4px 24px rgba(13, 15, 18, 0.1),
+    0 1px 4px rgba(13, 15, 18, 0.07);
 
-  /* Consistent inner margin: 72px all sides */
-  --pad-x: 72px;
-  --pad-y: 64px;
-  padding: var(--pad-y) var(--pad-x);
+  --pad-x: 96px;
+  --pad-y: 76px;
+  padding: var(--pad-y) var(--pad-x) 0 var(--pad-x);
 }
 
-/* Slide number watermark */
-.slide::after {
-  content: attr(data-slide);
+/* Subtle noise texture overlay */
+.slide::before {
+  content: "";
   position: absolute;
-  right: var(--pad-x);
-  top: var(--pad-y);
-  font-family: var(--mono);
-  font-size: 16px;
-  font-weight: 500;
-  color: var(--muted);
-  letter-spacing: 0.06em;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+  background-size: 200px 200px;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.25;
 }
 
-/* Left-edge accent bar — content slides only */
+/* All direct children above noise layer */
+.slide > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Slide number lives in the footer only — no top-right duplicate */
+
+/* Left-edge accent bar — content slides */
 .slide.content::before {
   content: "";
   position: absolute;
   left: 0;
   top: 0;
   bottom: 0;
-  width: 5px;
+  width: 3px;
   background: linear-gradient(
     to bottom,
     var(--accent) 0%,
-    var(--accent) 40%,
-    transparent 100%
+    var(--accent) 30%,
+    transparent 80%
   );
+  z-index: 3;
+}
+/* Reset the noise texture for content slides (both are ::before — need diff approach) */
+/* Using outline on content slides instead */
+.slide.content {
+  border-left: 8px solid var(--accent);
+  padding-left: calc(var(--pad-x) - 8px);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 8px 40px rgba(0, 0, 0, 0.55),
+    inset 3px 0 32px rgba(0, 168, 135, 0.04);
+}
+
+/* Remove the pseudo-element stripe since we use border-left now */
+.slide.content::before {
+  display: none;
 }
 
 /* ── Typography ──────────────────────────────────────────────────── */
@@ -126,8 +160,8 @@ h1 {
 }
 
 h2 {
-  font-size: 48px;
-  line-height: 1;
+  font-size: 46px;
+  line-height: 1.02;
   font-weight: 700;
   letter-spacing: -0.03em;
   color: var(--ink);
@@ -142,8 +176,8 @@ h3 {
 }
 
 p {
-  font-size: 22px;
-  line-height: 1.5;
+  font-size: 21px;
+  line-height: 1.55;
   color: var(--ink-3);
   font-weight: 400;
 }
@@ -152,11 +186,11 @@ p {
 .eyebrow,
 .topline {
   font-family: var(--mono);
-  font-size: 14px;
+  font-size: 11px;
   font-weight: 500;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--accent);
 }
 
 .topline {
@@ -168,14 +202,12 @@ p {
   border-bottom: 1px solid var(--rule);
 }
 
-/* Sequence number in topline */
 .topline span {
   font-family: var(--mono);
-  font-size: 14px;
+  font-size: 11px;
   font-weight: 500;
   color: var(--muted);
   letter-spacing: 0.06em;
-  /* no background, no border-radius */
   background: none;
   width: auto;
   height: auto;
@@ -183,15 +215,15 @@ p {
   border-radius: 0;
 }
 
-/* ── Slide header (h2 + subtitle) ────────────────────────────────── */
+/* ── Slide header ────────────────────────────────────────────────── */
 h2 {
   margin-bottom: var(--s3);
   max-width: 1200px;
 }
 
 .subtitle {
-  font-size: 24px;
-  color: var(--muted);
+  font-size: 22px;
+  color: var(--ink-3);
   max-width: 900px;
   margin-bottom: var(--s8);
   font-weight: 400;
@@ -202,17 +234,19 @@ footer {
   position: absolute;
   left: var(--pad-x);
   right: var(--pad-x);
-  bottom: 28px;
+  bottom: 32px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   font-family: var(--mono);
-  font-size: 14px;
+  font-size: 11px;
   color: var(--muted);
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   border-top: 1px solid var(--rule);
-  padding-top: var(--s4);
+  padding-top: var(--s3);
+  z-index: 10;
 }
 
 /* ── TITLE SLIDE ─────────────────────────────────────────────────── */
@@ -226,17 +260,21 @@ footer {
 
 .hero h1 {
   max-width: 700px;
-  font-size: 96px;
+  font-size: 94px;
   margin-bottom: var(--s6);
+  background: linear-gradient(135deg, var(--ink) 0%, var(--ink-2) 80%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .hero > div:first-child .eyebrow {
   display: block;
-  margin-bottom: var(--s6);
+  margin-bottom: var(--s7);
 }
 
 .hero h3 {
-  font-size: 28px;
+  font-size: 26px;
   color: var(--ink-3);
   font-weight: 400;
   margin-bottom: var(--s5);
@@ -244,9 +282,9 @@ footer {
 
 .hero p {
   max-width: 680px;
-  font-size: 22px;
-  line-height: 1.45;
-  color: var(--muted);
+  font-size: 21px;
+  line-height: 1.5;
+  color: var(--ink-3);
 }
 
 .pill-row {
@@ -258,25 +296,27 @@ footer {
 
 .pill-row span {
   font-family: var(--mono);
-  font-size: 15px;
+  font-size: 12px;
   font-weight: 500;
-  letter-spacing: 0.08em;
-  padding: var(--s2) var(--s4);
-  border: 1px solid var(--rule);
+  letter-spacing: 0.1em;
+  padding: 5px var(--s4);
+  border: 1px solid rgba(0, 212, 170, 0.25);
   border-radius: 2px;
-  color: var(--ink-3);
-  background: none;
-  box-shadow: none;
+  color: var(--accent);
+  background: var(--accent-dim);
 }
 
-/* Hero visual: clean geometric bin diagram */
+/* Hero visual */
 .hero-visual {
   position: relative;
   height: 520px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg);
+  background: var(--surface-2);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  overflow: hidden;
 }
 
 /* Dot-grid background */
@@ -284,39 +324,55 @@ footer {
   content: "";
   position: absolute;
   inset: 0;
-  background-image: radial-gradient(var(--rule) 1.2px, transparent 1.2px);
-  background-size: 28px 28px;
-  opacity: 0.8;
+  background-image: radial-gradient(var(--muted) 1px, transparent 1px);
+  background-size: 32px 32px;
+  opacity: 0.2;
+}
+
+/* Glow in center */
+.hero-visual::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 60% 60% at 50% 50%,
+    rgba(0, 168, 135, 0.06),
+    transparent 70%
+  );
+  pointer-events: none;
 }
 
 .bin.big {
   position: relative;
-  width: 280px;
-  height: 420px;
-  border: 1.5px solid var(--rule);
-  border-radius: 2px;
-  background: var(--bg);
+  width: 260px;
+  height: 400px;
+  border: 1.5px solid rgba(0, 168, 135, 0.3);
+  border-radius: 3px;
+  background: var(--surface-3);
   display: flex;
   align-items: flex-end;
   gap: 10px;
   padding: 16px;
-  box-shadow: none;
+  box-shadow: var(--accent-glow);
+  z-index: 1;
 }
 
 .bin.big i {
   flex: 1;
   display: block;
-  border-radius: 1px;
+  border-radius: 2px;
 }
-
 .bin.big i:nth-child(1) {
-  background: #2c2420;
+  background: var(--accent);
+  opacity: 0.85;
 }
 .bin.big i:nth-child(2) {
-  background: var(--ink-3);
+  background: var(--indigo);
+  opacity: 0.7;
 }
 .bin.big i:nth-child(3) {
   background: var(--muted);
+  opacity: 0.6;
 }
 
 .orbit {
@@ -326,11 +382,11 @@ footer {
 
 .orbit span {
   position: absolute;
-  width: 96px;
-  height: 96px;
-  border: 1.5px solid var(--rule);
-  border-radius: 2px;
-  background: var(--surface);
+  width: 88px;
+  height: 88px;
+  border: 1.5px solid rgba(74, 90, 240, 0.25);
+  border-radius: 3px;
+  background: var(--surface-2);
 }
 
 .orbit span:nth-child(1) {
@@ -351,28 +407,26 @@ footer {
   margin-top: var(--s7);
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
+  gap: 14px;
 }
 
 .info-card {
-  min-height: 280px;
+  min-height: 270px;
   display: flex;
   flex-direction: column;
   border: 1px solid var(--rule);
-  border-radius: 2px;
+  border-radius: 3px;
   padding: var(--s7);
-  background: var(--surface);
-  box-shadow: none;
+  background: var(--surface-2);
 }
 
 .info-card span {
   font-family: var(--mono);
-  font-size: 14px;
+  font-size: 11px;
   font-weight: 500;
   color: var(--muted);
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
   margin-bottom: var(--s6);
-  /* No background badge */
   background: none;
   width: auto;
   height: auto;
@@ -383,25 +437,26 @@ footer {
 
 .info-card h3 {
   margin-bottom: var(--s3);
-  font-size: 24px;
+  font-size: 22px;
+  color: var(--ink);
 }
-
 .info-card p {
-  font-size: 19px;
+  font-size: 17px;
+  color: var(--ink-3);
 }
 
 /* Tone variants */
 .tone-0 {
-  border-top: 3px solid var(--accent);
+  border-top: 2px solid var(--accent);
 }
 .tone-1 {
-  border-top: 3px solid var(--clay);
+  border-top: 2px solid var(--amber);
 }
 .tone-2 {
-  border-top: 3px solid var(--muted);
+  border-top: 2px solid var(--indigo);
 }
 .tone-3 {
-  border-top: 3px solid var(--rule);
+  border-top: 2px solid var(--muted);
 }
 
 /* ── CALLOUT BAR ─────────────────────────────────────────────────── */
@@ -411,14 +466,14 @@ footer {
   right: var(--pad-x);
   bottom: 60px;
   padding: var(--s5) var(--s8);
-  border-left: 4px solid var(--clay);
-  background: var(--clay-pale);
-  font-size: 22px;
+  border-left: 3px solid var(--amber);
+  background: var(--amber-dim);
+  font-size: 21px;
   font-weight: 500;
   color: var(--ink-2);
   letter-spacing: -0.01em;
   line-height: 1.35;
-  border-radius: 0 2px 2px 0;
+  border-radius: 0 3px 3px 0;
 }
 
 /* ── OUTLINE ─────────────────────────────────────────────────────── */
@@ -426,7 +481,7 @@ footer {
   margin-top: var(--s7);
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
+  gap: 14px;
 }
 
 .outline-list article {
@@ -436,22 +491,21 @@ footer {
   gap: var(--s6);
   padding: var(--s6) var(--s7);
   border: 1px solid var(--rule);
-  border-radius: 2px;
-  background: var(--surface);
-  box-shadow: none;
+  border-radius: 3px;
+  background: var(--surface-2);
 }
 
 .outline-list b {
   font-family: var(--mono);
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 500;
-  color: var(--muted);
-  letter-spacing: 0.08em;
+  color: var(--accent);
+  letter-spacing: 0.06em;
   flex-shrink: 0;
 }
 
 .outline-list span {
-  font-size: 26px;
+  font-size: 24px;
   font-weight: 500;
   letter-spacing: -0.02em;
   color: var(--ink);
@@ -462,29 +516,27 @@ footer {
   margin-top: var(--s7);
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 20px;
+  gap: 18px;
   align-items: stretch;
 }
 
 .formula-card {
-  min-height: 320px;
+  min-height: 310px;
   display: grid;
   place-items: center;
   padding: var(--s10);
-  background: var(--bg);
+  background: var(--surface-3);
   color: var(--ink);
   border: 1px solid var(--rule);
+  border-radius: 3px;
   font-family: var(--mono);
-  font-size: 32px;
+  font-size: 30px;
   font-weight: 400;
   line-height: 1.4;
   letter-spacing: -0.01em;
   text-align: center;
-  border-radius: 2px;
-  box-shadow: none;
 }
 
-/* KaTeX inside any formula card */
 .formula-katex {
   width: 100%;
   text-align: center;
@@ -492,14 +544,13 @@ footer {
 
 .formula-card .katex {
   color: var(--ink);
-  font-size: 2.4rem;
+  font-size: 2.3rem;
 }
 
 .formula-card .katex-display {
   margin: 0;
 }
 
-/* KaTeX piecewise / cases environments need a bit more breathing room */
 .formula-card .katex .mord.vlist-t2 {
   line-height: 1.6;
 }
@@ -507,7 +558,7 @@ footer {
 /* Mini-stack cards */
 .mini-stack {
   display: grid;
-  gap: 12px;
+  gap: 10px;
 }
 
 .mini-stack article {
@@ -516,21 +567,19 @@ footer {
   column-gap: var(--s5);
   padding: var(--s5) var(--s6);
   border: 1px solid var(--rule);
-  border-radius: 2px;
-  background: var(--surface);
+  border-radius: 3px;
+  background: var(--surface-2);
   align-items: start;
-  box-shadow: none;
 }
 
 .mini-stack span {
   font-family: var(--mono);
   font-size: 11px;
   font-weight: 500;
-  color: var(--muted);
+  color: var(--accent);
   letter-spacing: 0.08em;
   grid-row: span 2;
   padding-top: 4px;
-  /* Remove icon styling */
   background: none;
   width: auto;
   height: auto;
@@ -541,23 +590,23 @@ footer {
 }
 
 .mini-stack h3 {
-  font-size: 19px;
+  font-size: 18px;
   margin-bottom: var(--s2);
+  color: var(--ink);
 }
-
 .mini-stack p {
-  font-size: 16px;
+  font-size: 15px;
   margin: 0;
+  color: var(--ink-3);
 }
 
 /* ── TABLE ───────────────────────────────────────────────────────── */
 .table-card {
   margin-top: var(--s7);
   border: 1px solid var(--rule);
-  border-radius: 2px;
+  border-radius: 3px;
   overflow: hidden;
-  background: var(--surface);
-  box-shadow: none;
+  background: var(--surface-2);
 }
 
 table {
@@ -567,7 +616,7 @@ table {
 
 th,
 td {
-  padding: 16px 20px;
+  padding: 14px 20px;
   text-align: left;
   border-bottom: 1px solid var(--rule);
   vertical-align: top;
@@ -575,16 +624,16 @@ td {
 
 th {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 500;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--muted);
-  background: var(--bg);
+  background: var(--surface-3);
 }
 
 td {
-  font-size: 18px;
+  font-size: 17px;
   line-height: 1.3;
   color: var(--ink-3);
   font-weight: 400;
@@ -592,11 +641,20 @@ td {
 
 td:first-child {
   font-weight: 600;
-  color: var(--ink);
+  color: var(--ink-2);
 }
 
 tbody tr:last-child td {
   border-bottom: none;
+}
+
+/* Best-row highlight */
+tbody tr.best td {
+  background: var(--good-pale);
+  color: var(--ink-2);
+}
+tbody tr.best td:first-child {
+  color: var(--accent);
 }
 
 /* ── STREAM LANES ────────────────────────────────────────────────── */
@@ -604,50 +662,56 @@ tbody tr:last-child td {
   margin-top: var(--s7);
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
+  gap: 14px;
 }
 
 .stream-lanes article {
-  min-height: 320px;
+  min-height: 310px;
   padding: var(--s7);
   border: 1px solid var(--rule);
-  border-radius: 2px;
-  background: var(--surface);
-  box-shadow: none;
+  border-radius: 3px;
+  background: var(--surface-2);
 }
 
 .stream-lanes b {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 500;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--accent);
   display: block;
   margin-bottom: var(--s5);
 }
 
 .stream-lanes h3 {
   margin-bottom: var(--s4);
-  font-size: 20px;
+  font-size: 19px;
+  color: var(--ink);
 }
-
 .stream-lanes p {
-  font-size: 17px;
+  font-size: 16px;
   line-height: 1.5;
+  color: var(--ink-3);
 }
 
 /* ── DIVIDER SLIDES ──────────────────────────────────────────────── */
-.divider {
-  background: #2c2420;
+.divider,
+.dividerContent {
+  background: #0d0f12;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  box-shadow: none;
+  border-left: 8px solid var(--accent) !important;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 8px 40px rgba(0, 0, 0, 0.55),
+    inset 3px 0 64px rgba(0, 212, 170, 0.05);
 }
 
-.divider::after {
-  color: rgba(255, 255, 255, 0.06);
+.divider::after,
+.dividerContent::after {
+  content: none;
 }
 
 .divider-inner {
@@ -655,13 +719,13 @@ tbody tr:last-child td {
 }
 
 .divider .eyebrow {
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--accent);
   margin-bottom: var(--s8);
   display: block;
 }
 
 .divider h1 {
-  color: var(--accent-inv);
+  color: #ffffff;
   margin-bottom: var(--s6);
   font-size: 96px;
 }
@@ -673,9 +737,46 @@ tbody tr:last-child td {
   line-height: 1.4;
 }
 
-.divider footer {
+.divider footer,
+.dividerContent footer {
   border-top-color: rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.4);
+  /* Re-assert absolute pin — flex parent must not reposition it */
+  position: absolute;
+  left: var(--pad-x);
+  right: var(--pad-x);
+  bottom: 32px;
+}
+
+/* Section number watermark on dividers */
+.section-num {
+  position: absolute;
+  right: var(--pad-x);
+  bottom: 80px;
+  font-family: var(--mono);
+  font-size: 200px;
+  font-weight: 700;
+  letter-spacing: -0.06em;
+  color: rgba(255, 255, 255, 0.06);
+  line-height: 1;
+  user-select: none;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Geometric SVG on dividers */
+.geo {
+  position: absolute;
+  top: -60px;
+  right: -60px;
+  width: 520px;
+  height: 520px;
+  opacity: 0.04;
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1;
+  pointer-events: none;
+  z-index: 0;
 }
 
 /* ── ARCHITECTURE ────────────────────────────────────────────────── */
@@ -707,9 +808,8 @@ tbody tr:last-child td {
   display: grid;
   align-content: center;
   border: 1px solid var(--rule);
-  border-radius: 2px;
-  background: var(--surface);
-  box-shadow: none;
+  border-radius: 3px;
+  background: var(--surface-2);
 }
 
 .arch-node b {
@@ -717,13 +817,13 @@ tbody tr:last-child td {
   font-size: 10px;
   font-weight: 500;
   color: var(--muted);
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
   display: block;
   margin-bottom: var(--s2);
 }
 
 .arch-node span {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
   letter-spacing: -0.02em;
   color: var(--ink);
@@ -767,27 +867,25 @@ tbody tr:last-child td {
   margin-top: var(--s7);
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 16px;
+  gap: 14px;
 }
 
 .process-track article {
-  min-height: 280px;
+  min-height: 270px;
   padding: var(--s7);
   border: 1px solid var(--rule);
-  border-radius: 2px;
-  background: var(--surface);
-  box-shadow: none;
+  border-radius: 3px;
+  background: var(--surface-2);
 }
 
 .process-track span {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 500;
-  color: var(--muted);
-  letter-spacing: 0.08em;
+  color: var(--accent);
+  letter-spacing: 0.1em;
   display: block;
   margin-bottom: var(--s6);
-  /* No badge */
   background: none;
   width: auto;
   height: auto;
@@ -796,7 +894,7 @@ tbody tr:last-child td {
 }
 
 .process-track p {
-  font-size: 20px;
+  font-size: 19px;
   font-weight: 500;
   line-height: 1.3;
   color: var(--ink);
@@ -808,25 +906,24 @@ tbody tr:last-child td {
   margin-top: var(--s10);
   display: grid;
   grid-template-columns: repeat(6, 1fr);
-  gap: 12px;
+  gap: 10px;
 }
 
 .flow-row article {
   position: relative;
-  min-height: 220px;
+  min-height: 210px;
   padding: var(--s6);
   border: 1px solid var(--rule);
-  border-radius: 2px;
-  background: var(--surface);
-  box-shadow: none;
+  border-radius: 3px;
+  background: var(--surface-2);
 }
 
 .flow-row span {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 500;
-  color: var(--muted);
-  letter-spacing: 0.08em;
+  color: var(--accent);
+  letter-spacing: 0.1em;
   display: block;
   margin-bottom: var(--s5);
   background: none;
@@ -837,7 +934,7 @@ tbody tr:last-child td {
 }
 
 .flow-row p {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 500;
   color: var(--ink);
   line-height: 1.3;
@@ -847,11 +944,11 @@ tbody tr:last-child td {
 .flow-row article:not(:last-child)::after {
   content: "→";
   position: absolute;
-  right: -14px;
+  right: -12px;
   top: 50%;
   transform: translateY(-50%);
-  color: var(--muted);
-  font-size: 18px;
+  color: var(--accent);
+  font-size: 16px;
   font-weight: 400;
   z-index: 2;
 }
@@ -861,25 +958,24 @@ tbody tr:last-child td {
   margin-top: var(--s7);
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 20px;
+  gap: 18px;
 }
 
 .chart-panel {
   padding: var(--s7);
   border: 1px solid var(--rule);
-  border-radius: 2px;
-  background: var(--surface);
-  box-shadow: none;
+  border-radius: 3px;
+  background: var(--surface-2);
 }
 
 .chart-panel h3 {
   margin-bottom: var(--s6);
-  font-size: 14px;
+  font-size: 11px;
   font-family: var(--mono);
   font-weight: 500;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--accent);
 }
 
 .chart-panel canvas {
@@ -889,13 +985,13 @@ tbody tr:last-child td {
 }
 
 .metric-table th {
-  font-size: 10px;
+  font-size: 9px;
 }
 .metric-table td {
-  font-size: 16px;
+  font-size: 15px;
 }
 .metric-table td:first-child {
-  font-size: 15px;
+  font-size: 14px;
 }
 
 /* ── FINAL GRID ──────────────────────────────────────────────────── */
@@ -903,36 +999,35 @@ tbody tr:last-child td {
   margin-top: var(--s7);
   display: grid;
   grid-template-columns: 1.3fr 1fr 1fr;
-  gap: 20px;
+  gap: 18px;
 }
 
 .final-grid article {
-  min-height: 400px;
+  min-height: 390px;
   padding: var(--s7);
   border: 1px solid var(--rule);
-  border-radius: 2px;
-  background: var(--surface);
-  box-shadow: none;
+  border-radius: 3px;
+  background: var(--surface-2);
 }
 
 .final-grid h3 {
-  font-size: 14px;
+  font-size: 11px;
   font-family: var(--mono);
   font-weight: 500;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--accent);
   margin-bottom: var(--s6);
   padding-bottom: var(--s4);
   border-bottom: 1px solid var(--rule);
 }
 
 .final-grid article:first-child p {
-  font-size: 17px;
+  font-size: 16px;
   color: var(--ink-3);
   font-weight: 400;
   padding: var(--s4) 0;
-  border-bottom: 1px solid var(--rule-light);
+  border-bottom: 1px solid var(--rule);
   line-height: 1.4;
 }
 
@@ -946,15 +1041,54 @@ tbody tr:last-child td {
 .tag-cloud span,
 .pill-row span {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
-  letter-spacing: 0.06em;
-  padding: var(--s2) var(--s4);
-  border: 1px solid var(--rule);
+  letter-spacing: 0.07em;
+  padding: 4px var(--s4);
+  border: 1px solid rgba(0, 212, 170, 0.2);
   border-radius: 2px;
-  color: var(--ink-3);
-  background: var(--bg);
-  box-shadow: none;
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+
+/* ── STAT ROW ────────────────────────────────────────────────────── */
+.stat-row {
+  position: absolute;
+  left: var(--pad-x);
+  right: var(--pad-x);
+  bottom: 88px; /* footer bottom 32 + footer height 36 + 20px gap */
+  display: flex;
+  gap: 40px;
+  padding-bottom: var(--s4);
+  border-bottom: 1px solid var(--rule);
+  z-index: 9;
+}
+
+.stat-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stat-value {
+  font-family: var(--mono);
+  font-size: 28px;
+  font-weight: 500;
+  color: var(--ink-2);
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.stat-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.stat-block.highlight .stat-value {
+  color: var(--accent);
 }
 
 /* ── PRINT ───────────────────────────────────────────────────────── */
@@ -966,7 +1100,7 @@ tbody tr:last-child td {
   html,
   body {
     width: 1600px;
-    background: white;
+    background: #0d0f12;
   }
   .deck {
     display: block;
@@ -984,8 +1118,11 @@ tbody tr:last-child td {
 /* ── Static Markdown slide content ───────────────────────────────── */
 .markdown-content {
   max-width: 1380px;
+  /* Slide 900px − pad-y top 76px − footer area (32px bottom + 36px height + 8px gap) = 748px usable.
+     Cap content so it never pushes the footer up. */
   height: 680px;
-  overflow: visible;
+  max-height: 680px;
+  overflow: hidden;
   transform-origin: top left;
 }
 
@@ -996,14 +1133,12 @@ tbody tr:last-child td {
 }
 
 .markdown-content h1 {
-  margin-top: 130px;
+  margin-top: 120px;
   margin-bottom: var(--s7);
 }
-
 .markdown-content h2 {
   margin-bottom: var(--s6);
 }
-
 .markdown-content h3 {
   margin-top: var(--s3);
   margin-bottom: var(--s6);
@@ -1012,8 +1147,8 @@ tbody tr:last-child td {
 .markdown-content p,
 .markdown-content li,
 .markdown-content blockquote p {
-  font-size: 20px;
-  line-height: 1.38;
+  font-size: 19px;
+  line-height: 1.45;
   color: var(--ink-3);
 }
 
@@ -1036,7 +1171,6 @@ tbody tr:last-child td {
 .markdown-content li {
   margin-bottom: var(--s2);
 }
-
 .markdown-content li ul {
   margin-top: var(--s2);
 }
@@ -1045,25 +1179,26 @@ tbody tr:last-child td {
   color: var(--ink);
   font-weight: 700;
 }
-
 .markdown-content em {
   color: var(--ink-2);
 }
 
 .markdown-content code {
   font-family: var(--mono);
-  font-size: 0.9em;
-  color: var(--ink);
-  background: var(--bg);
-  border: 1px solid var(--rule-light);
-  padding: 0 0.18em;
+  font-size: 0.88em;
+  color: var(--accent);
+  background: var(--accent-dim);
+  border: 1px solid rgba(0, 212, 170, 0.15);
+  padding: 0 0.25em;
+  border-radius: 2px;
 }
 
 .markdown-content blockquote {
   margin-top: var(--s5);
   padding: var(--s4) var(--s6);
-  border-left: 3px solid var(--accent);
-  background: var(--bg);
+  border-left: 7px solid var(--amber);
+  background: var(--amber-dim);
+  border-radius: 0 3px 3px 0;
 }
 
 .markdown-content blockquote p {
@@ -1093,17 +1228,18 @@ tbody tr:last-child td {
   min-height: 210px;
   padding: var(--s5);
   border: 1px solid var(--rule);
-  background: var(--surface);
+  border-radius: 3px;
+  background: var(--surface-2);
 }
 
 .result-chart-panel h3 {
   margin: 0 0 var(--s4);
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 500;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--accent);
 }
 
 .result-chart-panel canvas {
@@ -1114,28 +1250,26 @@ tbody tr:last-child td {
 
 .markdown-content th,
 .markdown-content td {
-  padding: 11px 14px;
+  padding: 11px 16px;
 }
-
 .markdown-content td {
-  font-size: 16px;
+  font-size: 15px;
 }
 
-/* Inline formula blocks in slides — strip all card chrome, render cleanly */
+/* Inline formula blocks */
 .markdown-content .inline-formula {
   min-height: 0;
-  background: transparent;
-  border: none;
-  padding: var(--s3) 0;
-  margin: var(--s4) 0;
+  background: var(--surface-3);
+  border: 1px solid var(--rule);
+  padding: var(--s5) var(--s6);
+  margin: var(--s5) 0;
   display: block;
   text-align: left;
   color: var(--ink);
-}
-
-.markdown-content .inline-formula .katex {
+  border-radius: 3px;
+  border-left: 8px solid var(--indigo);
   color: var(--ink);
-  font-size: 1.35rem;
+  font-size: 1.3rem;
 }
 
 .markdown-content .inline-formula .katex-display {
@@ -1149,30 +1283,30 @@ tbody tr:last-child td {
   margin-top: var(--s4);
   padding: var(--s5);
   border: 1px solid var(--rule);
-  background: var(--bg);
+  border-radius: 3px;
+  background: var(--surface-3);
   font-family: var(--mono);
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.55;
   color: var(--ink-2);
   white-space: pre;
-}
-
-.markdown-content pre code {
+  border-left: 7px solid var(--indigo);
   border: 0;
   padding: 0;
   background: transparent;
   font-size: inherit;
+  color: inherit;
 }
 
+/* ── DIVIDER CONTENT ─────────────────────────────────────────────── */
 .dividerContent {
-  background: #2c2420;
   display: flex;
   flex-direction: column;
   justify-content: center;
 }
 
 .dividerContent::after {
-  color: rgba(255, 255, 255, 0.06);
+  content: none;
 }
 
 .dividerContent .markdown-content {
@@ -1181,20 +1315,44 @@ tbody tr:last-child td {
 
 .dividerContent .markdown-content h2,
 .dividerContent .markdown-content h3 {
-  color: var(--accent-inv);
+  color: #ffffff;
 }
 
 .dividerContent .markdown-content h2 {
-  font-size: 96px;
+  font-size: 88px;
+  letter-spacing: -0.04em;
+  color: #ffffff;
+  background: none;
+  -webkit-text-fill-color: #ffffff;
 }
 
 .dividerContent .markdown-content h3 {
-  color: rgba(255, 255, 255, 0.55);
-  font-size: 34px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 30px;
   font-weight: 400;
+  margin-top: var(--s5);
 }
 
-.dividerContent footer {
-  border-top-color: rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.3);
+/* SVG diagram theming — override inline styles */
+.dg-box {
+  fill: var(--surface-3) !important;
+  stroke: var(--rule) !important;
+}
+.dg-lbl {
+  fill: var(--ink) !important;
+}
+.dg-sub {
+  fill: var(--ink-3) !important;
+}
+.dg-tag {
+  fill: var(--muted) !important;
+}
+.dg-edge {
+  stroke: var(--muted) !important;
+}
+.dg-edge-dk {
+  stroke: var(--accent) !important;
+}
+.dg-loop-lbl {
+  fill: var(--muted) !important;
 }

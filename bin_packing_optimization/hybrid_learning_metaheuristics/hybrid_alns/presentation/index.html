@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
   <title>Hybrid ALNS for the Bin Packing Problem</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,6 +13,14 @@
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/auto-render.min.js"
     onload="renderMathInElement(document.body, { delimiters: [{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}], throwOnError: false });"></script>
+  <style>
+    /* KaTeX dark-mode overrides */
+    .katex { color: #eef0f4; }
+    .katex-display { color: #eef0f4; }
+    .katex .mord, .katex .mrel, .katex .mbin,
+    .katex .mop, .katex .mpunct,
+    .katex .mopen, .katex .mclose { color: inherit; }
+  </style>
 </head>
 <body>
   <main id="deck" class="deck" aria-label="Hybrid ALNS for the Bin Packing Problem presentation"></main>

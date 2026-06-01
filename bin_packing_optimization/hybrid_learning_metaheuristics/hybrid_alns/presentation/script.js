@@ -54,26 +54,26 @@ const slides = [
 <svg viewBox="0 0 1280 540" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-height:480px;display:block;margin:var(--s5) 0" aria-label="ALNS pipeline diagram" role="img">
   <defs>
     <marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="3.5" orient="auto">
-      <path d="M0,0 L0,7 L8,3.5 Z" fill="#9c948a"/>
+      <path d="M0,0 L0,7 L8,3.5 Z" fill="#8a92a3"/>
     </marker>
     <marker id="arr-dk" markerWidth="8" markerHeight="8" refX="7" refY="3.5" orient="auto">
-      <path d="M0,0 L0,7 L8,3.5 Z" fill="#3a3530"/>
+      <path d="M0,0 L0,7 L8,3.5 Z" fill="#00a887"/>
     </marker>
   </defs>
   <style>
-    .dg-box { fill:#f2efe9; stroke:#e2ddd8; stroke-width:1.5 }
-    .dg-box-ml { fill:#f2efe9; stroke:#3a3530; stroke-width:1.5 stroke-dasharray:5,3 }
-    .dg-box-loop { fill:none; stroke:#e2ddd8; stroke-width:1.5; rx:2 }
-    .dg-lbl { font-family:'DM Mono',monospace; fill:#1c1917; font-size:13px; font-weight:500; text-anchor:middle; dominant-baseline:middle }
-    .dg-sub { font-family:'DM Mono',monospace; fill:#9c948a; font-size:11px; font-weight:400; text-anchor:middle; dominant-baseline:middle }
-    .dg-edge { fill:none; stroke:#9c948a; stroke-width:1.5; marker-end:url(#arr) }
-    .dg-edge-dk { fill:none; stroke:#3a3530; stroke-width:1.5; marker-end:url(#arr-dk) }
-    .dg-tag { font-family:'DM Mono',monospace; fill:#9c948a; font-size:10px; font-weight:500; letter-spacing:.06em; text-anchor:middle }
-    .dg-loop-lbl { font-family:'DM Mono',monospace; fill:#c8c0b8; font-size:11px; font-weight:500; letter-spacing:.08em; text-anchor:middle }
+    .dg-box { fill:#1a1e25; stroke:rgba(255,255,255,0.07); stroke-width:1.5 }
+    .dg-box-ml { fill:#1a1e25; stroke:#00a887; stroke-width:1.5; stroke-dasharray:5,3 }
+    .dg-box-loop { fill:none; stroke:rgba(13,15,18,0.10); stroke-width:1.5; rx:2 }
+    .dg-lbl { font-family:'DM Mono',monospace; fill:#0d0f12; font-size:13px; font-weight:500; text-anchor:middle; dominant-baseline:middle }
+    .dg-sub { font-family:'DM Mono',monospace; fill:#4a5168; font-size:11px; font-weight:400; text-anchor:middle; dominant-baseline:middle }
+    .dg-edge { fill:none; stroke:#8a92a3; stroke-width:1.5; marker-end:url(#arr) }
+    .dg-edge-dk { fill:none; stroke:#00a887; stroke-width:1.5; marker-end:url(#arr-dk) }
+    .dg-tag { font-family:'DM Mono',monospace; fill:#8a92a3; font-size:10px; font-weight:500; letter-spacing:.06em; text-anchor:middle }
+    .dg-loop-lbl { font-family:'DM Mono',monospace; fill:#8a92a3; font-size:11px; font-weight:500; letter-spacing:.08em; text-anchor:middle }
   </style>
 
   <!-- ALNS loop background -->
-  <rect x="300" y="148" width="900" height="308" rx="2" class="dg-box-loop" stroke-dasharray="6,3"/>
+  <rect x="300" y="148" width="900" height="308" rx="2" class="dg-box-loop" stroke-dasharray="6,3" stroke="rgba(0,168,135,0.2)"/>
   <text x="750" y="165" class="dg-loop-lbl">ALNS MAIN LOOP</text>
 
   <!-- 1: Problem Instance -->
@@ -97,7 +97,7 @@ const slides = [
   <text x="984" y="238" class="dg-tag">FEATURES</text>
 
   <!-- LinUCB box (ML — dashed border) -->
-  <rect x="316" y="176" width="218" height="72" rx="2" fill="#f2efe9" stroke="#3a3530" stroke-width="1.5" stroke-dasharray="5,3"/>
+  <rect x="316" y="176" width="218" height="72" rx="2" fill="#f5f7fa" stroke="#00d4aa" stroke-width="1.5" stroke-dasharray="5,3"/>
   <text x="425" y="200" class="dg-lbl">LinUCB Bandit</text>
   <text x="425" y="218" class="dg-sub">Operator selection</text>
   <text x="425" y="238" class="dg-tag">ML — ONLINE</text>
@@ -115,7 +115,7 @@ const slides = [
   <line x1="425" y1="248" x2="425" y2="284" class="dg-edge"/>
 
   <!-- GBT Repair box (ML — dashed border) -->
-  <rect x="660" y="286" width="218" height="72" rx="2" fill="#f2efe9" stroke="#3a3530" stroke-width="1.5" stroke-dasharray="5,3"/>
+  <rect x="660" y="286" width="218" height="72" rx="2" fill="#f5f7fa" stroke="#00d4aa" stroke-width="1.5" stroke-dasharray="5,3"/>
   <text x="769" y="310" class="dg-lbl">GBT Repair</text>
   <text x="769" y="328" class="dg-sub">Score (item, bin) pairs</text>
   <text x="769" y="348" class="dg-tag">ML — OFFLINE</text>
@@ -147,10 +147,10 @@ const slides = [
   <path d="M720,460 L620,460 L620,466" class="dg-edge"/>
 
   <!-- ML legend -->
-  <rect x="1080" y="400" width="168" height="68" rx="2" fill="#faf9f7" stroke="#e2ddd8" stroke-width="1"/>
-  <rect x="1092" y="415" width="30" height="14" rx="1" fill="#f2efe9" stroke="#3a3530" stroke-width="1.2" stroke-dasharray="4,2"/>
+  <rect x="1080" y="400" width="168" height="68" rx="2" fill="#20252e" stroke="rgba(13,15,18,0.10)" stroke-width="1"/>
+  <rect x="1092" y="415" width="30" height="14" rx="1" fill="#f5f7fa" stroke="#00d4aa" stroke-width="1.2" stroke-dasharray="4,2"/>
   <text x="1132" y="423" class="dg-sub" style="text-anchor:start">ML component</text>
-  <rect x="1092" y="438" width="30" height="14" rx="1" class="dg-box"/>
+  <rect x="1092" y="438" width="30" height="14" rx="1" fill="#f5f7fa" stroke="rgba(13,15,18,0.10)" stroke-width="1"/>
   <text x="1132" y="446" class="dg-sub" style="text-anchor:start">Deterministic</text>
 </svg>
 <p><strong>Two ML decision points:</strong> (1) LinUCB selects the destroy operator at each iteration based on search context; (2) GBT scores all feasible bin candidates during repair. Both components are independently togglable for ablation.</p>`,
@@ -509,8 +509,8 @@ function initResultCharts() {
         datasets: [
           {
             data: chart.values,
-            backgroundColor: "#2c2420",
-            borderColor: "#2c2420",
+            backgroundColor: "#00a887",
+            borderColor: "#00d4aa",
             borderWidth: 1,
           },
         ],
@@ -522,13 +522,13 @@ function initResultCharts() {
         plugins: { legend: { display: false }, tooltip: { enabled: true } },
         scales: {
           x: {
-            ticks: { color: "#5c5650", font: { size: 11 } },
+            ticks: { color: "#4a5168", font: { size: 11 } },
             grid: { display: false },
           },
           y: {
             beginAtZero: true,
             ticks: { display: false },
-            grid: { color: "#e2ddd8" },
+            grid: { color: "rgba(13,15,18,0.08)" },
           },
         },
       },
