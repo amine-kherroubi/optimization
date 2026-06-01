@@ -327,6 +327,12 @@ const slides = [
     content:
       "<h2>VI.2 Conclusions</h2>\n<p><strong>Three contributions:</strong></p>\n<ol><li><strong>Dual-learning ALNS for 1D-BPP</strong> — online and offline ML components with independent toggle switches enabling clean, separable ablation.</li><li><strong>Supervised repair pipeline</strong> — DAgger-lite data augmentation pooling fresh-BFD and post-destruction traces, 11-feature v2 contract, strict quality gates (ROC-AUC, avg. precision), and serialised feature versioning to prevent silent mismatch.</li><li><strong>Warm-start LinUCB bandit</strong> — Beta–Bernoulli Thompson Sampling cold-start mitigation transitioning to disjoint LinUCB after 300 calls, with a gap-normalised reward signal that scales difficulty appropriately.</li></ol>\n<p><strong>Limitations:</strong> small evaluation slices · single-run stochastic baselines · $\\mathrm{LB}_1$ only (weaker than Martello–Toth $L_2$) · GBT overhead not recovered at small scale.</p>\n<p><strong>Future directions:</strong> full benchmark evaluation with averaged runs · upgrade to $L_2$ lower bound · end-to-end RL repair to remove the supervised dependency · cross-family transfer of learned components.</p>",
   },
+  {
+    kind: "dividerContent thankYou",
+    title: "Thank you for listening",
+    content:
+      "<h2>Thank you for listening</h2>\n<h3>Questions?</h3>",
+  },
 ];
 
 const resultCharts = {
@@ -467,6 +473,7 @@ function renderSlide(slide, i) {
 }
 
 slides.forEach((slide, i) => deck.appendChild(renderSlide(slide, i)));
+
 
 /* ─────────────────────────────────────────────────
    Apply best-row highlights to tables
