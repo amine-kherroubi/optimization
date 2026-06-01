@@ -24,6 +24,8 @@ from sklearn.model_selection import (
     cross_val_score,
     learning_curve,
     GridSearchCV,
+    GroupKFold,
+    GroupShuffleSplit,
 )
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
@@ -75,6 +77,8 @@ class TrainRepairModelConfig:
     """Warn (and optionally fail) if holdout ROC-AUC falls below this."""
     min_average_precision: float = 0.50
     """Warn if holdout Average Precision falls below this."""
+    min_top1_accuracy: float = 0.70
+    """Warn if grouped top-1 repair accuracy falls below this when groups exist."""
 
     # --- Covariate-shift mitigation --------------------------------------
     require_alns_states: bool = True
@@ -90,12 +94,63 @@ class TrainRepairModelConfig:
 class ModelEvaluator:
     """Comprehensive model evaluation toolkit."""
 
-    def __init__(self, X_train, y_train, X_test, y_test, model):
+    def __init__(self, X_train, y_train, X_test, y_test, model, groups_test=None):
         self.X_train = X_train
         self.y_train = y_train
         self.X_test = X_test
         self.y_test = y_test
         self.model = model
+        self.groups_test = groups_test
+
+    @staticmethod
+    def _ranking_metrics(y_true, y_score, groups) -> dict[str, float | int]:
+        """Evaluate whether each placement decision's top-ranked bin is the oracle.
+
+        The repair model is used as a ranker: for one displaced item it scores all
+        feasible bins and the solver selects ``argmax(score)``.  Row-wise AUC is
+        useful but not sufficient, so grouped top-1 metrics are the closest offline
+        proxy for runtime repair quality.
+        """
+        if groups is None:
+            return {}
+
+        groups_arr = np.asarray(groups)
+        y_arr = np.asarray(y_true)
+        score_arr = np.asarray(y_score)
+
+        top1_hits = 0
+        oracle_groups = 0
+        reciprocal_ranks: list[float] = []
+        candidate_counts: list[int] = []
+
+        for group in np.unique(groups_arr):
+            idx = np.flatnonzero(groups_arr == group)
+            if idx.size == 0:
+                continue
+            labels = y_arr[idx]
+            positives = np.flatnonzero(labels == 1)
+            if positives.size == 0:
+                continue
+
+            oracle_groups += 1
+            scores = score_arr[idx]
+            order = np.argsort(scores)[::-1]
+            top1_hits += int(labels[order[0]] == 1)
+            first_positive_rank = min(
+                int(np.flatnonzero(order == pos)[0]) + 1 for pos in positives
+            )
+            reciprocal_ranks.append(1.0 / first_positive_rank)
+            candidate_counts.append(int(idx.size))
+
+        if oracle_groups == 0:
+            return {}
+
+        return {
+            "ranking_groups": int(oracle_groups),
+            "top1_accuracy": float(top1_hits / oracle_groups),
+            "mean_reciprocal_rank": float(np.mean(reciprocal_ranks)),
+            "mean_candidates_per_group": float(np.mean(candidate_counts)),
+        }
 
     def evaluate_all(self) -> dict[str, Any]:
         """Compute all metrics and return as dictionary."""
@@ -105,13 +160,18 @@ class ModelEvaluator:
         y_proba = self.model.predict_proba(self.X_test)[:, 1]
 
         metrics["accuracy"] = float((y_pred == self.y_test).mean())
-        metrics["precision"] = float(precision_score(self.y_test, y_pred))
-        metrics["recall"] = float(recall_score(self.y_test, y_pred))
-        metrics["f1"] = float(f1_score(self.y_test, y_pred))
+        metrics["precision"] = float(
+            precision_score(self.y_test, y_pred, zero_division=0)
+        )
+        metrics["recall"] = float(
+            recall_score(self.y_test, y_pred, zero_division=0)
+        )
+        metrics["f1"] = float(f1_score(self.y_test, y_pred, zero_division=0))
         metrics["roc_auc"] = float(roc_auc_score(self.y_test, y_proba))
         metrics["average_precision"] = float(
             average_precision_score(self.y_test, y_proba)
         )
+        metrics.update(self._ranking_metrics(self.y_test, y_proba, self.groups_test))
 
         tn, fp, fn, tp = confusion_matrix(self.y_test, y_pred).ravel()
         metrics["confusion_matrix"] = {
@@ -158,6 +218,18 @@ class ModelEvaluator:
         print(f"  ROC-AUC              : {metrics['roc_auc']:.4f}  <-- main metric")
         print(f"  Average Precision    : {metrics['average_precision']:.4f}")
         print(f"  Optimal Threshold    : {metrics['optimal_threshold']:.4f}")
+        if "top1_accuracy" in metrics:
+            print(
+                f"  Top-1 repair accuracy: {metrics['top1_accuracy']:.4f}  "
+                "(argmax bin equals BFD oracle)"
+            )
+            print(
+                f"  Mean reciprocal rank : {metrics['mean_reciprocal_rank']:.4f}"
+            )
+            print(
+                f"  Ranking groups       : {metrics['ranking_groups']:,}  "
+                f"(avg candidates={metrics['mean_candidates_per_group']:.2f})"
+            )
 
         cm = metrics["confusion_matrix"]
         print("\nConfusion matrix:")
@@ -290,7 +362,7 @@ def plot_feature_importance(
 
 def _load_and_merge(
     data_paths: list[str],
-) -> tuple[np.ndarray, np.ndarray, DatasetSummary, dict[str, Any]]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray | None, DatasetSummary, dict[str, Any]]:
     """Load and merge one or more dataset .pkl files.
 
     Each file must contain keys: X, y, feature_version.
@@ -300,7 +372,7 @@ def _load_and_merge(
       - y contains values other than 0/1
       - X or y contain NaN / inf values
 
-    Returns X, y, summary, source_info
+    Returns X, y, groups, summary, source_info
     where source_info holds per-file counts and ALNS proportion.
     """
     if not data_paths:
@@ -308,6 +380,9 @@ def _load_and_merge(
 
     X_parts: list[np.ndarray] = []
     y_parts: list[np.ndarray] = []
+    group_parts: list[np.ndarray] = []
+    all_files_have_groups = True
+    next_group_id = 0
     source_rows: dict[str, int] = {}   # source_tag -> row count
     alns_rows = 0
     total_rows = 0
@@ -333,6 +408,7 @@ def _load_and_merge(
 
         X_i = bundle["X"].astype(np.float32)
         y_i = bundle["y"].astype(np.int32)
+        groups_raw = bundle.get("groups")
 
         # ── feature count check ────────────────────────────────────────
         if X_i.ndim != 2 or X_i.shape[1] != N_FEATURES:
@@ -359,16 +435,36 @@ def _load_and_merge(
         pos_rate = float(y_i.mean()) if rows > 0 else 0.0
         source_tag = str(bundle.get("source", p.stem))
 
+        if groups_raw is None:
+            all_files_have_groups = False
+            groups_i = None
+        else:
+            groups_arr = np.asarray(groups_raw)
+            if groups_arr.shape != y_i.shape:
+                raise ValueError(
+                    f"{p}: groups shape {groups_arr.shape} does not match "
+                    f"y shape {y_i.shape}. Regenerate the dataset."
+                )
+            # Factorize per file and offset globally so ids cannot collide when
+            # synthetic and ALNS-state datasets are merged.
+            _, groups_i = np.unique(groups_arr, return_inverse=True)
+            groups_i = groups_i.astype(np.int64) + next_group_id
+            if groups_i.size:
+                next_group_id = int(groups_i.max()) + 1
+
         print(f"  ✓ {p.name}")
         print(f"      source       : {source_tag}")
         print(f"      rows         : {rows:,}")
         print(f"      feature_ver  : {fv}")
         print(f"      pos_rate     : {pos_rate:.4f}")
+        print(f"      groups       : {'yes' if groups_i is not None else 'no'}")
         print(f"      NaN/inf      : none")
         print(f"      labels       : {sorted(unique_labels.tolist())}")
 
         X_parts.append(X_i)
         y_parts.append(y_i)
+        if groups_i is not None:
+            group_parts.append(groups_i)
 
         source_rows[source_tag] = source_rows.get(source_tag, 0) + rows
         if "alns" in source_tag.lower():
@@ -377,6 +473,7 @@ def _load_and_merge(
 
     X = np.concatenate(X_parts, axis=0)
     y = np.concatenate(y_parts, axis=0)
+    groups = np.concatenate(group_parts, axis=0) if all_files_have_groups else None
 
     # Global NaN guard on merged array (catches numeric edge-cases in concat)
     if not np.isfinite(X).all():
@@ -395,17 +492,65 @@ def _load_and_merge(
         "per_source": source_rows,
         "alns_rows": alns_rows,
         "alns_ratio": alns_ratio,
+        "has_groups": groups is not None,
+        "group_count": int(np.unique(groups).size) if groups is not None else 0,
     }
 
     print(f"\n  Merged totals")
     print(f"    rows         : {total_rows:,}")
     print(f"    positive rate: {pos_rate:.4f}")
     print(f"    ALNS rows    : {alns_rows:,}  ({alns_ratio:.1%} of total)")
+    if groups is not None:
+        print(f"    groups       : {source_info['group_count']:,} placement decisions")
+    else:
+        print("    groups       : unavailable (falling back to row-wise split)")
     for src, cnt in source_rows.items():
         print(f"    [{src}] : {cnt:,} rows")
     print(f"{'─' * 60}\n")
 
-    return X, y, summary, source_info
+    return X, y, groups, summary, source_info
+
+
+def _group_train_test_split(
+    X: np.ndarray,
+    y: np.ndarray,
+    groups: np.ndarray | None,
+    *,
+    seed: int,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray | None, np.ndarray | None]:
+    """Split rows while keeping all candidates from one decision together."""
+    if groups is None:
+        x_train, x_test, y_train, y_test = train_test_split(
+            X, y, test_size=0.15, random_state=seed, stratify=y
+        )
+        return x_train, x_test, y_train, y_test, None, None
+
+    splitter = GroupShuffleSplit(n_splits=1, test_size=0.15, random_state=seed)
+    train_idx, test_idx = next(splitter.split(X, y, groups=groups))
+    return (
+        X[train_idx],
+        X[test_idx],
+        y[train_idx],
+        y[test_idx],
+        groups[train_idx],
+        groups[test_idx],
+    )
+
+
+def _cv_splitter(groups_train: np.ndarray | None, cv_folds: int):
+    """Return CV splitter/list compatible with cross_val_score."""
+    if groups_train is None:
+        return cv_folds
+
+    unique_groups = np.unique(groups_train)
+    n_splits = min(cv_folds, unique_groups.size)
+    if n_splits < 2:
+        return 2
+    return list(
+        GroupKFold(n_splits=n_splits).split(
+            np.zeros(groups_train.shape[0]), groups=groups_train
+        )
+    )
 
 
 # ============================================================================
@@ -445,13 +590,21 @@ def train_repair_model(config: TrainRepairModelConfig) -> dict[str, Any]:
     print("PHASE 1: LOADING DATASET(S)")
     print("=" * 70)
 
-    X, y, summary, source_info = _load_and_merge(args.data)
+    X, y, groups, summary, source_info = _load_and_merge(args.data)
 
     print(f"Merged dataset : {summary.rows:,} rows x {summary.cols} features")
     print(f"  Positive rate : {summary.positive_rate:.4f}")
     print(f"  Class 0 (neg) : {(y == 0).sum():,}")
     print(f"  Class 1 (pos) : {(y == 1).sum():,}")
     print(f"  ALNS ratio    : {source_info['alns_ratio']:.1%}")
+    print(
+        "  Grouped split : "
+        + (
+            f"YES ({source_info['group_count']:,} placement decisions)"
+            if source_info["has_groups"]
+            else "NO (legacy row-wise dataset)"
+        )
+    )
 
     # =====================================================================
     # 1b. Covariate-shift gate: require ALNS states for v2+ models
@@ -472,11 +625,14 @@ def train_repair_model(config: TrainRepairModelConfig) -> dict[str, Any]:
     print("=" * 70)
     print(f"  random_state = {args.seed}")
 
-    x_trainval, x_test, y_trainval, y_test = train_test_split(
-        X, y, test_size=0.15, random_state=args.seed, stratify=y
+    x_trainval, x_test, y_trainval, y_test, groups_trainval, groups_test = (
+        _group_train_test_split(X, y, groups, seed=args.seed)
     )
     print(f"Training set : {len(x_trainval):,} samples")
     print(f"Test set     : {len(x_test):,} samples")
+    if groups_trainval is not None and groups_test is not None:
+        print(f"Train groups : {np.unique(groups_trainval).size:,}")
+        print(f"Test groups  : {np.unique(groups_test).size:,}")
 
     # =====================================================================
     # 3. Model training with optional hyperparameter tuning
@@ -524,7 +680,7 @@ def train_repair_model(config: TrainRepairModelConfig) -> dict[str, Any]:
         gs = GridSearchCV(
             pipe,
             param_grid,
-            cv=3,
+            cv=_cv_splitter(groups_trainval, min(3, args.cv_folds)),
             scoring="roc_auc",
             n_jobs=-1,
             verbose=1 if args.verbose else 0,
@@ -578,11 +734,12 @@ def train_repair_model(config: TrainRepairModelConfig) -> dict[str, Any]:
     # 4. Cross-validation
     # =====================================================================
     print(f"\nCross-validation ({args.cv_folds}-fold)...")
+    cv = _cv_splitter(groups_trainval, args.cv_folds)
     cv_scores = cross_val_score(
         pipe,
         x_trainval,
         y_trainval,
-        cv=args.cv_folds,
+        cv=cv,
         scoring="roc_auc",
         n_jobs=-1,
     )
@@ -596,7 +753,9 @@ def train_repair_model(config: TrainRepairModelConfig) -> dict[str, Any]:
     print("PHASE 4: TEST SET EVALUATION")
     print("=" * 70)
 
-    evaluator = ModelEvaluator(x_trainval, y_trainval, x_test, y_test, pipe)
+    evaluator = ModelEvaluator(
+        x_trainval, y_trainval, x_test, y_test, pipe, groups_test=groups_test
+    )
     metrics = evaluator.evaluate_all()
     evaluator.print_report(metrics)
 
@@ -610,6 +769,7 @@ def train_repair_model(config: TrainRepairModelConfig) -> dict[str, Any]:
 
     roc = metrics["roc_auc"]
     ap = metrics["average_precision"]
+    top1 = metrics.get("top1_accuracy")
 
     if roc < args.min_roc_auc:
         print(
@@ -628,6 +788,19 @@ def train_repair_model(config: TrainRepairModelConfig) -> dict[str, Any]:
         gate_passed = False
     else:
         print(f"  ✓  Average Precision {ap:.4f} ≥ {args.min_average_precision:.4f}")
+
+    if top1 is not None:
+        if top1 < args.min_top1_accuracy:
+            print(
+                f"  ⚠  Top-1 repair accuracy {top1:.4f} is below threshold "
+                f"{args.min_top1_accuracy:.4f}."
+            )
+            gate_passed = False
+        else:
+            print(
+                f"  ✓  Top-1 repair accuracy {top1:.4f} ≥ "
+                f"{args.min_top1_accuracy:.4f}"
+            )
 
     if gate_passed:
         print("  All quality gates passed.")
@@ -688,11 +861,14 @@ def train_repair_model(config: TrainRepairModelConfig) -> dict[str, Any]:
             "positive_rate": summary.positive_rate,
             "alns_rows": source_info["alns_rows"],
             "alns_ratio": source_info["alns_ratio"],
+            "has_groups": source_info["has_groups"],
+            "group_count": source_info["group_count"],
             "per_source": source_info["per_source"],
         },
         "quality_gates": {
             "min_roc_auc": args.min_roc_auc,
             "min_average_precision": args.min_average_precision,
+            "min_top1_accuracy": args.min_top1_accuracy,
             "passed": gate_passed,
         },
     }

@@ -161,6 +161,88 @@ def _generate_instance(rng: np.random.Generator, n_min: int, n_max: int) -> np.n
 # ---------------------------------------------------------------------------
 
 
+def _remove_items(
+    *,
+    to_remove: Sequence[int],
+    bins: list[list[int]],
+    bin_loads: list[float],
+    item_to_bin: list[int],
+    sizes: Sequence[float],
+) -> list[int]:
+    """Remove selected items and prune empty bins, matching solver semantics."""
+    removed: list[int] = []
+    for item in to_remove:
+        j = item_to_bin[item]
+        if j < 0:
+            continue
+        bucket = bins[j]
+        try:
+            bucket.remove(item)
+        except ValueError:
+            continue
+        bin_loads[j] -= sizes[item]
+        item_to_bin[item] = -1
+        removed.append(item)
+
+    empty = [j for j, bucket in enumerate(bins) if not bucket]
+    for j in reversed(empty):
+        bins.pop(j)
+        bin_loads.pop(j)
+
+    item_to_bin[:] = [-1] * len(item_to_bin)
+    for j, bucket in enumerate(bins):
+        for item in bucket:
+            item_to_bin[item] = j
+
+    return removed
+
+
+def _select_destroy_items(
+    *,
+    bins: list[list[int]],
+    bin_loads: Sequence[float],
+    sizes: Sequence[float],
+    k_items: int,
+    rng: np.random.Generator,
+) -> list[int]:
+    """Sample a destroy move from the same operator family used by the solver.
+
+    The state collector is intentionally lightweight, but it should expose the
+    repair model to realistic ALNS states.  We therefore mix random-item,
+    worst-load, and related-item removal instead of always deleting one whole
+    bin, which over-represents a narrow state distribution.
+    """
+    all_items = [item for bucket in bins for item in bucket]
+    if len(all_items) <= 1:
+        return []
+
+    k_effective = min(k_items, len(all_items) - 1)
+    operator = int(rng.integers(0, 3))
+
+    if operator == 0:
+        return [
+            int(x)
+            for x in rng.choice(all_items, size=k_effective, replace=False)
+        ]
+
+    if operator == 1:
+        order = sorted(
+            range(len(bins)),
+            key=lambda j: bin_loads[j] + float(rng.uniform(0.0, 1e-6)),
+        )
+        selected: list[int] = []
+        for j in order:
+            selected.extend(bins[j])
+            if len(selected) >= k_effective:
+                break
+        return selected[:k_effective]
+
+    seed_item = int(rng.choice(all_items))
+    candidates = [item for item in all_items if item != seed_item]
+    candidates.sort(key=lambda item: abs(sizes[item] - sizes[seed_item]))
+    return [seed_item] + candidates[: max(0, k_effective - 1)]
+
+
 def _run_alns_and_capture(
     sizes: np.ndarray,
     model: Any,
@@ -168,7 +250,7 @@ def _run_alns_and_capture(
     max_iterations: int,
     max_negatives: int,
     rng: np.random.Generator,
-) -> Tuple[list[list[float]], list[int]]:
+) -> Tuple[list[list[float]], list[int], list[int]]:
     """Run ALNS on one instance; capture repair states and label with BFD.
 
     This mirrors the solver logic but intercepts each repair call to extract
@@ -209,6 +291,8 @@ def _run_alns_and_capture(
 
     X_captured: list[list[float]] = []
     y_captured: list[int] = []
+    groups_captured: list[int] = []
+    decision_id = 0
 
     t0 = 1.0 / math.log(2.0)
     temperature = t0
@@ -218,17 +302,23 @@ def _run_alns_and_capture(
         if len(bins) <= 1:
             break
 
-        # Random destroy: remove one bin
-        j_remove = int(rng.integers(0, len(bins)))
-        displaced = list(bins[j_remove])
-        bins.pop(j_remove)
-        bin_loads.pop(j_remove)
-        for item in displaced:
-            item_to_bin[item] = -1
-        # Rebuild item_to_bin
-        for j, b in enumerate(bins):
-            for item in b:
-                item_to_bin[item] = j
+        k_items = int(rng.integers(k_min, k_max + 1))
+        to_remove = _select_destroy_items(
+            bins=bins,
+            bin_loads=bin_loads,
+            sizes=sizes_list,
+            k_items=k_items,
+            rng=rng,
+        )
+        displaced = _remove_items(
+            to_remove=to_remove,
+            bins=bins,
+            bin_loads=bin_loads,
+            item_to_bin=item_to_bin,
+            sizes=sizes_list,
+        )
+        if not displaced:
+            continue
 
         # Capture state and label each displaced item with BFD oracle
         remaining = len(displaced)
@@ -246,6 +336,9 @@ def _run_alns_and_capture(
             )
             X_captured.extend(x_rows)
             y_captured.extend(y_rows)
+            groups_captured.extend([decision_id] * len(y_rows))
+            if y_rows:
+                decision_id += 1
 
             # Now actually place the item using the ML model (on-policy)
             feats: list[list[float]] = []
@@ -284,7 +377,7 @@ def _run_alns_and_capture(
 
         temperature *= alpha
 
-    return X_captured, y_captured
+    return X_captured, y_captured, groups_captured
 
 
 # ---------------------------------------------------------------------------
@@ -321,6 +414,8 @@ def collect_alns_states(config: CollectAlnsStatesConfig) -> dict[str, Any]:
 
     all_X: list[list[float]] = []
     all_y: list[int] = []
+    all_groups: list[int] = []
+    next_group_id = 0
 
     print(f"Seed          : {args.seed}")
     print(f"Running ALNS on {args.instances} instances to collect repair states...")
@@ -329,7 +424,7 @@ def collect_alns_states(config: CollectAlnsStatesConfig) -> dict[str, Any]:
     ):
         inst_rng = np.random.default_rng(child_seeds[i])
         sizes = _generate_instance(inst_rng, args.n_min, args.n_max)
-        X_i, y_i = _run_alns_and_capture(
+        X_i, y_i, groups_i = _run_alns_and_capture(
             sizes=sizes,
             model=model,
             scaler=scaler,
@@ -339,9 +434,13 @@ def collect_alns_states(config: CollectAlnsStatesConfig) -> dict[str, Any]:
         )
         all_X.extend(X_i)
         all_y.extend(y_i)
+        all_groups.extend([next_group_id + g for g in groups_i])
+        if groups_i:
+            next_group_id += max(groups_i) + 1
 
     X_arr = np.asarray(all_X, dtype=np.float32)
     y_arr = np.asarray(all_y, dtype=np.int32)
+    groups_arr = np.asarray(all_groups, dtype=np.int64)
     pos_rate = float(y_arr.mean()) if len(y_arr) > 0 else 0.0
     print(f"Collected {len(all_X):,} rows  (pos_rate={pos_rate:.3f})")
 
@@ -352,12 +451,17 @@ def collect_alns_states(config: CollectAlnsStatesConfig) -> dict[str, Any]:
         unique_labels = np.unique(y_arr)
         if not np.all(np.isin(unique_labels, [0, 1])):
             raise ValueError(f"Collected y_arr has unexpected labels: {unique_labels}")
+    if groups_arr.shape != y_arr.shape:
+        raise ValueError(
+            f"Collected group ids shape {groups_arr.shape} does not match labels {y_arr.shape}"
+        )
 
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "X": X_arr,
         "y": y_arr,
+        "groups": groups_arr,
         "feature_version": FEATURE_VERSION,
         # "source" key allows train_repair_model._load_and_merge to reliably
         # detect and count ALNS rows for the covariate-shift proportion report,

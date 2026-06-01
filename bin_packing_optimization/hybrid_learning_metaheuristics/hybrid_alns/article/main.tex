@@ -39,14 +39,15 @@
 	ablation study isolates the contribution of each learning component, and a
 	multi-dataset evaluation on standard benchmarks (Scholl, Falkenauer, W\"ascher,
 	Hard28) characterizes the combined method. With a budget of $5000$ ALNS
-	iterations, all four ablation configurations reach a near-optimal mean gap of
-	$0.05$ bins on the Scholl-2 slice ($20$ instances); the two learning
-	components affect only solve time on this slice. In the comparative study the
-	dual-learning ALNS achieves the best mean gap ($0.05$ bins, versus $0.25$ for
-	ant colony optimization at roughly $22\times$ the runtime), dominating every
-	classical baseline on quality. Across the five full benchmark families ($685$
-	instances) the combined method reaches the optimum on $86\%$ of Scholl-2 and
-	$61\%$ of Falkenauer-U instances.
+	iterations, all four ablation configurations reach a mean gap of $0.05$ bins to
+	the continuous lower bound $\mathrm{LB}_1$ on the Scholl-2 slice ($20$
+	instances); on this slice, the learning components affect solve time rather
+	than solution quality. In the single-seed comparative study, dual-learning ALNS
+	has the best observed mean gap ($0.05$ bins, versus $0.25$ for ant colony
+	optimization) while running about $22\times$ faster than ant colony
+	optimization. Across five benchmark datasets ($685$ instances), the combined
+	method matches $\mathrm{LB}_1$ on $86\%$ of Scholl-2 and $61\%$ of
+	Falkenauer-U instances.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -108,9 +109,11 @@ from a five-dimensional description of the current search state. Second, an
 offline gradient-boosted-trees model, trained by behavioral cloning of BFD, ranks
 the feasible bins for each displaced item during repair. The two components are
 independent and can be toggled separately, which lets us isolate their individual
-and joint contributions through an ablation study. To our knowledge, this
-two-point integration---online operator selection together with offline learned
-repair---has not been reported for bin packing.
+and joint contributions through an ablation study. We frame this architecture as
+a modular integration whose quality advantage must be judged empirically rather
+than assumed from the presence of learning. To our knowledge, this two-point
+integration---online operator selection together with offline learned repair---has
+not been reported for bin packing.
 
 The remainder of the paper is organized as follows.
 Section~\ref{sec:formulation} formalizes the problem,
@@ -142,9 +145,14 @@ lower bound is
 which is valid because the total item volume $\sum_i s_i$ must be distributed over
 bins of capacity $C$, requiring at least $\sum_i s_i / C$ of them; integrality
 gives the ceiling. Sharper bounds exist, such as the $L_2$ bound of Martello and
-Toth~\cite{bMartello}, but $\mathrm{LB}_1$ is sufficient as the progress indicator
-used throughout this work. 1D-BPP is strongly NP-hard by reduction from
-3-Partition~\cite{bGarey}, which justifies a metaheuristic treatment.
+Toth~\cite{bMartello}. In this paper $\mathrm{LB}_1$ is used only as a uniform
+progress indicator: a zero gap means that the incumbent matches this lower bound,
+and therefore proves optimality only when $\mathrm{LB}_1$ is tight for that
+instance. Because $\mathrm{LB}_1$ can be weak, especially on structured triplet
+instances, all reported ``optimal'' counts below should be read as matches to
+$\mathrm{LB}_1$ rather than independent certificates against the unknown true
+optimum. 1D-BPP is strongly NP-hard by reduction from 3-Partition~\cite{bGarey},
+which justifies a metaheuristic treatment.
 
 \section{Proposed Dual-Learning ALNS}\label{sec:approach}
 
@@ -226,7 +234,7 @@ context encodes the normalized temperature $T/T_0$, the stagnation progress towa
 the next restart, the cost-to-bound ratio $f(x)/\mathrm{LB}_1$, the destruction
 radius $k/n$, and the overall search progress. The reward is
 $\min(1,\,\text{bins\_saved}/\text{gap})$ when bins are saved---normalized by the
-gap to $\mathrm{LB}_1$ so that improvements near the optimum count more---$0.2$ for
+gap to $\mathrm{LB}_1$ so that improvements near the lower-bound target count more---$0.2$ for
 an accepted non-improving move, and $0$ for a rejected one.
 
 \subsection{Offline Learning: GBT Repair by Behavioral Cloning}
@@ -234,17 +242,37 @@ Repair reinserts displaced items in non-increasing size order. For an item, the
 set of feasible bins (those with enough residual capacity) is scored by a gradient
 boosted classifier~\cite{bFriedman}, and the item is placed in the highest-scoring
 bin; a new bin is opened only when no bin is feasible. The model is trained offline
-by behavioral cloning of BFD: each feasible (item, bin) pair is labeled $1$ if BFD
-would select that bin and $0$ otherwise. Every pair is encoded by eleven features
-normalized by capacity or instance size---item size and its square, size rank,
-fraction of items still to reinsert, bin load, residual capacity, post-placement
-slack, bin occupancy, the largest and smallest item already in the bin, and the
-fill ratio. Training pools two trace types---fresh BFD replays and
-post-destruction repair states---to reduce the distribution shift between offline
-replay and the mid-search states encountered at inference. A standard scaler is
-stored with the model, and a fast predictor applies it in NumPy and reads class
-probabilities directly, avoiding per-call validation overhead. Algorithm~\ref{alg:alns}
-summarizes the complete loop.
+by behavioral cloning of BFD, but the training data are generated as ranking
+decisions rather than independent rows. In each BFD replay, labels are collected
+from the current partial packing before the item is inserted: the feasible bin
+with minimum post-placement slack receives label $1$, sampled alternative bins
+receive label $0$, and all candidates from the same placement decision share a
+group identifier. The same grouped format is used for DAgger-lite ALNS-state
+collection, where random-item, worst-load, and related-item destroy moves expose
+the learner to the mid-search states encountered at inference. Every pair is
+encoded by eleven features normalized by capacity or instance size---item size and
+its square, size rank, fraction of items still to reinsert, bin load, residual
+capacity, post-placement slack, bin occupancy, the largest and smallest item
+already in the bin, and the fill ratio. The trainer uses grouped holdout and
+grouped cross-validation so candidates from one repair decision cannot appear in
+both train and test sets, and it reports top-1 repair accuracy in addition to
+row-wise ROC-AUC. A standard scaler is stored with the model, and a fast predictor
+applies it in NumPy and reads class probabilities directly, avoiding per-call
+validation overhead. Algorithm~\ref{alg:alns} summarizes the complete loop.
+
+\subsection{Assumptions and Evaluation Limits}
+The proposed solver relies on two empirical assumptions. First, the contextual
+bandit is useful only if the best destroy operator depends on observable search
+state, so it must be compared against static or randomly selected operators rather
+than treated as intrinsically superior. Second, the learned repair model is a
+behavioral clone of BFD; it may reduce BFD's local myopia in mid-search states,
+but cloning a constructive heuristic is not by itself evidence of discovering a
+better repair policy. The ablation in Section~\ref{sec:experiments} is therefore
+central to the contribution: it tests whether each learning component changes
+quality, runtime, or both. We also interpret every reported gap as a gap to
+$\mathrm{LB}_1$, not as a proof against stronger lower bounds or exact optimal
+solutions, and we reserve claims of general stochastic dominance for future
+multi-seed experiments.
 
 \subsection{Parameter Tuning}
 The hybrid ALNS has a small set of sensitive hyperparameters: the cooling rate,
@@ -282,12 +310,14 @@ and a single pre-trained repair model shared across every dataset. The solver is
 implemented in Python~3.13 with scikit-learn~\cite{bPedregosa} for the
 gradient-boosted repair model, and experiments were run on a workstation running
 Windows~11 with an Intel Core i9-13950HX CPU and 64\,GB of RAM. Solution quality
-is measured by the gap to the
-lower bound, $\text{gap}=\text{bins used}-\mathrm{LB}_1$ of~\eqref{eq:lb}; a gap of
-zero certifies optimality with respect to $\mathrm{LB}_1$.
+is measured by the gap to the lower bound,
+$\text{gap}=\text{bins used}-\mathrm{LB}_1$ of~\eqref{eq:lb}; a gap of zero means
+that the incumbent matches $\mathrm{LB}_1$. Since the exact optimum is not
+separately certified in these experiments, such matches are reported as
+``LB$_1$ matches'' rather than as unconditional proofs of optimality.
 
 \subsection{Datasets}
-We evaluate on four widely used 1D-BPP benchmark families, summarized in
+We evaluate on five widely used 1D-BPP benchmark datasets, summarized in
 Table~\ref{tab:datasets}. Scholl-2 contains uniformly distributed instances with
 capacity $1000$ and $50$--$500$ items. Falkenauer-T comprises triplet instances,
 where an optimal bin holds one large and two small items, at capacity $1000$.
@@ -314,25 +344,29 @@ set of difficult $160$--$200$-item instances at capacity $1000$.
 
 \subsection{Parameter Calibration}
 The ALNS hyperparameters---cooling rate, destruction radii, and the reheat and
-restart thresholds---were tuned with an Optuna search. The bandit uses an
-exploration coefficient $\alpha=0.3$ and a $300$-call Thompson-sampling warm-up,
-and the random seed is fixed so that every reported run is reproducible.
+restart thresholds---were tuned with an Optuna search on a held-out slice of
+Scholl-2. The same Scholl-2 family also appears in the evaluation, so the Scholl-2
+results should be interpreted as partially in-family rather than as a pure
+cross-family generalization test. The bandit uses an exploration coefficient
+$\alpha=0.3$ and a $300$-call Thompson-sampling warm-up, and the random seed is
+fixed so that every reported run is reproducible.
 
 \subsection{Ablation Study}
 To isolate the effect of each learning component we run four configurations on
 the first $20$ Scholl-2 $50$-item instances, keeping all ALNS settings identical
 and toggling only the two switches (Table~\ref{tab:ablation},
 Fig.~\ref{fig:ablation}). With a $5000$-iteration budget all four configurations
-reach the same near-optimal mean gap of $0.05$ bins on this slice, so the
+reach the same mean gap to $\mathrm{LB}_1$ of $0.05$ bins on this slice, so the
 contributions of the two learning components are visible only in solve
 \emph{time}, not in solution quality. The no-learning baseline---random operator
 choice and best-fit repair---is the fastest at $3.14$\,s. Enabling the online
 bandit alone adds only $0.07$\,s, while enabling the offline repair model adds
 $5.82$\,s, so the per-placement scoring of the repair model dominates the cost.
-On this small, near-optimal slice the learning components add overhead without
-quality gain; their benefit is expected on harder instances with larger
-feasible-bin sets, where the offline model can distinguish placements that
-best-fit repair cannot (Tables~\ref{tab:multi} and~\ref{tab:compare}).
+On this small, near-$\mathrm{LB}_1$ slice the learning components add overhead
+without quality gain. A possible benefit on harder instances with larger
+feasible-bin sets remains a hypothesis: the present full-dataset results evaluate
+only the combined method, so they do not yet prove that learned repair improves
+quality over best-fit repair outside the ablation slice.
 
 \begin{table}[htbp]
 	\caption{Ablation on Scholl-2 (50 items, 20 instances).}
@@ -354,7 +388,7 @@ best-fit repair cannot (Tables~\ref{tab:multi} and~\ref{tab:compare}).
 	\centering
 	\includegraphics[width=0.92\linewidth]{figures/ablation.png}
 	\caption{Ablation on Scholl-2 ($5000$ iterations, $20$ instances): the four
-		configurations reach the same near-optimal mean gap ($0.05$); the offline
+		configurations reach the same mean gap to $\mathrm{LB}_1$ ($0.05$); the offline
 		repair model adds about $5.8$\,s of per-placement scoring without quality
 		gain on this slice.}
 	\label{fig:ablation}
@@ -362,11 +396,11 @@ best-fit repair cannot (Tables~\ref{tab:multi} and~\ref{tab:compare}).
 
 \subsection{Multi-Dataset Results}
 Table~\ref{tab:multi} reports the combined method across the five \emph{full}
-benchmark families ($685$ instances in total) with per-instance time limits scaled
-to a $5000$-iteration budget. The solver reaches $\mathrm{LB}_1$ on $86\%$ of
+benchmark datasets ($685$ instances in total) with per-instance time limits scaled
+to a $5000$-iteration budget. The solver matches $\mathrm{LB}_1$ on $86\%$ of
 Scholl-2 instances (mean gap $0.28$) and $61\%$ of Falkenauer-U instances (mean
 gap $0.45$). The triplet instances of Falkenauer-T are the hardest relative to
-$\mathrm{LB}_1$ (mean gap $1.06$, no optimum reached), consistent with the known
+$\mathrm{LB}_1$ (mean gap $1.06$, no LB$_1$ matches), consistent with the known
 weakness of the continuous bound on triplet structures, where the true optimum
 typically exceeds $\mathrm{LB}_1$ by one bin. Mean runtime grows steeply with
 item count---about $33$\,s on Scholl-2 but more than $1200$\,s on the
@@ -381,7 +415,7 @@ deadline, an honest upper bound rather than the lower bound.
 	\centering
 	\begin{tabular}{l c c c c}
 		\hline
-		\textbf{Dataset}  & \textbf{N} & \textbf{Avg gap} & \textbf{Opt (\%)} & \textbf{Avg time (s)} \\
+		\textbf{Dataset}  & \textbf{N} & \textbf{Avg gap} & \textbf{LB$_1$ hit (\%)} & \textbf{Avg time (s)} \\
 		\hline
 		Scholl-2          & 480        & 0.28             & 85.8              & 33.37                 \\
 		Falkenauer-T      & 80         & 1.06             & 0.0               & 53.48                 \\
@@ -402,10 +436,11 @@ $1.40$ bins, and the standalone trajectory metaheuristics---simulated annealing
 and tabu search---do not improve on construction within their default budgets on
 this slice. The population methods are stronger: the genetic algorithm reaches a
 mean gap of $0.90$ in $1.11$\,s and ant colony optimization $0.25$ in
-$193.91$\,s. The dual-learning ALNS attains the best mean gap of $0.05$ in
-$8.64$\,s, dominating every baseline on quality while running about $22\times$
-faster than ant colony optimization. The metaheuristic baselines are stochastic,
-so their gaps vary across runs; a single aligned run is reported.
+$193.91$\,s. The dual-learning ALNS attains the best observed mean gap of $0.05$ in
+$8.64$\,s while running about $22\times$ faster than ant colony optimization.
+Because the metaheuristic baselines are stochastic and their gaps vary across
+runs, this single aligned run supports a bounded claim of best observed
+performance under the fixed-seed setting, not statistical dominance.
 
 \begin{table}[htbp]
 	\caption{Comparison on Scholl-2 (50 items, 20 instances): mean gap to $\mathrm{LB}_1$ and mean solve time.}
@@ -432,20 +467,23 @@ points of the destroy--repair loop: an online warm-start LinUCB bandit for
 destroy-operator selection and an offline gradient-boosted repair model trained by
 behavioral cloning of Best-Fit Decreasing. An ablation isolating the two
 components shows that with a $5000$-iteration budget all four configurations
-reach the same near-optimal mean gap of $0.05$ bins on the Scholl-2 slice, so
-the contributions of the two learning components are visible there only as
-solve-time overhead. On the comparative study the dual-learning configuration
-achieves the best gap ($0.05$), dominating every baseline on quality while
-running about $22\times$ faster than ant colony optimization. Across the five
-full benchmark families ($685$ instances) the combined method reaches the
-optimum on $86\%$ of Scholl-2 and $61\%$ of Falkenauer-U instances; harder
-families remain bounded by the per-instance time budget. The main limitations
-are the single-run reporting of stochastic baselines and the runtime overhead
-of the offline model on the largest instances. Future work will extend the evaluation to full datasets and stronger
-lower bounds such as the Martello--Toth $L_2$ bound, where learned repair is
-expected to pay off on larger feasible-bin sets, replace the cloned repair model
-with a policy learned directly from search reward, and study the transfer of the
-learned components across instance families.
+reach the same mean gap of $0.05$ bins to $\mathrm{LB}_1$ on the Scholl-2 slice,
+so the contributions of the two learning components are visible there only as
+solve-time overhead. In the comparative study the dual-learning configuration
+achieves the best observed fixed-seed gap ($0.05$) while running about
+$22\times$ faster than ant colony optimization. Across the five full benchmark
+datasets ($685$ instances) the combined method matches $\mathrm{LB}_1$ on
+$86\%$ of Scholl-2 and $61\%$ of Falkenauer-U instances; harder families remain
+bounded by the per-instance time budget. The main limitations are the single-run
+reporting of stochastic baselines, the use of $\mathrm{LB}_1$ rather than
+stronger certificates, the partial in-family Scholl-2 calibration, and the
+runtime overhead of the offline model on the largest instances. Future work will
+run multi-seed comparisons with uncertainty estimates, evaluate online-only and
+offline-only variants across the full datasets, separate tuning and evaluation
+families more strictly, use stronger lower bounds such as the Martello--Toth
+$L_2$ bound, replace the cloned repair model with a policy learned directly from
+search reward, and study the transfer of the learned components across instance
+families.
 
 \begin{thebibliography}{00}
 	\bibitem{bCoffman} E. G. Coffman, M. R. Garey, and D. S. Johnson, ``Approximation algorithms for bin packing: a survey,'' in \textit{Approximation Algorithms for NP-Hard Problems}, 1996, pp. 46--93.

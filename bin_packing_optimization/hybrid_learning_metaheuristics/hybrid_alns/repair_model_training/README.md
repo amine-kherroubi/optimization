@@ -46,6 +46,12 @@ ALNS_SEED         = 1    # collect_alns_states
 
 ### Step 1: Generate baseline synthetic data
 
+The generator replays BFD incrementally.  Each row is produced from the current
+partial packing before the item is inserted, and all candidate bins for one
+placement decision receive a shared `groups` id.  The grouped id prevents train
+/ test leakage between candidates from the same decision and lets the trainer
+report top-1 repair accuracy, the metric closest to runtime usage.
+
 ```python
 from bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns \
     .repair_model_training.generate_dataset import GenerateDatasetConfig, generate_dataset
@@ -127,9 +133,24 @@ benchmark.save_results_to_csv()
 | `seed` | `42` | Single source of randomness: train/test split + GradientBoosting `random_state` |
 | `min_roc_auc` | `0.70` | Quality gate — warns if holdout ROC-AUC falls below this |
 | `min_average_precision` | `0.50` | Quality gate — warns if holdout AP falls below this |
+| `min_top1_accuracy` | `0.70` | Quality gate — warns if grouped argmax repair accuracy falls below this |
 | `require_alns_states` | `True` | Raises if no ALNS-tagged dataset is provided (set `False` for v1 baseline) |
 | `cv_folds` | `5` | Cross-validation folds |
 | `grid_search` | `False` | Enable GridSearchCV hyperparameter sweep (slow, ~1–2 h) |
+
+## Offline-training improvements
+
+- Synthetic rows are generated from reachable BFD-prefix states instead of the
+  completed packing, so the labelled item is not already present in a candidate
+  bin.
+- Generated datasets now include `groups`, one group per placement decision.
+  The trainer uses grouped holdout and grouped cross-validation when available.
+- Evaluation includes `top1_accuracy` and mean reciprocal rank.  These metrics
+  ask whether the model's highest-scored feasible bin matches the BFD oracle for
+  a whole repair decision, which is closer to ALNS inference than row-wise AUC.
+- ALNS-state collection now samples the same destroy-operator family used by the
+  solver (random-item, worst-load, related-item) instead of only removing one
+  whole bin, giving the offline model a broader and more realistic state mix.
 
 ## Notebooks
 

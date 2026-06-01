@@ -11,10 +11,12 @@ collect_alns_states.py (augmentation data input).
 
 Labelling strategy
 ------------------
-For each synthetic instance we build an FFD (First Fit Decreasing) start
-solution, then label every feasible bin placement using the BFD oracle: the
-bin that minimises post-placement slack is the positive; other feasible bins
-are sampled as negatives (up to max_negatives).
+For each synthetic instance we replay a BFD (Best-Fit Decreasing) construction
+incrementally.  At each placement decision, the current partial packing is used
+to label feasible existing bins: the bin that minimises post-placement slack is
+the positive; other feasible bins are sampled as negatives (up to
+max_negatives).  This avoids training on the final packing state, where the item
+being labelled may already be present in a candidate bin.
 
 Usage
 -----
@@ -27,7 +29,10 @@ Usage
 
 Then pass the output to train_repair_model.py:
 
-    train_repair_model(TrainRepairModelConfig(data=["training_data/synthetic_v1.pkl"]))
+    train_repair_model(TrainRepairModelConfig(
+        data=["training_data/synthetic_v1.pkl"],
+        require_alns_states=False,
+    ))
 """
 
 from __future__ import annotations
@@ -185,7 +190,7 @@ def _generate_instance(rng: np.random.Generator, n_min: int, n_max: int) -> np.n
 
 def _build_instance_rows(
     args: tuple[int, int, int, int],
-) -> tuple[list[list[float]], list[int]]:
+) -> tuple[list[list[float]], list[int], list[int]]:
     """Build feature/label rows for a single synthetic instance.
 
     This function is the per-worker unit of work.  It must be a module-level
@@ -195,16 +200,17 @@ def _build_instance_rows(
     Algorithm
     ---------
     1. Generate a random instance using a child RNG derived from ``inst_seed``.
-    2. Build an FFD start solution (items sorted descending, each placed in
-       the first bin with enough remaining capacity).
-    3. For every item in FFD order:
-       a. Find all feasible bins (remaining capacity ≥ item size).
+    2. Replay BFD construction over a partial solution.
+    3. For every item in decreasing-size order:
+       a. Find all existing feasible bins (remaining capacity ≥ item size).
        b. Identify the BFD-optimal bin (smallest post-placement slack) as
           the positive label.
        c. Sample up to ``max_negatives`` other feasible bins as negatives.
        d. Compute the feature vector for each selected bin and record the row.
-    4. If no feasible bin exists for an item (should not happen in a valid
-       FFD solution, but guarded defensively), the item is skipped.
+       e. Place the item in the BFD-optimal bin so the next decision sees the
+          same partial state as a real BFD replay.
+    4. If no feasible existing bin exists, open a new bin and do not emit a
+       row because the runtime learned repair only ranks existing feasible bins.
 
     Parameters
     ----------
@@ -216,6 +222,7 @@ def _build_instance_rows(
     -------
     rows_X : list of feature vectors (one per positive/negative placement)
     rows_y : list of labels (1 = positive / BFD-optimal, 0 = negative)
+    rows_group : list of placement-decision ids, one per row
     """
     inst_seed, n_min, n_max, max_negatives = args
 
@@ -227,34 +234,26 @@ def _build_instance_rows(
     n = len(sizes_list)
     capacity = 1.0
 
-    # --- FFD start solution ---------------------------------------------------
-    # Sort items by descending size; assign each to the first bin that fits.
+    # --- Incremental BFD replay ----------------------------------------------
+    # Sort items by descending size; for each placement decision, label the
+    # current partial state before mutating it.  This matches the inference-time
+    # repair contract: the model ranks feasible existing bins for a displaced
+    # item, and the solver opens a new bin only when no existing bin is feasible.
     order = sorted(range(n), key=lambda i: -sizes_list[i])
-    # size_rank[item] = position in the FFD ordering (0 = largest item).
+    # size_rank[item] = position in the decreasing-size ordering (0 = largest item).
     size_rank: dict[int, int] = {item: rank for rank, item in enumerate(order)}
 
     bins: list[list[int]] = []  # bins[j] = list of item indices in bin j
     bin_loads: list[float] = []  # bin_loads[j] = total size of items in bin j
 
-    for item in order:
-        s = sizes_list[item]
-        placed = False
-        for j, load in enumerate(bin_loads):
-            if load + s <= capacity:
-                bins[j].append(item)
-                bin_loads[j] += s
-                placed = True
-                break
-        if not placed:
-            bins.append([item])
-            bin_loads.append(s)
-
     # --- Label each placement decision ----------------------------------------
     rows_X: list[list[float]] = []
     rows_y: list[int] = []
+    rows_group: list[int] = []
 
     remaining = len(order)  # items yet to be "decided" (counts down in loop)
     denom = max(1, n)  # denominator for remaining_ratio feature
+    decision_id = 0
 
     for item in order:
         item_size = sizes_list[item]
@@ -275,8 +274,8 @@ def _build_instance_rows(
                 best_bin = j
 
         if best_bin == -1:
-            # Defensive guard: no feasible bin found (should not occur in a
-            # valid FFD solution because the item was placed during construction).
+            bins.append([item])
+            bin_loads.append(item_size)
             remaining -= 1
             continue
 
@@ -297,6 +296,7 @@ def _build_instance_rows(
         # Positive: the BFD-optimal bin.
         rows_X.append(_feat(best_bin))
         rows_y.append(1)
+        rows_group.append(decision_id)
 
         # Negatives: a random subset of the other feasible bins.
         negatives = [j for j in feasible if j != best_bin]
@@ -305,10 +305,18 @@ def _build_instance_rows(
         for j in negatives:
             rows_X.append(_feat(j))
             rows_y.append(0)
+            rows_group.append(decision_id)
 
+        # Mutate the partial solution with the oracle decision before moving to
+        # the next item.  This is the critical fix: future rows are generated
+        # from reachable BFD-prefix states, not from the completed packing.
+        bins[best_bin].append(item)
+        bin_loads[best_bin] += item_size
+
+        decision_id += 1
         remaining -= 1
 
-    return rows_X, rows_y
+    return rows_X, rows_y, rows_group
 
 
 # ============================================================================
@@ -324,12 +332,12 @@ def build_dataset(
     max_negatives: int,
     seed: int = 0,
     workers: int = 1,
-) -> tuple[np.ndarray, np.ndarray, DatasetSummary]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, DatasetSummary]:
     """Generate a synthetic (X, y) training dataset.
 
     For each instance:
-      1. Build an FFD start solution.
-      2. For every item, find all feasible bins.
+      1. Replay a BFD construction over a partial packing.
+      2. For every item, find all feasible existing bins.
       3. Label the minimum-slack bin as positive (BFD oracle).
       4. Sample up to ``max_negatives`` other feasible bins as negatives.
 
@@ -354,6 +362,9 @@ def build_dataset(
     -------
     X : np.ndarray, shape (n_rows, N_FEATURES), dtype float32
     y : np.ndarray, shape (n_rows,), dtype int32
+    groups : np.ndarray, shape (n_rows,), dtype int64
+        Placement-decision id for each row.  Rows from the same decision share
+        one positive candidate and must stay in the same train/test fold.
     summary : DatasetSummary
     """
     worker_count = max(1, int(workers))
@@ -369,6 +380,8 @@ def build_dataset(
 
     all_X: list[list[float]] = []
     all_y: list[int] = []
+    all_groups: list[int] = []
+    next_group_id = 0
 
     pool = None
     try:
@@ -388,9 +401,12 @@ def build_dataset(
                 total=instances,
             )
 
-        for rows_X, rows_y in iterator:
+        for rows_X, rows_y, rows_group in iterator:
             all_X.extend(rows_X)
             all_y.extend(rows_y)
+            all_groups.extend([next_group_id + g for g in rows_group])
+            if rows_group:
+                next_group_id += max(rows_group) + 1
 
     finally:
         # Always clean up the pool, even if an exception occurred mid-iteration.
@@ -405,9 +421,11 @@ def build_dataset(
     if len(all_X) == 0:
         X_arr = np.zeros((0, N_FEATURES), dtype=np.float32)
         y_arr = np.zeros((0,), dtype=np.int32)
+        groups_arr = np.zeros((0,), dtype=np.int64)
     else:
         X_arr = np.asarray(all_X, dtype=np.float32)
         y_arr = np.asarray(all_y, dtype=np.int32)
+        groups_arr = np.asarray(all_groups, dtype=np.int64)
 
     pos_rate = float(y_arr.mean()) if y_arr.size > 0 else 0.0
     summary = DatasetSummary(
@@ -415,7 +433,7 @@ def build_dataset(
         cols=int(N_FEATURES),
         positive_rate=pos_rate,
     )
-    return X_arr, y_arr, summary
+    return X_arr, y_arr, groups_arr, summary
 
 
 # ============================================================================
@@ -445,7 +463,7 @@ def generate_dataset(config: GenerateDatasetConfig) -> dict:
     print(f"  Workers            : {config.workers}")
     print(f"  Output             : {config.output}")
 
-    X, y, summary = build_dataset(
+    X, y, groups, summary = build_dataset(
         instances=config.instances,
         n_min=config.n_min,
         n_max=config.n_max,
@@ -455,6 +473,10 @@ def generate_dataset(config: GenerateDatasetConfig) -> dict:
     )
 
     _validate_dataset_arrays(X, y, context=str(config.output))
+    if groups.shape != y.shape:
+        raise ValueError(
+            f"{config.output}: groups shape {groups.shape} must match y shape {y.shape}"
+        )
 
     print(f"\nDataset: {summary.rows:,} rows x {summary.cols} features")
     print(
@@ -471,6 +493,7 @@ def generate_dataset(config: GenerateDatasetConfig) -> dict:
     payload = {
         "X": X,
         "y": y,
+        "groups": groups,
         "feature_version": FEATURE_VERSION,
         "source": "synthetic",
         "summary": {
