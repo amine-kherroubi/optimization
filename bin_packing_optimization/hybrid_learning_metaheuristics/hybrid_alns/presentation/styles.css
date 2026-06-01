@@ -1109,8 +1109,7 @@ tbody tr.best td:first-child {
 /* ── Static Markdown slide content ───────────────────────────────── */
 .markdown-content {
   max-width: 1656px;
-  /* Slide 1080px − pad-y top 91px − footer area (38px bottom + 43px height + 10px gap) = 898px usable.
-     Cap content so it never pushes the footer up. */
+  /* Cap content so it never pushes the footer up. */
   height: 816px;
   max-height: 816px;
   overflow: hidden;
@@ -1245,6 +1244,48 @@ tbody tr.best td:first-child {
 }
 .markdown-content td {
   font-size: 22px;
+}
+
+/* Only the two known overflowing slides opt into the full safe vertical area. */
+.slide[data-slide="07"] .markdown-content,
+.slide[data-slide="26"] .markdown-content {
+  height: 898px;
+  max-height: 898px;
+}
+
+/* Compact overflowing content on dense narrative/table slides. */
+.slide[data-slide="07"] .markdown-content p,
+.slide[data-slide="07"] .markdown-content blockquote p {
+  font-size: 24px;
+  line-height: 1.34;
+}
+
+.slide[data-slide="07"] .markdown-content p + p,
+.slide[data-slide="07"] .markdown-content blockquote + p {
+  margin-top: var(--s3);
+}
+
+.slide[data-slide="07"] .markdown-content blockquote {
+  margin-top: var(--s4);
+  padding: var(--s3) var(--s5);
+}
+
+.slide[data-slide="26"] .markdown-content .table-card {
+  margin-top: var(--s4);
+}
+
+.slide[data-slide="26"] .markdown-content th,
+.slide[data-slide="26"] .markdown-content td {
+  padding: 8px 14px;
+}
+
+.slide[data-slide="26"] .markdown-content th {
+  font-size: 14px;
+}
+
+.slide[data-slide="26"] .markdown-content td {
+  font-size: 19px;
+  line-height: 1.16;
 }
 
 .formula-png {

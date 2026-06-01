@@ -590,3 +590,12 @@ The dual-learning ALNS achieves a mean gap of **0.20** — the lowest of any tes
 **Limitations:** small evaluation slices · single-run stochastic baselines · $\mathrm{LB}_1$ only (weaker than Martello–Toth $L_2$) · GBT overhead not recovered at small scale.
 
 **Future directions:** full benchmark evaluation with averaged runs · upgrade to $L_2$ lower bound · end-to-end RL repair to remove the supervised dependency · cross-family transfer of learned components.
+
+
+---
+
+**Slide 38** *(Closing)*
+
+## Thank you for listening
+
+### Questions?

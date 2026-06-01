@@ -22,7 +22,7 @@ Open `http://localhost:8000` in a modern browser.
 
 ## Render slides in a browser
 
-The deck renders 36 fixed-size slides at 1920 × 1080 pixels. The source material is maintained alongside the renderer in `bin_packing_optimization/hybrid_learning_metaheuristics/hybrid_alns/presentation/`.
+The deck renders 38 fixed-size slides at 1920 × 1080 pixels. The source material is maintained alongside the renderer in `bin_packing_optimization/hybrid_learning_metaheuristics/hybrid_alns/presentation/`.
 
 ## Formula handling for Canva
 
