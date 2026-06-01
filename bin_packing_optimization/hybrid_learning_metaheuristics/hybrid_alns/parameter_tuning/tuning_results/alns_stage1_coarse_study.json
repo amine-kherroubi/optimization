@@ -1,0 +1,940 @@
+{
+  "study_name": "alns_stage1_coarse",
+  "direction": "MINIMIZE",
+  "sampler": {
+    "name": "TPESampler"
+  },
+  "timestamp": 1780329837.7289443,
+  "seed": 42,
+  "pipeline_config": {
+    "quality_weight": 0.9,
+    "time_weight": 0.1,
+    "time_limit": 60,
+    "max_iter": 2500,
+    "n_jobs": 20
+  },
+  "best_value": 0.07843758235936894,
+  "best_params": {
+    "initial_temperature": 0.5506762438069402,
+    "alpha_cool": 0.9990447673880424,
+    "reheat_soft_mult": 0.4758333998707458,
+    "reheat_hard_mult": 0.34986003926594955,
+    "k_min_frac": 0.012497842708555227,
+    "k_max_frac": 0.10252011149123068,
+    "no_improve_frac": 0.044537818487771226,
+    "bandit_alpha": 0.9532710761198558,
+    "warmup_calls": 598
+  },
+  "n_trials_total": 35,
+  "n_trials_completed": 27,
+  "n_trials_pruned": 8,
+  "n_trials_failed": 0,
+  "trials": [
+    {
+      "number": 0,
+      "value": 0.08741188786213175,
+      "params": {
+        "initial_temperature": 1.4426950408889634,
+        "alpha_cool": 0.9995,
+        "reheat_soft_mult": 0.35,
+        "reheat_hard_mult": 0.2,
+        "k_min_frac": 0.05,
+        "k_max_frac": 0.25,
+        "no_improve_frac": 0.05,
+        "bandit_alpha": 0.3,
+        "warmup_calls": 300
+      },
+      "metrics": {
+        "mean_relative_gap": 0.011497858013483523,
+        "mean_normalized_time": 0.7706381564999657,
+        "mean_time_s": 46.23828938999795,
+        "per_dataset_relative_gap": {
+          "scholl-2": 0.006664734859461026,
+          "scholl-1": 0.0374058946161279,
+          "falkenauer-t": 0.037500000000000006,
+          "falkenauer-u": 0.004348114476734535,
+          "scholl-3": 0.0181036556036556
+        },
+        "arm_pulls": [
+          17241,
+          22039,
+          16809
+        ]
+      }
+    },
+    {
+      "number": 1,
+      "value": 0.08867615949337117,
+      "params": {
+        "initial_temperature": 0.5,
+        "alpha_cool": 0.99,
+        "reheat_soft_mult": 0.1,
+        "reheat_hard_mult": 0.05,
+        "k_min_frac": 0.01,
+        "k_max_frac": 0.5,
+        "no_improve_frac": 0.01,
+        "bandit_alpha": 0.01,
+        "warmup_calls": 1000
+      },
+      "metrics": {
+        "mean_relative_gap": 0.010824104946275018,
+        "mean_normalized_time": 0.7893446504172364,
+        "mean_time_s": 47.36067902503419,
+        "per_dataset_relative_gap": {
+          "scholl-2": 0.004201680672268907,
+          "scholl-1": 0.0374058946161279,
+          "falkenauer-t": 0.037500000000000006,
+          "falkenauer-u": 0.004818904222506377,
+          "scholl-3": 0.0181036556036556
+        },
+        "arm_pulls": [
+          33408,
+          20503,
+          4600
+        ]
+      }
+    },
+    {
+      "number": 2,
+      "value": 0.08837017321095406,
+      "params": {
+        "initial_temperature": 0.9487038136102541,
+        "alpha_cool": 0.9985652023148629,
+        "reheat_soft_mult": 0.5919447828041913,
+        "reheat_hard_mult": 0.3071909491986141,
+        "k_min_frac": 0.07788889710860711,
+        "k_max_frac": 0.31495675744560386,
+        "no_improve_frac": 0.0982977743167145,
+        "bandit_alpha": 0.5386006539720469,
+        "warmup_calls": 251
+      },
+      "metrics": {
+        "mean_relative_gap": 0.010884257169626554,
+        "mean_normalized_time": 0.7857434175829016,
+        "mean_time_s": 47.14460505497409,
+        "per_dataset_relative_gap": {
+          "scholl-2": 0.004908894250769615,
+          "scholl-1": 0.0374058946161279,
+          "falkenauer-t": 0.037500000000000006,
+          "falkenauer-u": 0.004350472899697099,
+          "scholl-3": 0.0181036556036556
+        },
+        "arm_pulls": [
+          15981,
+          22725,
+          16395
+        ]
+      }
+    },
+    {
+      "number": 3,
+      "value": 0.08865622006067514,
+      "params": {
+        "initial_temperature": 2.1419154679032175,
+        "alpha_cool": 0.9985476144521535,
+        "reheat_soft_mult": 0.1940997754766663,
+        "reheat_hard_mult": 0.07947361042950017,
+        "k_min_frac": 0.07631045557798215,
+        "k_max_frac": 0.24982876884797445,
+        "no_improve_frac": 0.020377416355479835,
+        "bandit_alpha": 0.3568080182014584,
+        "warmup_calls": 200
+      },
+      "metrics": {
+        "mean_relative_gap": 0.011565200595164601,
+        "mean_normalized_time": 0.78247539525027,
+        "mean_time_s": 46.9485237150162,
+        "per_dataset_relative_gap": {
+          "scholl-2": 0.006664734859461026,
+          "scholl-1": 0.0374058946161279,
+          "falkenauer-t": 0.037500000000000006,
+          "falkenauer-u": 0.004516470930937232,
+          "scholl-3": 0.0181036556036556
+        },
+        "arm_pulls": [
+          15679,
+          23406,
+          17256
+        ]
+      }
+    },
+    {
+      "number": 4,
+      "value": 0.09330100550892684,
+      "params": {
+        "initial_temperature": 1.429219464250389,
+        "alpha_cool": 0.9985844928097862,
+        "reheat_soft_mult": 0.857526329243658,
+        "reheat_hard_mult": 0.3309836631710066,
+        "k_min_frac": 0.06023270033845892,
+        "k_max_frac": 0.35783687570283795,
+        "no_improve_frac": 0.08030013576946972,
+        "bandit_alpha": 0.07638692419098915,
+        "warmup_calls": 469
+      },
+      "metrics": {
+        "mean_relative_gap": 0.012257421875635069,
+        "mean_normalized_time": 0.8226932582085527,
+        "mean_time_s": 49.36159549251315,
+        "per_dataset_relative_gap": {
+          "scholl-1": 0.0374058946161279,
+          "scholl-2": 0.007371948437961733,
+          "falkenauer-t": 0.037500000000000006,
+          "falkenauer-u": 0.004512140822353855,
+          "scholl-3": 0.022567941317941317
+        },
+        "arm_pulls": [
+          45159,
+          5446,
+          3594
+        ]
+      }
+    },
+    {
+      "number": 5,
+      "value": 0.08232100055317676,
+      "params": {
+        "initial_temperature": 0.6429672011468859,
+        "alpha_cool": 0.9987368700579742,
+        "reheat_soft_mult": 0.5949166028311228,
+        "reheat_hard_mult": 0.06799724495690244,
+        "k_min_frac": 0.04095110315982081,
+        "k_max_frac": 0.1538275034169451,
+        "no_improve_frac": 0.066074645446059,
+        "bandit_alpha": 0.6387198658171316,
+        "warmup_calls": 558
+      },
+      "metrics": {
+        "mean_relative_gap": 0.01100959217017829,
+        "mean_normalized_time": 0.7241236760001629,
+        "mean_time_s": 43.447420560009775,
+        "per_dataset_relative_gap": {
+          "scholl-2": 0.004908894250769615,
+          "scholl-1": 0.0374058946161279,
+          "falkenauer-t": 0.037500000000000006,
+          "falkenauer-u": 0.004663810401076433,
+          "scholl-3": 0.0181036556036556
+        },
+        "arm_pulls": [
+          21231,
+          20943,
+          16926
+        ]
+      }
+    },
+    {
+      "number": 6,
+      "value": 0.09181863840497631,
+      "params": {
+        "initial_temperature": 0.7556798367547646,
+        "alpha_cool": 0.9982627801250553,
+        "reheat_soft_mult": 0.8026360962067286,
+        "reheat_hard_mult": 0.20789262997362734,
+        "k_min_frac": 0.1481514919795828,
+        "k_max_frac": 0.20227960217077684,
+        "no_improve_frac": 0.18261454904101815,
+        "bandit_alpha": 0.36651982373144654,
+        "warmup_calls": 492
+      },
+      "metrics": {
+        "mean_relative_gap": 0.011138647723127507,
+        "mean_normalized_time": 0.8179385545416155,
+        "mean_time_s": 49.07631327249692,
+        "per_dataset_relative_gap": {
+          "scholl-2": 0.004908894250769615,
+          "scholl-1": 0.0374058946161279,
+          "falkenauer-t": 0.037500000000000006,
+          "falkenauer-u": 0.0049864492834494805,
+          "scholl-3": 0.0181036556036556
+        },
+        "arm_pulls": [
+          14438,
+          25715,
+          14239
+        ]
+      }
+    },
+    {
+      "number": 8,
+      "value": 0.09644775157721976,
+      "params": {
+        "initial_temperature": 1.9124837726168442,
+        "alpha_cool": 0.9996253776432719,
+        "reheat_soft_mult": 0.6788141171917352,
+        "reheat_hard_mult": 0.5462145346961396,
+        "k_min_frac": 0.18615025963119552,
+        "k_max_frac": 0.39541825671651354,
+        "no_improve_frac": 0.19169632714162146,
+        "bandit_alpha": 0.15136239496327006,
+        "warmup_calls": 578
+      },
+      "metrics": {
+        "mean_relative_gap": 0.01017247003488472,
+        "mean_normalized_time": 0.872925285458235,
+        "mean_time_s": 52.37551712749409,
+        "per_dataset_relative_gap": {
+          "scholl-2": 0.0007072135785007072,
+          "scholl-1": 0.0374058946161279,
+          "falkenauer-t": 0.037500000000000006,
+          "falkenauer-u": 0.005131404222506377,
+          "scholl-3": 0.022567941317941317
+        },
+        "arm_pulls": [
+          18796,
+          20328,
+          11504
+        ]
+      }
+    },
+    {
+      "number": 9,
+      "value": 0.0957501601957448,
+      "params": {
+        "initial_temperature": 1.4138045743748422,
+        "alpha_cool": 0.9982897051097694,
+        "reheat_soft_mult": 0.2668138536384439,
+        "reheat_hard_mult": 0.13568117739626734,
+        "k_min_frac": 0.16265370341821353,
+        "k_max_frac": 0.2169112372743373,
+        "no_improve_frac": 0.1785193555421028,
+        "bandit_alpha": 0.0729463173283685,
+        "warmup_calls": 146
+      },
+      "metrics": {
+        "mean_relative_gap": 0.012384971073982076,
+        "mean_normalized_time": 0.8460368622916092,
+        "mean_time_s": 50.76221173749654,
+        "per_dataset_relative_gap": {
+          "scholl-1": 0.036221060492905154,
+          "scholl-2": 0.0073719484379617325,
+          "falkenauer-t": 0.037500000000000006,
+          "scholl-3": 0.022567941317941317,
+          "falkenauer-u": 0.005127222349027058
+        },
+        "arm_pulls": [
+          45742,
+          3950,
+          1206
+        ]
+      }
+    },
+    {
+      "number": 11,
+      "value": 0.08269673051587144,
+      "params": {
+        "initial_temperature": 0.5105024880743506,
+        "alpha_cool": 0.9991095897956149,
+        "reheat_soft_mult": 0.43463923594913245,
+        "reheat_hard_mult": 0.2549710084525239,
+        "k_min_frac": 0.03295238306100576,
+        "k_max_frac": 0.10013154704139371,
+        "no_improve_frac": 0.04581726229222158,
+        "bandit_alpha": 0.7197365667742109,
+        "warmup_calls": 577
+      },
+      "metrics": {
+        "mean_relative_gap": 0.011454679999162403,
+        "mean_normalized_time": 0.7238751851662528,
+        "mean_time_s": 43.43251110997517,
+        "per_dataset_relative_gap": {
+          "scholl-2": 0.004908894250769615,
+          "scholl-1": 0.0374058946161279,
+          "falkenauer-t": 0.037500000000000006,
+          "falkenauer-u": 0.0046604585449652874,
+          "scholl-3": 0.022567941317941317
+        },
+        "arm_pulls": [
+          21846,
+          20687,
+          17041
+        ]
+      }
+    },
+    {
+      "number": 12,
+      "value": 0.07843758235936894,
+      "params": {
+        "initial_temperature": 0.5506762438069402,
+        "alpha_cool": 0.9990447673880424,
+        "reheat_soft_mult": 0.4758333998707458,
+        "reheat_hard_mult": 0.34986003926594955,
+        "k_min_frac": 0.012497842708555227,
+        "k_max_frac": 0.10252011149123068,
+        "no_improve_frac": 0.044537818487771226,
+        "bandit_alpha": 0.9532710761198558,
+        "warmup_calls": 598
+      },
+      "metrics": {
+        "mean_relative_gap": 0.012806204806710436,
+        "mean_normalized_time": 0.6691199803332954,
+        "mean_time_s": 40.14719881999772,
+        "per_dataset_relative_gap": {
+          "scholl-2": 0.007009734586904068,
+          "scholl-1": 0.0374058946161279,
+          "falkenauer-t": 0.037500000000000006,
+          "falkenauer-u": 0.006201035269717723,
+          "scholl-3": 0.022567941317941317
+        },
+        "arm_pulls": [
+          24036,
+          19668,
+          17667
+        ]
+      }
+    },
+    {
+      "number": 13,
+      "value": 0.3529821414685294,
+      "params": {
+        "initial_temperature": 0.7869435216472668,
+        "alpha_cool": 0.998981760988409,
+        "reheat_soft_mult": 0.6804529149759396,
+        "reheat_hard_mult": 0.4565328763310075,
+        "k_min_frac": 0.010888666413884654,
+        "k_max_frac": 0.11939346918121033,
+        "no_improve_frac": 0.12417621972464853,
+        "bandit_alpha": 0.9042252448862951,
+        "warmup_calls": 593
+      },
+      "metrics": {
+        "mean_relative_gap": 0.011947826418748564,
+        "mean_normalized_time": 3.422290976916557,
+        "mean_time_s": 205.33745861499338,
+        "per_dataset_relative_gap": {
+          "scholl-2": 0.004201680672268907,
+          "scholl-1": 0.0374058946161279,
+          "falkenauer-t": 0.037500000000000006,
+          "falkenauer-u": 0.006512136475118811,
+          "scholl-3": 0.022567941317941317
+        },
+        "arm_pulls": [
+          23097,
+          18486,
+          16731
+        ]
+      }
+    },
+    {
+      "number": 14,
+      "value": 0.08363694311465139,
+      "params": {
+        "initial_temperature": 0.6956280668528834,
+        "alpha_cool": 0.9988484816556038,
+        "reheat_soft_mult": 0.5353345538240029,
+        "reheat_hard_mult": 0.42947982387184924,
+        "k_min_frac": 0.09587887318423204,
+        "k_max_frac": 0.15941238420058626,
+        "no_improve_frac": 0.0438401358071154,
+        "bandit_alpha": 0.5337636191005722,
+        "warmup_calls": 497
+      },
+      "metrics": {
+        "mean_relative_gap": 0.010824543150570444,
+        "mean_normalized_time": 0.7389485427913798,
+        "mean_time_s": 44.3369125674828,
+        "per_dataset_relative_gap": {
+          "scholl-2": 0.004908894250769615,
+          "scholl-1": 0.0374058946161279,
+          "falkenauer-t": 0.037500000000000006,
+          "falkenauer-u": 0.004201187852056825,
+          "scholl-3": 0.0181036556036556
+        },
+        "arm_pulls": [
+          17236,
+          24345,
+          17112
+        ]
+      }
+    },
+    {
+      "number": 15,
+      "value": 0.08469182567201004,
+      "params": {
+        "initial_temperature": 0.9883721950098344,
+        "alpha_cool": 0.9987872598902406,
+        "reheat_soft_mult": 0.6585384678247137,
+        "reheat_hard_mult": 0.4076947651580506,
+        "k_min_frac": 0.02835202376906102,
+        "k_max_frac": 0.15087724189174503,
+        "no_improve_frac": 0.07421665781169873,
+        "bandit_alpha": 0.5658355405674976,
+        "warmup_calls": 591
+      },
+      "metrics": {
+        "mean_relative_gap": 0.012380746047577265,
+        "mean_normalized_time": 0.735491542291905,
+        "mean_time_s": 44.12949253751431,
+        "per_dataset_relative_gap": {
+          "scholl-2": 0.0073719484379617325,
+          "scholl-1": 0.0374058946161279,
+          "falkenauer-t": 0.037500000000000006,
+          "falkenauer-u": 0.004820451252209347,
+          "scholl-3": 0.022567941317941317
+        },
+        "arm_pulls": [
+          20858,
+          20143,
+          16930
+        ]
+      }
+    },
+    {
+      "number": 17,
+      "value": 0.08780253970169641,
+      "params": {
+        "initial_temperature": 0.9925919150785485,
+        "alpha_cool": 0.9983004589620641,
+        "reheat_soft_mult": 0.7790604056778878,
+        "reheat_hard_mult": 0.6648850947651892,
+        "k_min_frac": 0.08581463804170673,
+        "k_max_frac": 0.10290145096239664,
+        "no_improve_frac": 0.15100411303576983,
+        "bandit_alpha": 0.23386864257394177,
+        "warmup_calls": 529
+      },
+      "metrics": {
+        "mean_relative_gap": 0.01237907329818554,
+        "mean_normalized_time": 0.7666137373332943,
+        "mean_time_s": 45.99682423999766,
+        "per_dataset_relative_gap": {
+          "scholl-2": 0.0073719484379617325,
+          "scholl-1": 0.0374058946161279,
+          "falkenauer-t": 0.037500000000000006,
+          "falkenauer-u": 0.004816269378730028,
+          "scholl-3": 0.022567941317941317
+        },
+        "arm_pulls": [
+          18105,
+          20377,
+          14960
+        ]
+      }
+    },
+    {
+      "number": 18,
+      "value": 0.08755392599966506,
+      "params": {
+        "initial_temperature": 0.5769271866203606,
+        "alpha_cool": 0.9998473105390128,
+        "reheat_soft_mult": 0.4812159909631569,
+        "reheat_hard_mult": 0.13666606663233816,
+        "k_min_frac": 0.10769945607320419,
+        "k_max_frac": 0.14355440701265423,
+        "no_improve_frac": 0.03577453677396085,
+        "bandit_alpha": 0.4273529681198844,
+        "warmup_calls": 418
+      },
+      "metrics": {
+        "mean_relative_gap": 0.011560354934817448,
+        "mean_normalized_time": 0.7714960655832936,
+        "mean_time_s": 46.28976393499761,
+        "per_dataset_relative_gap": {
+          "scholl-2": 0.006664734859461026,
+          "scholl-1": 0.0374058946161279,
+          "falkenauer-t": 0.037500000000000006,
+          "falkenauer-u": 0.004504356780069345,
+          "scholl-3": 0.0181036556036556
+        },
+        "arm_pulls": [
+          15773,
+          23721,
+          16535
+        ]
+      }
+    },
+    {
+      "number": 20,
+      "value": 0.08664229175303927,
+      "params": {
+        "initial_temperature": 1.175914443352189,
+        "alpha_cool": 0.9980571144250704,
+        "reheat_soft_mult": 0.6361172003476139,
+        "reheat_hard_mult": 0.3633601894884561,
+        "k_min_frac": 0.06346797701565643,
+        "k_max_frac": 0.1773819882391664,
+        "no_improve_frac": 0.09313217204465463,
+        "bandit_alpha": 0.6952654340023176,
+        "warmup_calls": 68
+      },
+      "metrics": {
+        "mean_relative_gap": 0.011457293392278264,
+        "mean_normalized_time": 0.7633072769998883,
+        "mean_time_s": 45.798436619993296,
+        "per_dataset_relative_gap": {
+          "scholl-2": 0.004908894250769615,
+          "scholl-1": 0.0374058946161279,
+          "falkenauer-t": 0.037500000000000006,
+          "falkenauer-u": 0.0046669920277549425,
+          "scholl-3": 0.022567941317941317
+        },
+        "arm_pulls": [
+          16321,
+          20103,
+          18101
+        ]
+      }
+    },
+    {
+      "number": 21,
+      "value": 0.08060502849902826,
+      "params": {
+        "initial_temperature": 0.5133774984046074,
+        "alpha_cool": 0.9990659083716312,
+        "reheat_soft_mult": 0.42301941071022814,
+        "reheat_hard_mult": 0.25454546974596404,
+        "k_min_frac": 0.02560516723782083,
+        "k_max_frac": 0.10014940597677947,
+        "no_improve_frac": 0.03066398751201506,
+        "bandit_alpha": 0.7237156144006893,
+        "warmup_calls": 594
+      },
+      "metrics": {
+        "mean_relative_gap": 0.011318462860065378,
+        "mean_normalized_time": 0.7041841192496942,
+        "mean_time_s": 42.25104715498164,
+        "per_dataset_relative_gap": {
+          "scholl-2": 0.004201680672268907,
+          "scholl-1": 0.0374058946161279,
+          "falkenauer-t": 0.037500000000000006,
+          "falkenauer-u": 0.006054799006982277,
+          "scholl-3": 0.0181036556036556
+        },
+        "arm_pulls": [
+          22774,
+          20154,
+          17241
+        ]
+      }
+    },
+    {
+      "number": 22,
+      "value": 0.08140428268339238,
+      "params": {
+        "initial_temperature": 0.600295385370184,
+        "alpha_cool": 0.9989632856362171,
+        "reheat_soft_mult": 0.42915314804230187,
+        "reheat_hard_mult": 0.2627649247022572,
+        "k_min_frac": 0.01910535526737286,
+        "k_max_frac": 0.12769532244913553,
+        "no_improve_frac": 0.027265782220717998,
+        "bandit_alpha": 0.7017510233655625,
+        "warmup_calls": 598
+      },
+      "metrics": {
+        "mean_relative_gap": 0.011945778615742805,
+        "mean_normalized_time": 0.7065308192922386,
+        "mean_time_s": 42.39184915753431,
+        "per_dataset_relative_gap": {
+          "scholl-2": 0.004201680672268907,
+          "scholl-1": 0.0374058946161279,
+          "falkenauer-t": 0.037500000000000006,
+          "falkenauer-u": 0.006507016967604416,
+          "scholl-3": 0.022567941317941317
+        },
+        "arm_pulls": [
+          22151,
+          19413,
+          16903
+        ]
+      }
+    },
+    {
+      "number": 23,
+      "value": 1.6146789552602367,
+      "params": {
+        "initial_temperature": 0.586840570434815,
+        "alpha_cool": 0.9990061720816192,
+        "reheat_soft_mult": 0.41707275497257235,
+        "reheat_hard_mult": 0.2756892591693389,
+        "k_min_frac": 0.02149761707958378,
+        "k_max_frac": 0.12274165485236367,
+        "no_improve_frac": 0.02263658353891499,
+        "bandit_alpha": 0.8126017148622144,
+        "warmup_calls": 597
+      },
+      "metrics": {
+        "mean_relative_gap": 0.01259929643266885,
+        "mean_normalized_time": 16.033395884708348,
+        "mean_time_s": 962.0037530825008,
+        "per_dataset_relative_gap": {
+          "scholl-2": 0.004908894250769615,
+          "scholl-1": 0.0374058946161279,
+          "falkenauer-t": 0.037500000000000006,
+          "falkenauer-u": 0.006364592221323994,
+          "scholl-3": 0.02719757094757095
+        },
+        "arm_pulls": [
+          17333,
+          14103,
+          12133
+        ]
+      }
+    },
+    {
+      "number": 24,
+      "value": 0.07855977928405991,
+      "params": {
+        "initial_temperature": 0.7250767329203747,
+        "alpha_cool": 0.9992721758583236,
+        "reheat_soft_mult": 0.28413838438082867,
+        "reheat_hard_mult": 0.211598303920508,
+        "k_min_frac": 0.017998411680081077,
+        "k_max_frac": 0.12659673875135577,
+        "no_improve_frac": 0.032987942454674825,
+        "bandit_alpha": 0.45669339903819056,
+        "warmup_calls": 519
+      },
+      "metrics": {
+        "mean_relative_gap": 0.011580917537863165,
+        "mean_normalized_time": 0.6813695349998307,
+        "mean_time_s": 40.88217209998984,
+        "per_dataset_relative_gap": {
+          "scholl-2": 0.004201680672268907,
+          "scholl-1": 0.0374058946161279,
+          "falkenauer-t": 0.037500000000000006,
+          "falkenauer-u": 0.005594864272905318,
+          "scholl-3": 0.022567941317941317
+        },
+        "arm_pulls": [
+          22817,
+          20265,
+          17710
+        ]
+      }
+    },
+    {
+      "number": 25,
+      "value": 0.08089620139834093,
+      "params": {
+        "initial_temperature": 0.791747013692282,
+        "alpha_cool": 0.9993348575399029,
+        "reheat_soft_mult": 0.22428842724955383,
+        "reheat_hard_mult": 0.1989246039315462,
+        "k_min_frac": 0.046642062174122076,
+        "k_max_frac": 0.10367639783510081,
+        "no_improve_frac": 0.010149598428607961,
+        "bandit_alpha": 0.4543910642519279,
+        "warmup_calls": 475
+      },
+      "metrics": {
+        "mean_relative_gap": 0.010700283275995771,
+        "mean_normalized_time": 0.7126594644994473,
+        "mean_time_s": 42.75956786996685,
+        "per_dataset_relative_gap": {
+          "scholl-2": 0.004201680672268907,
+          "scholl-1": 0.0374058946161279,
+          "falkenauer-t": 0.037500000000000006,
+          "falkenauer-u": 0.004509350046808259,
+          "scholl-3": 0.0181036556036556
+        },
+        "arm_pulls": [
+          20697,
+          21509,
+          17156
+        ]
+      }
+    },
+    {
+      "number": 27,
+      "value": 0.08517350927485867,
+      "params": {
+        "initial_temperature": 4.7213625379443505,
+        "alpha_cool": 0.9994696078579055,
+        "reheat_soft_mult": 0.281260834371952,
+        "reheat_hard_mult": 0.1481735664570285,
+        "k_min_frac": 0.025715355939744583,
+        "k_max_frac": 0.16983188848215863,
+        "no_improve_frac": 0.030904473883512144,
+        "bandit_alpha": 0.19769914164031238,
+        "warmup_calls": 437
+      },
+      "metrics": {
+        "mean_relative_gap": 0.011147084953551179,
+        "mean_normalized_time": 0.751411328166626,
+        "mean_time_s": 45.08467968999757,
+        "per_dataset_relative_gap": {
+          "scholl-2": 0.004908894250769615,
+          "scholl-1": 0.0374058946161279,
+          "falkenauer-t": 0.037500000000000006,
+          "falkenauer-u": 0.003891470930937233,
+          "scholl-3": 0.022567941317941317
+        },
+        "arm_pulls": [
+          21075,
+          19299,
+          16972
+        ]
+      }
+    },
+    {
+      "number": 28,
+      "value": 0.08704695953309757,
+      "params": {
+        "initial_temperature": 1.1981724255612922,
+        "alpha_cool": 0.9991606010598013,
+        "reheat_soft_mult": 0.3523920815452468,
+        "reheat_hard_mult": 0.3264232861559057,
+        "k_min_frac": 0.07159980470369548,
+        "k_max_frac": 0.13999647176268612,
+        "no_improve_frac": 0.035009867591337104,
+        "bandit_alpha": 0.4945073047686925,
+        "warmup_calls": 349
+      },
+      "metrics": {
+        "mean_relative_gap": 0.01174867391179226,
+        "mean_normalized_time": 0.7647315301248454,
+        "mean_time_s": 45.88389180749073,
+        "per_dataset_relative_gap": {
+          "scholl-2": 0.006664734859461026,
+          "scholl-1": 0.0374058946161279,
+          "falkenauer-t": 0.037500000000000006,
+          "falkenauer-u": 0.004975154222506377,
+          "scholl-3": 0.0181036556036556
+        },
+        "arm_pulls": [
+          17910,
+          19639,
+          16307
+        ]
+      }
+    },
+    {
+      "number": 29,
+      "value": 0.08219380908164241,
+      "params": {
+        "initial_temperature": 0.6749128209654032,
+        "alpha_cool": 0.9994227304205513,
+        "reheat_soft_mult": 0.36897619915736135,
+        "reheat_hard_mult": 0.21094305141727812,
+        "k_min_frac": 0.04982676297728969,
+        "k_max_frac": 0.10120554527219766,
+        "no_improve_frac": 0.05486644731735153,
+        "bandit_alpha": 0.4216033228793451,
+        "warmup_calls": 518
+      },
+      "metrics": {
+        "mean_relative_gap": 0.010884056919471318,
+        "mean_normalized_time": 0.7239815785411822,
+        "mean_time_s": 43.43889471247094,
+        "per_dataset_relative_gap": {
+          "scholl-2": 0.004201680672268907,
+          "scholl-1": 0.0374058946161279,
+          "falkenauer-t": 0.037500000000000006,
+          "falkenauer-u": 0.0049687841554971295,
+          "scholl-3": 0.0181036556036556
+        },
+        "arm_pulls": [
+          20613,
+          21005,
+          16769
+        ]
+      }
+    },
+    {
+      "number": 30,
+      "value": 0.08597559479234013,
+      "params": {
+        "initial_temperature": 3.457101319986821,
+        "alpha_cool": 0.9990547082741239,
+        "reheat_soft_mult": 0.5359964877239528,
+        "reheat_hard_mult": 0.17575814781274662,
+        "k_min_frac": 0.022341982804298017,
+        "k_max_frac": 0.2186633612362683,
+        "no_improve_frac": 0.04681021937198898,
+        "bandit_alpha": 0.35515295499653793,
+        "warmup_calls": 441
+      },
+      "metrics": {
+        "mean_relative_gap": 0.01108254217669869,
+        "mean_normalized_time": 0.760013068333113,
+        "mean_time_s": 45.600784099986775,
+        "per_dataset_relative_gap": {
+          "scholl-2": 0.004201680672268907,
+          "scholl-1": 0.0374058946161279,
+          "falkenauer-t": 0.037500000000000006,
+          "falkenauer-u": 0.004348925869994129,
+          "scholl-3": 0.022567941317941317
+        },
+        "arm_pulls": [
+          20274,
+          19661,
+          16429
+        ]
+      }
+    },
+    {
+      "number": 33,
+      "value": 1.709814785804058,
+      "params": {
+        "initial_temperature": 0.8862974286440632,
+        "alpha_cool": 0.9993534168473701,
+        "reheat_soft_mult": 0.24482314197478017,
+        "reheat_hard_mult": 0.18023514804716495,
+        "k_min_frac": 0.010415477441926455,
+        "k_max_frac": 0.11564637347277752,
+        "no_improve_frac": 0.022999311724515775,
+        "bandit_alpha": 0.604548672373927,
+        "warmup_calls": 499
+      },
+      "metrics": {
+        "mean_relative_gap": 0.013176901083241146,
+        "mean_normalized_time": 16.97955574829141,
+        "mean_time_s": 1018.7733448974847,
+        "per_dataset_relative_gap": {
+          "scholl-2": 0.005900957742833107,
+          "scholl-1": 0.0374058946161279,
+          "falkenauer-t": 0.037500000000000006,
+          "falkenauer-u": 0.008097955699606599,
+          "scholl-3": 0.022567941317941317
+        },
+        "arm_pulls": [
+          20181,
+          16830,
+          14878
+        ]
+      }
+    }
+  ],
+  "elapsed_s": 9223.090900900075,
+  "search_ranges": {
+    "initial_temperature": {
+      "low": 0.5,
+      "high": 5.0,
+      "log": true
+    },
+    "alpha_cool": {
+      "low": 0.998,
+      "high": 0.9999
+    },
+    "reheat_soft_mult": {
+      "low": 0.1,
+      "high": 0.9
+    },
+    "reheat_hard_mult": {
+      "low": 0.05,
+      "high": 0.8
+    },
+    "k_min_frac": {
+      "low": 0.01,
+      "high": 0.2
+    },
+    "k_max_frac": {
+      "low": 0.1,
+      "high": 0.4
+    },
+    "no_improve_frac": {
+      "low": 0.01,
+      "high": 0.2
+    },
+    "bandit_alpha": {
+      "low": 0.05,
+      "high": 1.0,
+      "log": true
+    },
+    "warmup_calls": {
+      "low": 50,
+      "high": 600,
+      "type": "int"
+    }
+  }
+}

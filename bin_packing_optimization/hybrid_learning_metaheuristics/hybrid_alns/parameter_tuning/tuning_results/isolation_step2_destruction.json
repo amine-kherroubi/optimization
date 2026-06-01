@@ -1,0 +1,186 @@
+{
+  "timestamp": 1780319606.0942156,
+  "run_type": "isolation_step2_destruction",
+  "seed": 42,
+  "model_name": "repair_model_v2.pkl",
+  "bank_size": 18,
+  "parameters": {
+    "k_min_frac": 0.01,
+    "k_max_frac": 0.5,
+    "no_improve_frac": 0.01
+  },
+  "structural_defaults": {
+    "min_no_improve_limit": 250,
+    "temp_precision_floor": 1e-12,
+    "reheat_check_interval_divisor": 4.0,
+    "reheat_check_min_interval": 50,
+    "hard_restart_min_limit": 100,
+    "patience_shrink_factor": 0.6666666666666666
+  },
+  "pipeline_config": {
+    "quality_weight": 0.9,
+    "time_weight": 0.1,
+    "time_limit": 60
+  },
+  "metrics": {
+    "mean_relative_gap": 0.01692445787197003,
+    "mean_normalized_time": 0.7185314275934448,
+    "mean_time_s": 43.111885655606685,
+    "total_time_s": 776.0139418009203,
+    "per_dataset_relative_gap": {
+      "scholl-2": 0.0,
+      "scholl-1": 0.0374058946161279,
+      "falkenauer-t": 0.037500000000000006,
+      "falkenauer-u": 0.0019005102040816325,
+      "scholl-3": 0.0181036556036556
+    },
+    "arm_pulls": [
+      7713,
+      7778,
+      7848
+    ],
+    "n_instances": 18
+  },
+  "search_ranges": {
+    "grid": [
+      {
+        "k_min_frac": 0.01,
+        "k_max_frac": 0.1,
+        "no_improve_frac": 0.01
+      },
+      {
+        "k_min_frac": 0.01,
+        "k_max_frac": 0.1,
+        "no_improve_frac": 0.05
+      },
+      {
+        "k_min_frac": 0.01,
+        "k_max_frac": 0.1,
+        "no_improve_frac": 0.2
+      },
+      {
+        "k_min_frac": 0.01,
+        "k_max_frac": 0.25,
+        "no_improve_frac": 0.01
+      },
+      {
+        "k_min_frac": 0.01,
+        "k_max_frac": 0.25,
+        "no_improve_frac": 0.05
+      },
+      {
+        "k_min_frac": 0.01,
+        "k_max_frac": 0.25,
+        "no_improve_frac": 0.2
+      },
+      {
+        "k_min_frac": 0.01,
+        "k_max_frac": 0.5,
+        "no_improve_frac": 0.01
+      },
+      {
+        "k_min_frac": 0.01,
+        "k_max_frac": 0.5,
+        "no_improve_frac": 0.05
+      },
+      {
+        "k_min_frac": 0.01,
+        "k_max_frac": 0.5,
+        "no_improve_frac": 0.2
+      },
+      {
+        "k_min_frac": 0.05,
+        "k_max_frac": 0.1,
+        "no_improve_frac": 0.01
+      },
+      {
+        "k_min_frac": 0.05,
+        "k_max_frac": 0.1,
+        "no_improve_frac": 0.05
+      },
+      {
+        "k_min_frac": 0.05,
+        "k_max_frac": 0.1,
+        "no_improve_frac": 0.2
+      },
+      {
+        "k_min_frac": 0.05,
+        "k_max_frac": 0.25,
+        "no_improve_frac": 0.01
+      },
+      {
+        "k_min_frac": 0.05,
+        "k_max_frac": 0.25,
+        "no_improve_frac": 0.05
+      },
+      {
+        "k_min_frac": 0.05,
+        "k_max_frac": 0.25,
+        "no_improve_frac": 0.2
+      },
+      {
+        "k_min_frac": 0.05,
+        "k_max_frac": 0.5,
+        "no_improve_frac": 0.01
+      },
+      {
+        "k_min_frac": 0.05,
+        "k_max_frac": 0.5,
+        "no_improve_frac": 0.05
+      },
+      {
+        "k_min_frac": 0.05,
+        "k_max_frac": 0.5,
+        "no_improve_frac": 0.2
+      },
+      {
+        "k_min_frac": 0.2,
+        "k_max_frac": 0.25,
+        "no_improve_frac": 0.01
+      },
+      {
+        "k_min_frac": 0.2,
+        "k_max_frac": 0.25,
+        "no_improve_frac": 0.05
+      },
+      {
+        "k_min_frac": 0.2,
+        "k_max_frac": 0.25,
+        "no_improve_frac": 0.2
+      },
+      {
+        "k_min_frac": 0.2,
+        "k_max_frac": 0.5,
+        "no_improve_frac": 0.01
+      },
+      {
+        "k_min_frac": 0.2,
+        "k_max_frac": 0.5,
+        "no_improve_frac": 0.05
+      },
+      {
+        "k_min_frac": 0.2,
+        "k_max_frac": 0.5,
+        "no_improve_frac": 0.2
+      }
+    ],
+    "bank_size": 18
+  },
+  "changes_from_baseline": {
+    "k_min_frac": [
+      0.05,
+      0.01
+    ],
+    "k_max_frac": [
+      0.25,
+      0.5
+    ],
+    "no_improve_frac": [
+      0.05,
+      0.01
+    ]
+  },
+  "max_iter": 2000,
+  "n_jobs": 20,
+  "force_uniform_random": true
+}

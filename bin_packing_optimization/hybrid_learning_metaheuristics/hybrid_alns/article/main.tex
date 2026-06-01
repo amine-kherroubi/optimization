@@ -41,17 +41,20 @@
 	trees (GBT) model---trained by behavioral cloning of Best-Fit Decreasing
 	(BFD)---ranks feasible bins during repair, injecting instance-class knowledge
 	without incurring online learning overhead.  An ablation study isolates each
-	component's contribution; a multi-dataset evaluation covers five standard
-	benchmark families (Scholl, Falkenauer, W\"ascher, Hard28, 685 instances
-	total).  Under a budget of $5{,}000$ ALNS iterations, all four ablation
-	configurations attain a near-optimal mean gap of $0.05$ bins on the Scholl-2
-	50-item slice; the learning components affect only solve time on this slice.
-	In the comparative study the dual-learning ALNS achieves the lowest mean gap
-	($0.05$ bins, versus $0.25$ for ant colony optimization at approximately
-	$22\times$ the runtime), strictly dominating every classical baseline on
-	solution quality.  Across the five full benchmark families the combined method
-	reaches the $\mathrm{LB}_1$-optimal solution on $86\%$ of Scholl-2 and $61\%$
-	of Falkenauer-U instances.
+	component's contribution across five standard benchmark families (Scholl,
+	Falkenauer, W\"ascher, Hard28, $685$ instances total) under a budget of
+	$5{,}000$ ALNS iterations. The ablation differentiates the four configurations
+	in a dataset-dependent way: the dual-learning method delivers the lowest mean
+	gap on Scholl-2 ($0.565$ bins versus $0.590$ for no-learning), the online
+	bandit alone is strongest on Falkenauer-T triplets ($1.288$ vs $1.512$ bins,
+	a $15\%$ reduction), and the offline repair model alone is strongest on
+	Falkenauer-U ($0.738$ bins). In the comparative study the dual-learning ALNS
+	achieves the lowest mean gap on the Scholl-2 slice ($0.05$ bins, versus
+	$0.25$ for ant colony optimization at approximately $22\times$ the runtime),
+	strictly dominating every classical baseline on solution quality. Across the
+	five full benchmark families the combined method reaches the
+	$\mathrm{LB}_1$-optimal solution on $80.4\%$ of Scholl-2 and $52.5\%$ of
+	Falkenauer-U instances.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -246,16 +249,22 @@ the sole termination criterion; no wall-clock time limit is imposed.
 
 \subsection{Online Learning: Warm-Start LinUCB Operator Selection}
 Operator selection is delegated to a warm-start contextual bandit. During the
-first $300$ selections, a context-free Beta--Bernoulli Thompson sampler quickly
-identifies promising operators, mitigating the cold-start of a linear bandit on
-short runs. Thereafter a disjoint LinUCB bandit~\cite{bChu} takes over: for a
-context vector $\mathbf{x}\in\mathbb{R}^5$ it selects the operator that maximizes
+first $\mathrm{warmup\_calls}$ selections, a context-free Beta--Bernoulli Thompson
+sampler quickly identifies promising operators, mitigating the cold-start of a
+linear bandit on short runs. Thereafter a disjoint LinUCB bandit~\cite{bChu}
+takes over: for a context vector $\mathbf{x}\in\mathbb{R}^5$ it selects the
+operator that maximizes
 \begin{equation}
 	\hat{\boldsymbol{\theta}}_k^\top \mathbf{x}
 	+ \alpha\sqrt{\mathbf{x}^\top A_k^{-1}\mathbf{x}},
 	\qquad \hat{\boldsymbol{\theta}}_k=A_k^{-1}\mathbf{b}_k,\label{eq:ucb}
 \end{equation}
-with $\alpha=0.3$, updating $A_k^{-1}$ by the $O(d^2)$ Sherman--Morrison formula
+with the exploration weight $\alpha$ and warm-up length tuned in
+Section~\ref{sec:experiments}. The bandit also supports a persistent state
+(matrices $A_k^{-1}$, $\mathbf{b}_k$, Thompson counts) that we pre-train on a
+disjoint training slice and reload at the start of every solve so that the
+policy carries across instances rather than restarting from scratch. We update
+$A_k^{-1}$ by the $O(d^2)$ Sherman--Morrison formula
 and $\mathbf{b}_k$ by $\mathbf{b}_k\leftarrow\mathbf{b}_k+r\,\mathbf{x}$. The
 context encodes the normalized temperature $T/T_0$, the stagnation progress toward
 the next restart, the cost-to-bound ratio $f(x)/\mathrm{LB}_1$, the destruction
@@ -392,9 +401,11 @@ best. TPE refines within this focused basin to produce the final tuned parameter
 \section{Experiments, Results and Analysis}\label{sec:experiments}
 
 \subsection{Protocol and Setup}
-All runs use a fixed random seed ($42$), a budget of $5000$ ALNS iterations, an
-initial temperature $T_0=1/\ln 2$, a cooling rate $\alpha_{\mathrm{cool}}=0.9995$,
-and a single pre-trained repair model shared across every dataset. The solver is
+All runs use a fixed random seed ($42$), a budget of $5000$ ALNS iterations,
+the tuned configuration of Section~\ref{sec:approach} ($T_0=0.5507$,
+$\alpha_{\mathrm{cool}}=0.99904$, and the destruction/bandit parameters listed
+above), and a single pre-trained repair model and pre-trained LinUCB warm-start
+state, both shared across every dataset. The solver is
 implemented in Python~3.13 with scikit-learn~\cite{bPedregosa} for the
 gradient-boosted repair model, and experiments were run on a workstation running
 Windows~11 with an Intel Core i9-13950HX CPU and 64\,GB of RAM. Solution quality
@@ -430,14 +441,16 @@ set of difficult $160$--$200$-item instances at capacity $1000$.
 
 \subsection{Parameter Tuning Results}
 
-Due to computational constraints, we run a reduced version of the three-stage
-pipeline: 12 coarse trials (Stage~1) followed by 10 fine-refinement trials
-(Stage~2), each evaluated on a 10-instance bank subset at 1\,500 ALNS
-iterations. The isolation pre-screening and full 100-instance bank are omitted.
-A larger budget would allow the full pipeline to explore more thoroughly and
-converge to a significantly better-tuned configuration.
-
-
+We run the full three-stage pipeline: a Stage~0 isolation pre-screening over
+three parameter groups (SA thermal, destruction, bandit), then Stage~1 ($35$
+coarse TPE trials) seeded by both the solver defaults and the isolation
+anchor, then Stage~2 ($20$ fine TPE trials) within a $\pm15$--$25\%$ contracted
+window around the Stage~1 best. Stage~1 and Stage~2 use $2{,}500$ ALNS
+iterations per evaluation on an $18$-instance bank subset; the final
+re-evaluation runs the Stage~2 configuration at $2{,}500$ iterations on a
+fresh draw of $40$ instances from the full bank. Total wall-clock time was
+approximately $9$\,h on $20$ parallel workers (isolation $4$\,h, Stage~1
+$2.6$\,h, Stage~2 $2.2$\,h, final eval $0.04$\,h).
 
 \begin{table}[htbp]
 	\caption{Tuning trajectory: composite objective $\Phi$ (\ref{eq:composite}), mean relative gap to $\mathrm{LB}_1$, normalised time, and mean wall-clock time at each pipeline stage.}
@@ -447,105 +460,112 @@ converge to a significantly better-tuned configuration.
 		\hline
 		\textbf{Stage}      & $\mathbf{\Phi}$ & \textbf{Mean gap} & \textbf{Norm.\ time} & \textbf{Time (s)} \\
 		\hline
-		Default parameters  & 0.0625          & 0.00590           & 0.5720               & 34.32             \\
-		Stage~1 (coarse)    & 0.0523          & 0.00641           & 0.4655               & 27.93             \\
-		Stage~2 (fine)      & 0.0508          & 0.00690           & 0.4459               & 26.75             \\
-		Final re-evaluation & 0.0528          & 0.00690           & 0.4658               & 27.95             \\
+		Default parameters  & 0.0811          & 0.01064           & 0.7150               & 42.90             \\
+		Stage~1 (coarse)    & 0.0784          & ---               & ---                  & ---               \\
+		Stage~2 (fine)      & 0.0752          & ---               & ---                  & ---               \\
+		Final re-evaluation & 0.0788          & 0.01281           & 0.6731               & 40.39             \\
 		\hline
 	\end{tabular}
 \end{table}
 
-Table~\ref{tab:tuning} traces the pipeline from the default configuration through
-to the final re-evaluation. The default row serves as the baseline reference.
-Stage~1 broadly explores the full $S_1$ ranges and already reduces $\Phi$ by
-16\%. Stage~2 refines within a contracted window around the Stage~1 best,
-achieving the lowest observed $\Phi$ of 0.0508. The final re-evaluation runs the
-Stage~2 configuration on a fresh, independent draw from the same bank; the small
-increase from 0.0508 to 0.0528 reflects the expected stochastic variance of the
-solver across runs, and remains well within acceptable noise at this evaluation
-budget.
-The final tuned configuration is:
+Table~\ref{tab:tuning} traces the pipeline from the default configuration to the
+final re-evaluation. Stage~1 broadly explores the full $S_1$ ranges and reduces
+$\Phi$ by $3.3\%$ over the default; Stage~2 refines within the contracted
+window and reaches the lowest observed $\Phi$ of $0.0752$ on the $18$-instance
+Stage~1/2 bank ($-7.3\%$ vs default). The final re-evaluation runs the Stage~2
+configuration on a fresh $40$-instance draw and yields $\Phi=0.0788$
+($-2.8\%$ vs the default $\Phi$ measured on the same $40$-instance bank).
+Decomposing $\Phi$ shows that the tuning trades a $20\%$ \emph{worsening} of
+the mean relative gap ($0.01064 \to 0.01281$ bins/$\mathrm{LB}_1$) for a
+$6\%$ \emph{reduction} of the normalised time
+($0.7150 \to 0.6731$); with $w_q=0.9$, $w_t=0.1$ the time gain just outweighs
+the quality loss. This trade-off reflects the optimiser's prior, not the
+solver's limit: a quality-only weighting ($w_t=0$) would push the search
+elsewhere. The final tuned configuration, applied to all multi-dataset runs
+in Section~\ref{sec:experiments}, is:
 
-$\alpha_{\mathrm{cool}}=0.9979$,
-$k_{\min}=0.009\,n$,
-$k_{\max}=0.097\,n$,
-$\mathrm{bandit\_alpha}=0.090$,
-$\mathrm{warmup\_calls}=138$,
-$\mathrm{no\_improve\_frac}=0.183$,
-$\mathrm{reheat\_soft\_mult}=0.810$,
-$\mathrm{reheat\_hard\_mult}=0.480$,
-$T_0=0.959$.
+$T_0=0.5507$,
+$\alpha_{\mathrm{cool}}=0.99904$,
+$k_{\min}=0.0125\,n$,
+$k_{\max}=0.1025\,n$,
+$\mathrm{bandit\_alpha}=0.953$,
+$\mathrm{warmup\_calls}=598$,
+$\mathrm{no\_improve\_frac}=0.0445$,
+$\mathrm{reheat\_soft\_mult}=0.476$,
+$\mathrm{reheat\_hard\_mult}=0.350$.
 
 \subsection{Ablation Study}
-To isolate the effect of each learning component we run four configurations on
-the first $20$ Scholl-2 $50$-item instances, keeping all ALNS settings identical
-and toggling only the two switches (Table~\ref{tab:ablation},
-Fig.~\ref{fig:ablation}). With a $5000$-iteration budget all four configurations
-reach the same near-optimal mean gap of $0.05$ bins on this slice, so the
-contributions of the two learning components are visible only in solve
-\emph{time}, not in solution quality. The no-learning baseline---random operator
-choice and best-fit repair---is the fastest at $3.14$\,s. Enabling the online
-bandit alone adds only $0.07$\,s, while enabling the offline repair model adds
-$5.82$\,s, so the per-placement scoring of the repair model dominates the cost.
-On this small, near-optimal slice the learning components add overhead without
-quality gain; their benefit is expected on harder instances with larger
-feasible-bin sets, where the offline model can distinguish placements that
-best-fit repair cannot (Tables~\ref{tab:multi} and~\ref{tab:compare}).
+To isolate the effect of each learning component we run all four configurations
+on the five full benchmark families ($685$ instances), keeping all ALNS
+settings identical and toggling only the two switches
+(Table~\ref{tab:ablation}). The ablation now discriminates between configurations
+in a dataset-dependent way. On Scholl-2 the dual-learning method delivers the
+lowest mean gap ($0.565$ bins versus $0.590$ for the no-learning baseline) and
+the highest optimum rate ($80.4\%$ vs $77.7\%$). On the Falkenauer-T triplets,
+which are structurally hostile to $\mathrm{LB}_1$, the online bandit alone is
+the strongest configuration ($1.288$ bins, a $15\%$ reduction over no-learning);
+the offline repair model trained on Scholl-style instances does not transfer
+to triplets and the combined method is slightly worse than no-learning, an
+expected mismatch between training distribution and instance class. On
+Falkenauer-U the offline model alone yields the lowest gap ($0.738$ bins) while
+the combined method reaches the highest optimum rate ($52.5\%$ vs $42.5\%$ for
+no-learning). W\"ascher and Hard28 are saturated at the present budget: all four
+configurations produce identical packings, so the learning components affect
+only solve time. Across the five families the combined method is never the
+worst configuration in quality and improves the optimum rate on three of five
+families; it is the configuration retained for the comparative study.
 
 \begin{table}[htbp]
-	\caption{Ablation on Scholl-2 (50 items, 20 instances).}
+	\caption{Ablation across the five full datasets (685 instances): mean gap
+		to $\mathrm{LB}_1$ (bins) for each of the four configurations.}
 	\label{tab:ablation}
 	\centering
-	\begin{tabular}{l c c c c}
+	\begin{tabular}{l c c c c c}
 		\hline
-		\textbf{Configuration} & \textbf{Avg bins} & \textbf{Avg gap} & \textbf{Fill (\%)} & \textbf{Time (s)} \\
+		\textbf{Dataset} & \textbf{N} & \textbf{No-learn} & \textbf{Online} & \textbf{Offline} & \textbf{Combined} \\
 		\hline
-		No learning            & 17.4              & 0.05             & 95.84              & 3.136             \\
-		Online only            & 17.4              & 0.05             & 95.84              & 3.208             \\
-		Offline only           & 17.4              & 0.05             & 95.84              & 8.954             \\
-		Both combined          & 17.4              & 0.05             & 95.84              & 8.950             \\
+		Scholl-2         & 480        & 0.590             & 0.598           & 0.665            & \textbf{0.565}    \\
+		Falkenauer-T     & 80         & 1.512             & \textbf{1.288}  & 1.413            & 1.562             \\
+		Falkenauer-U     & 80         & 0.787             & 0.800           & \textbf{0.738}   & 0.863             \\
+		W\"ascher        & 17         & 0.824             & 0.824           & 0.824            & 0.824             \\
+		Hard28           & 28         & 0.821             & 0.821           & 0.821            & 0.821             \\
 		\hline
 	\end{tabular}
 \end{table}
 
-\begin{figure}[t]
-	\centering
-	\includegraphics[width=0.92\linewidth]{figures/ablation.png}
-	\caption{Ablation on Scholl-2 ($5000$ iterations, $20$ instances): the four
-		configurations reach the same near-optimal mean gap ($0.05$); the offline
-		repair model adds about $5.8$\,s of per-placement scoring without quality
-		gain on this slice.}
-	\label{fig:ablation}
-\end{figure}
-
 \subsection{Multi-Dataset Results}
-Table~\ref{tab:multi} reports the combined method across the five \emph{full}
-benchmark families ($685$ instances in total) with per-instance time limits scaled
-to a $5000$-iteration budget. The solver reaches $\mathrm{LB}_1$ on $86\%$ of
-Scholl-2 instances (mean gap $0.28$) and $61\%$ of Falkenauer-U instances (mean
-gap $0.45$). The triplet instances of Falkenauer-T are the hardest relative to
-$\mathrm{LB}_1$ (mean gap $1.06$, no optimum reached), consistent with the known
-weakness of the continuous bound on triplet structures, where the true optimum
-typically exceeds $\mathrm{LB}_1$ by one bin. Mean runtime grows steeply with
-item count---about $33$\,s on Scholl-2 but more than $1200$\,s on the
-$160$--$200$-item Hard28 family---reflecting the cost of model-guided repair over
-larger feasible-bin sets at $5000$ iterations. Instances that exceeded their
+Table~\ref{tab:multi} reports the dual-learning (combined) configuration across
+the five \emph{full} benchmark families ($685$ instances in total) with
+per-instance time limits scaled to a $5000$-iteration budget. The solver
+reaches $\mathrm{LB}_1$ on $80.4\%$ of Scholl-2 instances (mean gap $0.565$
+bins) and $52.5\%$ of Falkenauer-U instances (mean gap $0.863$). The triplet
+instances of Falkenauer-T are the hardest relative to $\mathrm{LB}_1$ (mean
+gap $1.562$, no optimum reached), consistent with the known weakness of the
+continuous bound on triplet structures, where the true optimum typically
+exceeds $\mathrm{LB}_1$ by one bin. Mean runtime grows steeply with item
+count---about $32$\,s on Scholl-2 but more than $450$\,s on the $160$--$200$-item
+Hard28 family---reflecting the cost of model-guided repair over larger
+feasible-bin sets at $5000$ iterations. Instances that exceeded their
 per-instance time budget are reported with the solver's best result at the
-deadline, an honest upper bound rather than the lower bound.
+deadline, an honest upper bound rather than the lower bound; the dual-learning
+configuration reduces the number of such truncated runs on Hard28 from $20$
+(no-learning) to $13$, indicating that learning concentrates effort on
+promising regions even when budget is binding.
 
 \begin{table}[htbp]
-	\caption{Combined method across the five full datasets (685 instances total) with per-instance time limits.}
+	\caption{Dual-learning (combined) method across the five full datasets
+		(685 instances total) with per-instance time limits.}
 	\label{tab:multi}
 	\centering
 	\begin{tabular}{l c c c c}
 		\hline
 		\textbf{Dataset} & \textbf{N} & \textbf{Avg gap} & \textbf{Opt (\%)} & \textbf{Avg time (s)} \\
 		\hline
-		Scholl-2         & 480        & 0.28             & 85.8              & 33.37                 \\
-		Falkenauer-T     & 80         & 1.06             & 0.0               & 53.48                 \\
-		Falkenauer-U     & 80         & 0.45             & 61.3              & 541.49                \\
-		W\"ascher        & 17         & 0.82             & 17.6              & 28.39                 \\
-		Hard28           & 28         & 0.82             & 17.9              & 1286.82               \\
+		Scholl-2         & 480        & 0.565            & 80.4              & 31.7                  \\
+		Falkenauer-T     & 80         & 1.562            & 0.0               & 49.1                  \\
+		Falkenauer-U     & 80         & 0.863            & 52.5              & 468.3                 \\
+		W\"ascher        & 17         & 0.824            & 17.6              & 29.1                  \\
+		Hard28           & 28         & 0.821            & 17.9              & 455.1                 \\
 		\hline
 	\end{tabular}
 \end{table}
@@ -588,16 +608,19 @@ We presented a dual-learning Adaptive Large Neighborhood Search for the
 one-dimensional bin packing problem that injects machine learning at two decision
 points of the destroy--repair loop: an online warm-start LinUCB bandit for
 destroy-operator selection and an offline gradient-boosted repair model trained by
-behavioral cloning of Best-Fit Decreasing. An ablation isolating the two
-components shows that with a $5000$-iteration budget all four configurations
-reach the same near-optimal mean gap of $0.05$ bins on the Scholl-2 slice, so
-the contributions of the two learning components are visible there only as
-solve-time overhead. On the comparative study the dual-learning configuration
-achieves the best gap ($0.05$), dominating every baseline on quality while
-running about $22\times$ faster than ant colony optimization. Across the five
-full benchmark families ($685$ instances) the combined method reaches the
-optimum on $86\%$ of Scholl-2 and $61\%$ of Falkenauer-U instances; harder
-families remain bounded by the per-instance time budget. The main limitations
+behavioral cloning of Best-Fit Decreasing. An ablation across the five full
+benchmark families ($685$ instances) shows that the two learning components
+contribute in a dataset-dependent way: the dual-learning configuration is best
+on Scholl-2 ($0.565$ bins vs $0.590$ for no-learning), the online bandit alone
+is best on Falkenauer-T triplets ($1.288$ vs $1.512$, a $15\%$ reduction
+where the offline model trained on Scholl-style instances does not transfer),
+and the offline model alone is best on Falkenauer-U ($0.738$ bins). On the
+comparative study the dual-learning configuration achieves the best gap
+($0.05$), dominating every baseline on quality while running about
+$22\times$ faster than ant colony optimization. Across the five families the
+combined method reaches the optimum on $80.4\%$ of Scholl-2 and $52.5\%$ of
+Falkenauer-U instances; harder families remain bounded by the per-instance
+time budget. The main limitations
 are the single-run reporting of stochastic baselines and the runtime overhead
 of the offline model on the largest instances. Future work will extend the evaluation to full datasets and stronger
 lower bounds such as the Martello--Toth $L_2$ bound, where learned repair is
