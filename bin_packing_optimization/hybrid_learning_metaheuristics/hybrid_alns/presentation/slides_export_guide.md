@@ -15,14 +15,18 @@ presentation/
 
 ```bash
 cd /workspace/bin-packing-optimization
-python -m http.server 8000 --directory presentation
+python -m http.server 8000 --directory bin_packing_optimization/hybrid_learning_metaheuristics/hybrid_alns/presentation
 ```
 
 Open `http://localhost:8000` in a modern browser.
 
 ## Render slides in a browser
 
-The deck renders 36 fixed-size slides at 1600 × 900 pixels. Each slide maps to one Markdown slide from `bin_packing_optimization/hybrid_learning_metaheuristics/hybrid_alns/presentation/slide_deck_content.md`.
+The deck renders 36 fixed-size slides at 1920 × 1080 pixels. The source material is maintained alongside the renderer in `bin_packing_optimization/hybrid_learning_metaheuristics/hybrid_alns/presentation/`.
+
+## Formula handling for Canva
+
+Formula blocks are converted in-browser from KaTeX markup to high-resolution PNG images after the deck loads. This makes equations import into Canva as stable image elements instead of fragile web-font/vector math. Wait a moment after opening the deck before exporting so the PNG conversion can complete.
 
 ## Export to PDF
 
@@ -32,7 +36,7 @@ Use the browser print dialog:
 2. Press `Ctrl+P` or `Cmd+P`.
 3. Destination: `Save to PDF`.
 4. Layout: `Landscape`.
-5. Paper size: `16 × 9 in` or custom 16 in by 9 in.
+5. Paper size: custom `1920 × 1080 px` when supported, or `20 × 11.25 in` at CSS 96 DPI.
 6. Margins: `None`.
 7. Scale: `100%`.
 8. Background graphics: `On`.
@@ -46,7 +50,7 @@ chromium --headless --disable-gpu --print-to-pdf=bin-packing-hybrid-alns-canva.p
 ```
 
 ```bash
-npx decktape generic --size 1600x900 http://localhost:8000 bin-packing-hybrid-alns-canva.pdf
+npx decktape generic --size 1920x1080 http://localhost:8000 bin-packing-hybrid-alns-canva.pdf
 ```
 
 ```bash
@@ -56,8 +60,8 @@ pdftoppm -png -r 300 bin-packing-hybrid-alns-canva.pdf slide
 ## Canva-compatible export settings
 
 - Aspect ratio: 16:9 widescreen.
-- Slide size: 1600 × 900 px or larger.
-- PDF page size: 16 × 9 in.
+- Slide size: 1920 × 1080 px or larger.
+- PDF page size: 1920 × 1080 px (`20 × 11.25 in` at CSS 96 DPI).
 - Margins: 0.
 - Scale: 100%.
 - Background graphics: enabled.
