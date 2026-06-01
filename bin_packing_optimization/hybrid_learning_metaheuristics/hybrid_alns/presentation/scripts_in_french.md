@@ -1,4 +1,5 @@
 # Scripts raccourcis — Hybrid ALNS for the Bin Packing Problem
+
 ### Présentation 15 minutes
 
 ---
@@ -7,23 +8,23 @@
 
 **Slide 1 — Titre**
 
-Bonjour à tous. Aujourd'hui on va vous présenter notre projet, une métaheuristique hybride pour le problème de bin packing à une dimension, qu'on a appelée Hybrid ALNS.
+Bonjour. Aujourd'hui on va vous présenter une métaheuristique hybride pour le problème de bin packing à une dimension, intitulée Hybrid ALNS.
 
 ---
 
 **Slide 2 — Introduction**
 
-Le bin packing c'est un problème qu'on retrouve dans plein de domaines industriels, que ce soit la découpe de matériaux, le chargement de camions, ou l'allocation de ressources dans le cloud. L'idée c'est toujours la même, on a des objets de tailles différentes et on veut les ranger dans le minimum de boîtes possible, sachant que chaque boîte a une capacité fixe.
+Le bin packing est un problème d’optimisation combinatoire présent dans de nombreux domaines industriels, comme la découpe de matériaux, le chargement de camions ou encore l’allocation de ressources dans le cloud.
 
-Le problème c'est que c'est NP-difficile. Les méthodes exactes trouvent la solution optimale mais elles passent très mal à l'échelle dès qu'on a beaucoup d'objets. Les heuristiques classiques sont rapides, mais elles appliquent toujours les mêmes règles fixes, elles ne s'adaptent pas, et elles se retrouvent souvent bloquées dans des optima locaux.
+Le problème est NP-difficile. Les méthodes exactes permettent d’obtenir des solutions optimales, mais leur coût de calcul devient rapidement prohibitif. Les heuristiques classiques sont rapides, mais appliquent toujours les mêmes règles et se retrouvent souvent bloquées dans des optima locaux. Les métaheuristiques permettent généralement d’obtenir de meilleures solutions, mais les choix effectués pendant la recherche reposent le plus souvent sur des mécanismes génériques qui n’exploitent pas pleinement les informations accumulées au cours de l’exécution.
 
-Ce qu'on a fait c'est d'intégrer du machine learning directement à l'intérieur de la métaheuristique, à deux décisions clés qui se répètent tout au long de la recherche. Les deux composants sont indépendants, ce qui nous permet de les tester séparément et de mesurer la contribution de chacun.
+L’idée est donc d’intégrer du machine learning directement dans la métaheuristique afin d’exploiter ces informations. Nous proposons deux composants visant à guider la recherche. Comme ils sont indépendants, nous pouvons les évaluer séparément et mesurer précisément la contribution de chacun.
 
 ---
 
 **Slide 3 — Plan**
 
-La présentation va couvrir six parties. La définition du problème, une revue de littérature, notre solution, les tests et résultats, et enfin la synthèse et la conclusion. Je laisse la parole à Rayan.
+La présentation va couvrir six parties. La définition du problème, une revue de littérature, notre solution, les tests et résultats, et enfin la synthèse et la conclusion.
 
 ---
 
@@ -31,7 +32,7 @@ La présentation va couvrir six parties. La définition du problème, une revue 
 
 **Slide 4 — Définition formelle**
 
-Formellement on a n objets avec des tailles entières, et des boîtes identiques de capacité C. Une solution faisable c'est une façon de partitionner tous les objets en groupes, avec comme contrainte que la somme des tailles dans chaque groupe ne dépasse pas C. L'objectif c'est de minimiser le nombre de groupes, donc le nombre de boîtes utilisées.
+Alors, formellement, le bin packing est défini ainsi : on a n objets de tailles entières et des boîtes identiques de capacité C. Une solution réalisable est une partition de tous les objets en groupes telle que la somme des tailles dans chaque groupe ne dépasse pas C. L’objectif est de minimiser le nombre de groupes, donc le nombre de boîtes utilisées.
 
 ---
 
@@ -43,7 +44,7 @@ Pour évaluer nos solutions, on utilise une borne inférieure appelée LB1. C'es
 
 **Slide 6 — Complexité et stratégie**
 
-Le bin packing est NP-difficile au sens fort. Pour y faire face on a une stratégie en deux temps, d'abord BFD qui construit une bonne solution de départ rapidement, puis ALNS qui prend le relais pour s'en échapper et se rapprocher de LB1. Je laisse la parole à Adem pour la revue de littérature.
+Le bin packing est NP-difficile. Pour y faire face on a une stratégie en deux temps, d'abord BFD qui construit une bonne solution de départ rapidement, puis ALNS qui prend le relais pour s'en échapper et se rapprocher de LB1. Je laisse la parole à Adem pour la revue de littérature.
 
 ---
 
@@ -53,7 +54,7 @@ Le bin packing est NP-difficile au sens fort. Pour y faire face on a une straté
 
 Ce qu'on fait dans ce projet c'est utiliser du machine learning pour améliorer des décisions à l'intérieur d'une métaheuristique. C'est un courant de recherche assez actif et on peut identifier trois directions qui nous concernent directement.
 
-La première c'est la sélection adaptative d'opérateurs. L'idée c'est de remplacer des probabilités fixes par un apprentissage en ligne qui apprend quels opérateurs marchent le mieux. Des chercheurs ont formalisé ça comme un problème de bandit, et nous on utilise une version contextuelle qui prend en compte l'état courant de la recherche pour faire ce choix.
+La première c'est la sélection adaptative d'opérateurs. L'idée c'est de remplacer des probabilités fixes par un apprentissage en ligne qui apprend quels opérateurs marchent le mieux. Des chercheurs ont formalisé ça comme un problème de bandit.
 
 La deuxième direction c'est la réparation apprise. Des travaux ont montré qu'on peut entraîner un modèle à apprendre les décisions d'une heuristique experte en imitant simplement ses choix sur des exemples. C'est exactement ce qu'on fait pour la réinsertion des objets.
 
@@ -65,7 +66,7 @@ La troisième direction c'est l'utilisation du deep learning dans LNS. Certains 
 
 **Slide 9 — Architecture globale**
 
-Voilà comment notre solveur fonctionne de bout en bout. On part de l'instance, BFD construit une solution initiale, et ensuite la boucle ALNS démarre. À chaque itération, LinUCB regarde l'état courant de la recherche et choisit un opérateur de destruction. Cet opérateur retire un sous-ensemble d'objets de leurs boîtes. Le modèle GBT évalue ensuite les boîtes disponibles pour guider la réinsertion de ces objets. La nouvelle solution est acceptée ou rejetée selon un critère de recuit simulé, et la récompense est renvoyée à LinUCB pour qu'il mette à jour ses estimations. Les deux composants ML sont complètement indépendants, on peut activer l'un sans l'autre.
+Voilà comment notre approche fonctionne de bout en bout. On part de l'instance, BFD construit une solution initiale, et ensuite la boucle ALNS démarre. À chaque itération, LinUCB regarde l'état courant de la recherche et choisit un opérateur de destruction. Cet opérateur retire un sous-ensemble d'objets de leurs boîtes. Le modèle GBT évalue ensuite les boîtes disponibles pour guider la réinsertion de ces objets. La nouvelle solution est acceptée ou rejetée selon un critère de recuit simulé, et la récompense est renvoyée à LinUCB pour qu'il mette à jour ses estimations. Les deux composants ML sont complètement indépendants, on peut activer l'un sans l'autre.
 
 ---
 
