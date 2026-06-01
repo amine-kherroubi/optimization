@@ -1,9 +1,5 @@
 # Scripts de présentation — Hybrid ALNS
 
-> Répartition basée sur les noms du fichier `LICENSE` : Mohamed El Amine Kherroubi, Rayan Boukakiou, Idris Yassine Ziadi, Idris Himeur, Adem Abdelhafidh Diar.
->
-> **Indicateur d'utilisation :** chaque bloc commence par `Slide actuel : X` pour indiquer précisément le slide à afficher pendant que le texte est prononcé. Les slides de séparation sont indiqués explicitement et servent surtout de transition rapide.
-
 ---
 
 ## 1. Mohamed El Amine Kherroubi — Introduction et plan

@@ -133,6 +133,8 @@ body {
   /* Override default slide padding so .hero can manage its own layout.
      The hero grid handles vertical centering using the full 900px height. */
   padding: 0;
+  /* Explicit height to match --h so the slide never auto-expands */
+  height: var(--h);
 }
 
 
@@ -276,19 +278,26 @@ footer {
 
 /* ── TITLE SLIDE ─────────────────────────────────────────────────── */
 .hero {
+  /* Fill the full slide height (900px); footer is absolute inside .slide */
   height: 100%;
   display: grid;
   grid-template-columns: 1fr 1fr;
   align-items: center;
   gap: var(--s16);
   /* Carry the horizontal padding (slide no longer provides it).
-     Bottom padding reserves space above the absolute-positioned footer. */
+     Bottom padding (100px) clears the absolute-positioned footer. */
   padding: var(--pad-y) var(--pad-x) 100px var(--pad-x);
+  /* Do not exceed slide height — clip rather than overflow */
+  overflow: hidden;
 }
 
 .hero h1 {
-  max-width: 700px;
-  font-size: 94px;
+  max-width: 640px;
+  /* Reduced from 94px: a 4-word title at 94px / 0.92 lh = ~4 lines at ~86px
+     each = ~344px, which overflows the available left-column space.
+     68px / 0.93 lh keeps it to 3 lines at ~63px each ≈ 190px — fits cleanly. */
+  font-size: 68px;
+  line-height: 0.95;
   margin-bottom: var(--s6);
   background: linear-gradient(135deg, var(--ink) 0%, var(--ink-2) 80%);
   -webkit-background-clip: text;
@@ -298,19 +307,19 @@ footer {
 
 .hero > div:first-child .eyebrow {
   display: block;
-  margin-bottom: var(--s7);
+  margin-bottom: var(--s6);
 }
 
 .hero h3 {
-  font-size: 28px;
+  font-size: 24px;
   color: var(--ink-3);
   font-weight: 400;
-  margin-bottom: var(--s5);
+  margin-bottom: var(--s4);
 }
 
 .hero p {
-  max-width: 680px;
-  font-size: 24px;
+  max-width: 640px;
+  font-size: 21px;
   line-height: 1.5;
   color: var(--ink-3);
 }
@@ -319,7 +328,7 @@ footer {
   display: flex;
   flex-wrap: wrap;
   gap: var(--s3);
-  margin-top: var(--s10);
+  margin-top: var(--s6);
 }
 
 .pill-row span {
@@ -337,7 +346,7 @@ footer {
 /* Hero visual */
 .hero-visual {
   position: relative;
-  height: 520px;
+  height: 460px;
   display: flex;
   align-items: center;
   justify-content: center;

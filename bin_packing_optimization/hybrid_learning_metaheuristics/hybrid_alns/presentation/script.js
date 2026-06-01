@@ -425,13 +425,17 @@ function renderSlide(slide, i) {
   }
 
   if (slide.kind === "hero") {
-    // Two-column hero layout: text left, decorative bin visual right
+    // Two-column hero layout: text left, decorative bin visual right.
+    // slide.content may contain a duplicate <h1> (same as slide.title) —
+    // strip it so the title is only rendered once via slide.title below.
+    const heroBody = slide.content.replace(/<h1[^>]*>[\s\S]*?<\/h1>/i, "").trim();
     section.insertAdjacentHTML(
       "beforeend",
       `<div class="hero">
         <div>
           <span class="eyebrow">BIN PACKING · HYBRID ALNS</span>
-          ${slide.content}
+          <h1>${slide.title}</h1>
+          ${heroBody}
           <div class="pill-row">
             <span>ALNS</span>
             <span>LinUCB</span>
