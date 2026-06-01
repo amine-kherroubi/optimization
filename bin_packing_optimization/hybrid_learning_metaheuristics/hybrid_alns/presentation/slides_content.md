@@ -82,11 +82,11 @@ $$
 
 1D-BPP is **strongly NP-hard** by reduction from 3-Partition.
 
-| Approach      | Representative                     | Guarantee                                                     | Scalability               |
-| ------------- | ---------------------------------- | ------------------------------------------------------------- | ------------------------- |
-| Exact         | Branch-and-bound, branch-and-price | Optimal                                                       | Up to a few hundred items |
+| Approach      | Representative                     | Guarantee                                                 | Scalability               |
+| ------------- | ---------------------------------- | --------------------------------------------------------- | ------------------------- |
+| Exact         | Branch-and-bound, branch-and-price | Optimal                                                   | Up to a few hundred items |
 | Approximation | FFD, BFD                           | $\le \frac{11}{9}\,\mathrm{OPT} + O(1)$, in $O(n \log n)$ | High                      |
-| Metaheuristic | ALNS (this solver)                 | None (heuristic)                                              | High                      |
+| Metaheuristic | ALNS (this solver)                 | None (heuristic)                                          | High                      |
 
 **Strategy:** use BFD as a deterministic warm start, then apply ALNS to escape local optima and push toward the lower bound.
 
@@ -235,8 +235,8 @@ ALNS (Ropke & Pisinger, 2006) extends LNS by **adaptively selecting** the destro
 
 Three operators are available. All guarantee that at least one item remains placed.
 
-| Arm | Operator               | Mechanism                                                                                                                                          |
-| --- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Arm | Operator         | Mechanism                                                                                                                                        |
+| --- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 0   | **Random**       | Sample exactly$\min(k,\,n-1)$ items uniformly at random across all placed items and remove them                                                  |
 | 1   | **Worst-load**   | Sort bins by ascending load (small uniform tie-breaking perturbation). Collect items in that order until$\min(k,\,n-1)$ items have been removed  |
 | 2   | **Related-item** | Select a seed item uniformly at random. Remove the seed plus the$\min(k-1,\,n-2)$ items with the smallest absolute size difference from the seed |
@@ -327,8 +327,8 @@ The outer budget `max_iterations` is the **sole hard termination criterion**; th
 
 ## IV. Two Independent ML Components
 
-| Component                   | Decision Targeted                              | Method                   |
-| --------------------------- | ---------------------------------------------- | ------------------------ |
+| Component             | Decision Targeted                              | Method                   |
+| --------------------- | ---------------------------------------------- | ------------------------ |
 | **Contextual Bandit** | Which destroy operator to apply each iteration | Warm-start LinUCB        |
 | **Repair Ranker**     | Which bin to assign each displaced item        | Behavioral cloning (GBT) |
 
@@ -384,13 +384,13 @@ $$
 
 The 5-dimensional feature $\mathbf{x}$ encodes the current search state:
 
-| Index | Feature                                    | Description                                       |
-| ----- | ------------------------------------------ | ------------------------------------------------- |
-| 0     | $T / T_0$                                | Normalised temperature; 1 = start (hot), 0 = cold |
-| 1     | `iter_no_improve` / `no_improve_limit` | Stagnation progress toward the next restart       |
-| 2     | $\mathrm{LB}_1 / f(x)$                   | Lower-bound-to-cost ratio; 1.0 = optimal          |
-| 3     | $k / n$                                  | Current destruction radius as a fraction of$n$  |
-| 4     | `iteration` / `max_iterations`         | Overall search progress (0 to 1)                  |
+| Index | Feature                                | Description                                                         |
+| ----- | -------------------------------------- | ------------------------------------------------------------------- |
+| 0     | $T / T_0$                              | Normalised temperature; 1 = start (hot), 0 = cold                   |
+| 1     | `iter_no_improve` / `no_improve_limit` | Stagnation progress toward the next restart                         |
+| 2     | $f(x) / \mathrm{LB}_1$                 | Cost-to-lower-bound ratio; 1.0 = optimal; >1 = room for improvement |
+| 3     | $k / n$                                | Current destruction radius as a fraction of$n$                      |
+| 4     | `iteration` / `max_iterations`         | Overall search progress (0 to 1)                                    |
 
 All features lie in $[0,1]$, enabling the UCB exploration term to be comparable across dimensions without additional normalisation.
 
@@ -430,16 +430,16 @@ After destruction, each displaced item $i$ must be reinserted. Let $\mathcal{F}(
 
 Each feasible $(i,j)$ pair is encoded as an **11-dimensional vector** (all features normalised by $C$ or $n$):
 
-| Idx | Feature                      | Description                                                     |
-| --- | ---------------------------- | --------------------------------------------------------------- |
-| 0   | $s_i / C$                  | Normalised item size                                            |
-| 1   | $(s_i / C)^2$              | Squared normalised size                                         |
+| Idx | Feature                    | Description                                                   |
+| --- | -------------------------- | ------------------------------------------------------------- |
+| 0   | $s_i / C$                  | Normalised item size                                          |
+| 1   | $(s_i / C)^2$              | Squared normalised size                                       |
 | 2   | $\mathrm{rank}(i) / n$     | Size rank among$n$ items (0 = largest)                        |
-| 3   | $\mathrm{remaining} / n$   | Fraction of displaced items not yet reinserted                  |
-| 4   | $\ell_j / C$               | Normalised current bin load                                     |
-| 5   | $(C - \ell_j) / C$         | Residual capacity fraction                                      |
-| 6   | $(C - \ell_j - s_i) / C$   | Post-placement slack fraction                                   |
-| 7   | $\lvert B_j \rvert / n$    | Normalised bin occupancy (item count)                           |
+| 3   | $\mathrm{remaining} / n$   | Fraction of displaced items not yet reinserted                |
+| 4   | $\ell_j / C$               | Normalised current bin load                                   |
+| 5   | $(C - \ell_j) / C$         | Residual capacity fraction                                    |
+| 6   | $(C - \ell_j - s_i) / C$   | Post-placement slack fraction                                 |
+| 7   | $\lvert B_j \rvert / n$    | Normalised bin occupancy (item count)                         |
 | 8   | $\max_{k \in B_j} s_k / C$ | Largest item already in bin$j$                                |
 | 9   | $\min_{k \in B_j} s_k / C$ | Smallest item already in bin$j$                               |
 | 10  | $s_i / (C - \ell_j)$       | Fill ratio: fraction of residual capacity consumed by item$i$ |
@@ -476,15 +476,15 @@ Each feasible $(i,j)$ pair is encoded as an **11-dimensional vector** (all featu
 
 ## V.1 Experimental Protocol
 
-| Setting                                       | Value                                    |
-| --------------------------------------------- | ---------------------------------------- |
-| Random seed                                   | 42                                       |
-| ALNS iterations                               | 300                                      |
-| Initial temperature$T_0$                    | $1/\ln 2$                              |
+| Setting                                     | Value                                    |
+| ------------------------------------------- | ---------------------------------------- |
+| Random seed                                 | 42                                       |
+| ALNS iterations                             | 300                                      |
+| Initial temperature$T_0$                    | $1/\ln 2$                                |
 | Cooling coefficient$\alpha_{\mathrm{cool}}$ | 0.9995                                   |
 | LinUCB exploration$\alpha$                  | 0.3                                      |
-| Thompson-sampling warm-up                     | 300 calls                                |
-| Repair model                                  | Single pre-trained bundle (all datasets) |
+| Thompson-sampling warm-up                   | 300 calls                                |
+| Repair model                                | Single pre-trained bundle (all datasets) |
 
 **Primary metric throughout:**
 
@@ -502,13 +502,13 @@ $$
 
 Five families covering structurally distinct regimes:
 
-| Family       | Capacity$C$ | Items$n$ | Structure          |
-| ------------ | ------------- | ---------- | ------------------ |
-| Scholl-2     | 1 000         | 50 – 500  | Uniform sizes      |
-| Falkenauer-T | 1 000         | —         | Triplet structure  |
-| Falkenauer-U | 150           | —         | Uniform sizes      |
-| Wäscher     | 10 000        | —         | Cutting-stock      |
-| Hard28       | 1 000         | 160 – 200 | Adversarially hard |
+| Family       | Capacity$C$ | Items$n$  | Structure          |
+| ------------ | ----------- | --------- | ------------------ |
+| Scholl-2     | 1 000       | 50 – 500  | Uniform sizes      |
+| Falkenauer-T | 1 000       | —         | Triplet structure  |
+| Falkenauer-U | 150         | —         | Uniform sizes      |
+| Wäscher      | 10 000      | —         | Cutting-stock      |
+| Hard28       | 1 000       | 160 – 200 | Adversarially hard |
 
 > **Falkenauer-T note:** the triplet structure systematically weakens $\mathrm{LB}_1$ relative to the true optimum. Reported gaps for this family are **not directly comparable** to those of other families.
 
@@ -522,12 +522,12 @@ Five families covering structurally distinct regimes:
 
 **Scholl-2 · 5 instances · 50 items** — each component toggled independently.
 
-| Configuration            | Avg. bins      | Avg. gap       | Fill %          | Time (s)        |
-| ------------------------ | -------------- | -------------- | --------------- | --------------- |
-| No learning (baseline)   | 18.2           | 0.20           | 92.76           | 0.153           |
-| **Online RL only** | **18.0** | **0.00** | **93.76** | **0.186** |
-| Offline GBT only         | 18.2           | 0.20           | 92.76           | 0.353           |
-| Both combined            | 18.2           | 0.20           | 92.76           | 0.362           |
+| Configuration          | Avg. bins | Avg. gap | Fill %    | Time (s)  |
+| ---------------------- | --------- | -------- | --------- | --------- |
+| No learning (baseline) | 18.2      | 0.20     | 92.76     | 0.153     |
+| **Online RL only**     | **18.0**  | **0.00** | **93.76** | **0.186** |
+| Offline GBT only       | 18.2      | 0.20     | 92.76     | 0.353     |
+| Both combined          | 18.2      | 0.20     | 92.76     | 0.362     |
 
 **Key finding:** the online RL selector is the **decisive contributor** — it closes the gap to 0 alone. The offline GBT repair model adds approximately **2× runtime** with no quality gain on this small-instance slice; its benefit is expected to emerge at larger scale.
 
@@ -543,12 +543,12 @@ Five families covering structurally distinct regimes:
 
 **Combined method** (online RL + offline GBT repair) across all benchmark families.
 
-| Family       | Mean gap | Runtime (s)  |
-| ------------ | -------- | ------------ |
+| Family       | Mean gap | Runtime (s) |
+| ------------ | -------- | ----------- |
 | Scholl-2     | 0.20     | 0.6 – 1.2   |
 | Falkenauer-T | 1.00     | 1.0 – 1.7   |
 | Falkenauer-U | 0.20     | 4.3 – 5.8   |
-| Wäscher     | 0.60     | 1.0 – 2.2   |
+| Wäscher      | 0.60     | 1.0 – 2.2   |
 | Hard28       | 0.67     | 13.5 – 15.1 |
 
 **4 of 5 families** land within 1 bin of $\mathrm{LB}_1$. The Falkenauer-T gap of 1.00 most likely reflects the weakness of $\mathrm{LB}_1$ on triplet instances rather than degraded search quality.
@@ -563,14 +563,14 @@ Five families covering structurally distinct regimes:
 
 **Scholl-2 · 5 instances · 50 items** — single-run comparison.
 
-| Method                       | Mean gap       | Time (s)       |
-| ---------------------------- | -------------- | -------------- |
-| FFD / BFD (constructive)     | 1.80           | < 0.01         |
-| Simulated Annealing          | 1.80           | 0.21           |
-| Tabu Search                  | 1.80           | 0.13           |
-| Genetic Algorithm            | 1.00           | 0.82           |
-| **Dual-learning ALNS** | **0.20** | **0.36** |
-| Ant Colony Optimization      | 0.00           | 3.03           |
+| Method                   | Mean gap | Time (s) |
+| ------------------------ | -------- | -------- |
+| FFD / BFD (constructive) | 1.80     | < 0.01   |
+| Simulated Annealing      | 1.80     | 0.21     |
+| Tabu Search              | 1.80     | 0.13     |
+| Genetic Algorithm        | 1.00     | 0.82     |
+| **Dual-learning ALNS**   | **0.20** | **0.36** |
+| Ant Colony Optimization  | 0.00     | 3.03     |
 
 The dual-learning ALNS achieves a mean gap of **0.20** — the lowest of any tested method except ACO — while running **8× faster** than ACO. No other method in the comparison achieves both a lower gap and a lower runtime.
 
@@ -590,11 +590,11 @@ The dual-learning ALNS achieves a mean gap of **0.20** — the lowest of any tes
 
 ## VI.1 Synthesis of Results
 
-| Finding                                               | Evidence                                                         |
-| ----------------------------------------------------- | ---------------------------------------------------------------- |
+| Finding                                               | Evidence                                                        |
+| ----------------------------------------------------- | --------------------------------------------------------------- |
 | Online RL selector is the decisive ML contributor     | Online-only closes gap 0.20 → 0.00; combined does not           |
 | Offline GBT repair: implemented, not yet impactful    | No quality gain; +2× runtime on small instances                 |
-| Combined method generalises across families           | ≤ 1 bin from$\mathrm{LB}_1$ on 4 / 5 families                 |
+| Combined method generalises across families           | ≤ 1 bin from$\mathrm{LB}_1$ on 4 / 5 families                   |
 | The two components contribute asymmetrically          | Ablation reveals clear imbalance — clear avenue for improvement |
 | Dual-learning ALNS dominates classical metaheuristics | Best gap–runtime trade-off in comparative study                 |
 
