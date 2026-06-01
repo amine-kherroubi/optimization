@@ -55,7 +55,7 @@ L’objectif est de minimiser le nombre total de boîtes utilisées.
 
 Pour évaluer une solution, on utilise une borne inférieure simple. On additionne toutes les tailles des objets, on divise par la capacité d’une boîte, puis on arrondit au supérieur.
 
-Cette valeur, appelée LB1, donne le minimum théorique de boîtes nécessaires si tout le volume était utilisé parfaitement. Elle n’est pas toujours très serrée, mais elle donne un repère clair. Si une solution utilise exactement LB1 boîtes, alors elle atteint une borne inférieure et elle est donc optimale pour cette instance.
+Cette valeur, appelée LB1, donne le minimum théorique de boîtes nécessaires si tout le volume était utilisé parfaitement. Elle n’est pas toujours très serrée — sur Falkenauer-T notamment, elle sous-estime systématiquement l’optimum réel — mais elle donne un repère clair. Si une solution utilise exactement LB1 boîtes, elle est certifiée optimale par rapport à cette borne (gap = 0 ⟺ certifié optimal par LB1). Cela ne garantit pas l’optimalité absolue sur toutes les instances, mais c’est le critère de convergence que nous utilisons dans ce projet.
 
 Il existe des bornes plus fortes, comme Martello-Toth L2, mais dans ce projet LB1 suffit comme indicateur de progression.
 
@@ -215,7 +215,7 @@ Les objets sont réinsérés du plus grand au plus petit, comme dans Best-Fit De
 
 **Slide actuel : 26 — Représentation des caractéristiques**
 
-Le modèle utilise 11 caractéristiques normalisées, par exemple la taille de l’objet, son rang, la fraction d’objets restant à réinsérer, la charge actuelle de la boîte, l’espace restant, l’espace après insertion, le nombre d’objets dans la boîte, les plus grand et plus petit objets déjà présents, et le ratio de remplissage de l’espace résiduel.
+Le modèle utilise 11 caractéristiques normalisées. La première — et celle qui manquait jusqu’ici dans notre description — est la taille normalisée au carré de l’objet, $(s_i/C)^2$, qui encode de façon non-linéaire la difficulté à caser les grands objets. Viennent ensuite la taille normalisée $s_i/C$, le rang de l’objet parmi les restants, la fraction d’objets restant à réinsérer, la charge actuelle de la boîte, l’espace restant, l’espace après insertion, le nombre d’objets dans la boîte, les plus grand et plus petit objets déjà présents, et le ratio de remplissage de l’espace résiduel. Ces 11 caractéristiques correspondent exactement aux lignes de la table sur ce slide.
 
 **Slide actuel : 27 — Architecture et données d'entraînement**
 

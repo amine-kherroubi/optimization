@@ -1,6 +1,6 @@
 const slides = [
   {
-    kind: "content",
+    kind: "hero",
     title: "Hybrid ALNS for the Bin Packing Problem",
     content:
       "<h1>Hybrid ALNS for the Bin Packing Problem</h1>\n<h3>One-Dimensional Variant</h3>\n<p>A solver combining metaheuristic large-neighborhood search, adaptive bandit-based operator selection, and machine-learned repair via behavioral cloning from BFD.</p>",
@@ -64,12 +64,12 @@ const slides = [
     .dg-box { fill:#1a1e25; stroke:rgba(255,255,255,0.07); stroke-width:1.5 }
     .dg-box-ml { fill:#1a1e25; stroke:#00a887; stroke-width:1.5; stroke-dasharray:5,3 }
     .dg-box-loop { fill:none; stroke:rgba(13,15,18,0.10); stroke-width:1.5; rx:2 }
-    .dg-lbl { font-family:'DM Mono',monospace; fill:#0d0f12; font-size:13px; font-weight:500; text-anchor:middle; dominant-baseline:middle }
-    .dg-sub { font-family:'DM Mono',monospace; fill:#4a5168; font-size:11px; font-weight:400; text-anchor:middle; dominant-baseline:middle }
+    .dg-lbl { font-family:'DM Mono',monospace; fill:#0d0f12; font-size:15px; font-weight:500; text-anchor:middle; dominant-baseline:middle }
+    .dg-sub { font-family:'DM Mono',monospace; fill:#4a5168; font-size:13px; font-weight:400; text-anchor:middle; dominant-baseline:middle }
     .dg-edge { fill:none; stroke:#8a92a3; stroke-width:1.5; marker-end:url(#arr) }
     .dg-edge-dk { fill:none; stroke:#00a887; stroke-width:1.5; marker-end:url(#arr-dk) }
-    .dg-tag { font-family:'DM Mono',monospace; fill:#8a92a3; font-size:10px; font-weight:500; letter-spacing:.06em; text-anchor:middle }
-    .dg-loop-lbl { font-family:'DM Mono',monospace; fill:#8a92a3; font-size:11px; font-weight:500; letter-spacing:.08em; text-anchor:middle }
+    .dg-tag { font-family:'DM Mono',monospace; fill:#8a92a3; font-size:11px; font-weight:500; letter-spacing:.06em; text-anchor:middle }
+    .dg-loop-lbl { font-family:'DM Mono',monospace; fill:#8a92a3; font-size:13px; font-weight:500; letter-spacing:.08em; text-anchor:middle }
   </style>
 
   <!-- ALNS loop background -->
@@ -297,7 +297,13 @@ const slides = [
     kind: "content",
     title: "V.5 Test 3 — Comparative Study",
     content:
-      '<h2>V.5 Test 3 — Comparative Study</h2>\n<p><strong>Purpose of this test:</strong> Benchmark the dual-learning ALNS against a representative set of classical combinatorial optimization methods — constructive, local search, evolutionary, and population-based — on a common instance set. Assesses both solution quality (gap to $\\mathrm{LB}_1$) and computational cost (runtime) to determine where the hybrid approach stands in the quality–speed trade-off landscape.</p>\n<p><strong>Scholl-2 · 5 instances · 50 items</strong> — single-run comparison.</p>\n<div class="table-card"><table><thead><tr><th>Method</th><th>Mean gap</th><th>Time (s)</th></tr></thead><tbody><tr><td>FFD / BFD (constructive)</td><td>1.80</td><td>&lt; 0.01</td></tr><tr><td>Simulated Annealing</td><td>1.80</td><td>0.21</td></tr><tr><td>Tabu Search</td><td>1.80</td><td>0.13</td></tr><tr><td>Genetic Algorithm</td><td>1.00</td><td>0.82</td></tr><tr><td><strong>Dual-learning ALNS</strong></td><td><strong>0.20</strong></td><td><strong>0.36</strong></td></tr><tr><td>Ant Colony Optimization</td><td>0.00</td><td>3.03</td></tr></tbody></table></div>\n<p>The dual-learning ALNS achieves a mean gap of <strong>0.20</strong> — the lowest of any tested method except ACO — while running <strong>8× faster</strong> than ACO. No other method in the comparison achieves both a lower gap and a lower runtime.</p>\n<blockquote><p>Stochastic baselines are single-run results; multi-seed averaging may alter relative rankings.</p></blockquote>',
+      '<h2>V.5 Test 3 — Comparative Study</h2>\n<p><strong>Purpose of this test:</strong> Benchmark the dual-learning ALNS against a representative set of classical combinatorial optimization methods — constructive, local search, evolutionary, and population-based — on a common instance set. Assesses both solution quality (gap to $\\mathrm{LB}_1$) and computational cost (runtime) to determine where the hybrid approach stands in the quality–speed trade-off landscape.</p>\n<p><strong>Scholl-2 · 5 instances · 50 items</strong> — single-run comparison.</p>\n<div class="table-card"><table><thead><tr><th>Method</th><th>Mean gap</th><th>Time (s)</th></tr></thead><tbody><tr><td>FFD / BFD (constructive)</td><td>1.80</td><td>&lt; 0.01</td></tr><tr><td>Simulated Annealing</td><td>1.80</td><td>0.21</td></tr><tr><td>Tabu Search</td><td>1.80</td><td>0.13</td></tr><tr><td>Genetic Algorithm</td><td>1.00</td><td>0.82</td></tr><tr><td><strong>Dual-learning ALNS</strong></td><td><strong>0.20</strong></td><td><strong>0.36</strong></td></tr><tr><td>Ant Colony Optimization</td><td>0.00</td><td>3.03</td></tr></tbody></table></div>\n<p>The dual-learning ALNS achieves a mean gap of <strong>0.20</strong> — the lowest of any tested method except ACO — while running <strong>8× faster</strong> than ACO. No other method in the comparison achieves both a lower gap and a lower runtime.</p>',
+  },
+  {
+    kind: "content",
+    title: "V.5 Test 3 — Findings & Caveats",
+    content:
+      '<h2>V.5 Test 3 — Findings &amp; Caveats</h2>\n<blockquote><p>Stochastic baselines are single-run results; multi-seed averaging may alter relative rankings.</p></blockquote>\n<p><strong>Summary:</strong> Our approach does not achieve the lowest absolute gap — ACO reaches 0.00 — but it is the only method combining near-optimal quality (<strong>gap 0.20</strong>) with low runtime (<strong>0.36 s</strong>). Every method with a lower gap runs at least 8× slower.</p>\n<p><strong>Practical implication:</strong> For time-sensitive or embedded applications, the dual-learning ALNS occupies a unique position on the quality–speed Pareto frontier that no classical method in this comparison matches.</p>',
   },
   {
     kind: "dividerContent",
@@ -374,7 +380,7 @@ const BEST_ROWS = {
   31: [1], // V.3 Ablation: Online RL only row
   32: [0, 2], // V.4 Multi-dataset: Scholl-2 & Falkenauer-U (gap 0.20)
   33: [4], // V.5 Comparative: Dual-learning ALNS
-  35: [0], // VI.1 Synthesis: first finding (Online RL is decisive)
+  36: [0], // VI.1 Synthesis: first finding (Online RL is decisive)
 };
 
 /* Stat row config: slideNum → array of stat blocks */
@@ -418,10 +424,41 @@ function renderSlide(slide, i) {
     );
   }
 
-  section.insertAdjacentHTML(
-    "beforeend",
-    `<div class="markdown-content">${slide.content}</div>`,
-  );
+  if (slide.kind === "hero") {
+    // Two-column hero layout: text left, decorative bin visual right
+    section.insertAdjacentHTML(
+      "beforeend",
+      `<div class="hero">
+        <div>
+          <span class="eyebrow">BIN PACKING · HYBRID ALNS</span>
+          ${slide.content}
+          <div class="pill-row">
+            <span>ALNS</span>
+            <span>LinUCB</span>
+            <span>GBT REPAIR</span>
+            <span>1D-BPP</span>
+          </div>
+        </div>
+        <div class="hero-visual" aria-hidden="true">
+          <div class="bin big">
+            <i style="height:68%"></i>
+            <i style="height:52%"></i>
+            <i style="height:38%"></i>
+          </div>
+          <div class="orbit">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+        </div>
+      </div>`,
+    );
+  } else {
+    section.insertAdjacentHTML(
+      "beforeend",
+      `<div class="markdown-content">${slide.content}</div>`,
+    );
+  }
 
   section.insertAdjacentHTML(
     "beforeend",
@@ -522,7 +559,7 @@ function initResultCharts() {
         plugins: { legend: { display: false }, tooltip: { enabled: true } },
         scales: {
           x: {
-            ticks: { color: "#4a5168", font: { size: 11 } },
+            ticks: { color: "#4a5168", font: { size: 13 } },
             grid: { display: false },
           },
           y: {
