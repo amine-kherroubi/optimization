@@ -13,9 +13,9 @@ from bin_packing_optimization.utilities.benchmarking import create_benchmark
 from bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns.models import (
     load_repair_model,
 )
-import bin_packing_optimization.currently_irrelevant.specific_heuristics.solver as heur
-import bin_packing_optimization.currently_irrelevant.trajectory_based_metaheuristics.solver as traj
-import bin_packing_optimization.currently_irrelevant.population_based_metaheuristics.solver as pop
+import bin_packing_optimization.specific_heuristics.solver as heur
+import bin_packing_optimization.trajectory_based_metaheuristics.solver as traj
+import bin_packing_optimization.population_based_metaheuristics.solver as pop
 import bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns.hybrid_alns_solver as hybrid
 
 warnings.filterwarnings("ignore")
