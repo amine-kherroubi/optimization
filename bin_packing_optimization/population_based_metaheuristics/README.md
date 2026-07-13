@@ -2,32 +2,35 @@
 
 ## Overview
 
-This module contains population-driven search approaches.
+This module contains population-driven search approaches for the 1D Bin Packing Problem.
 
-## Implemented Methods
+## Available methods
 
 - `genetic algorithm`
 - `genetic algorithm memetic`
 - `genetic algorithm island`
 - `ant colony optimization`
 
-## Benchmark Usage
+## Quick start
 
-Run from repository root:
+```python
+import importlib
 
-```bash
-python -m bin_packing.utilities.benchmarking --solver bin_packing/population_based_metaheuristics/solver.py --dataset falkenauer-u --method "genetic algorithm"
+from bin_packing_optimization.utilities.benchmarking import create_benchmark
+
+solver_module = importlib.import_module(
+    "bin_packing_optimization.population_based_metaheuristics.solver"
+)
+
+benchmark = create_benchmark(
+    dataset_key="falkenauer-u",
+    solver_module=solver_module,
+    time_limit=None,
+)
+benchmark.run(method="genetic algorithm")
+benchmark.save_results_to_csv()
 ```
 
-## Results & Models
+## Output
 
-Benchmark outputs are written automatically under the solver folder as:
-
-```
-bin_packing/population_based_metaheuristics/results/<dataset_key>/<YYYYMMDD_HHMMSS>/
-	results.csv
-	graphs/
-```
-
-No output path needs to be provided; the runner creates the directory
-and prints the full path. Result folders are gitignored by default.
+Benchmark results are written under `results/<dataset_key>/<timestamp>/results.csv`. Graph generation writes files into the same timestamped directory under `graphs/`.

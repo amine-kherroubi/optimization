@@ -2,31 +2,34 @@
 
 ## Overview
 
-This module contains fast constructive and lightweight local-improvement heuristics.
+This module contains fast constructive heuristics and lightweight local-improvement strategies for the 1D Bin Packing Problem.
 
-## Implemented Methods
+## Available methods
 
 - `next fit`, `first fit`, `best fit`, `worst fit`
 - `next fit decreasing`, `first fit decreasing`, `best fit decreasing`, `worst fit decreasing`
 - `relocation`, `swap`
 
-## Benchmark Usage
+## Quick start
 
-Run from repository root:
+```python
+import importlib
 
-```bash
-python -m bin_packing.utilities.benchmarking --solver bin_packing/specific_heuristics/solver.py --dataset scholl-2 --method "best fit"
+from bin_packing_optimization.utilities.benchmarking import create_benchmark
+
+solver_module = importlib.import_module(
+    "bin_packing_optimization.specific_heuristics.solver"
+)
+
+benchmark = create_benchmark(
+    dataset_key="scholl-2",
+    solver_module=solver_module,
+    time_limit=None,
+)
+benchmark.run(method="best fit")
+benchmark.save_results_to_csv()
 ```
 
-## Results & Models
+## Output
 
-Benchmark outputs are written automatically under the solver folder as:
-
-```
-bin_packing/specific_heuristics/results/<dataset_key>/<YYYYMMDD_HHMMSS>/
-	results.csv
-	graphs/
-```
-
-No output path needs to be provided; the runner creates the directory
-and prints the full path. Result folders are gitignored by default.
+Benchmark results are written under `results/<dataset_key>/<timestamp>/results.csv`. Related graph files are written to the same timestamped output directory when enabled.

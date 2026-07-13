@@ -2,31 +2,32 @@
 
 ## Overview
 
-This module contains exact 1D Bin Packing solvers that prioritize optimality.
+This module contains exact 1D Bin Packing solvers that prioritize optimality over runtime.
 
-## Implemented Methods
+## Available methods
 
-- `branch and bound`
 - `backtracking`
+- `branch and bound`
 - `dynamic programming`
 
-## Benchmark Usage
+## Quick start
 
-Run from repository root:
+```python
+import importlib
 
-```bash
-python -m bin_packing.utilities.benchmarking --solver bin_packing/exact_methods/solver.py --dataset falkenauer-t --method "branch and bound"
+from bin_packing_optimization.utilities.benchmarking import create_benchmark
+
+solver_module = importlib.import_module("bin_packing_optimization.exact_methods.solver")
+
+benchmark = create_benchmark(
+    dataset_key="falkenauer-t",
+    solver_module=solver_module,
+    time_limit=None,
+)
+benchmark.run(method="branch and bound")
+benchmark.save_results_to_csv()
 ```
 
-## Results & Models
+## Output
 
-Benchmark outputs are written automatically under the solver folder as:
-
-```
-bin_packing/exact_methods/results/<dataset_key>/<YYYYMMDD_HHMMSS>/
-	results.csv
-	graphs/
-```
-
-No output path needs to be provided; the runner creates the directory
-and prints the full path. Result folders are gitignored by default.
+Benchmark results are written under `results/<dataset_key>/<timestamp>/results.csv`. Graphs are saved in the sibling `graphs/` directory whenever graph generation is enabled.
