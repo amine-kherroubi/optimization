@@ -16,16 +16,16 @@ from typing import Any, Sequence
 
 import numpy as np
 
-from bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns.repair_model_training.features import (
+from bin_packing_optimization.learning_guided_metaheuristics.hybrid_alns.repair_model_training.features import (
     FEATURE_VERSION as _EXPECTED_FEATURE_VERSION,
 )
-from bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns.repair_model_training.features import (
+from bin_packing_optimization.learning_guided_metaheuristics.hybrid_alns.repair_model_training.features import (
     N_FEATURES as _EXPECTED_N_FEATURES,
 )
-from bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns.repair_model_training.features import (
+from bin_packing_optimization.learning_guided_metaheuristics.hybrid_alns.repair_model_training.features import (
     make_features as _make_features,
 )
-import bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns.repair_model_training.features as _features
+import bin_packing_optimization.learning_guided_metaheuristics.hybrid_alns.repair_model_training.features as _features
 
 
 @dataclass(slots=True)

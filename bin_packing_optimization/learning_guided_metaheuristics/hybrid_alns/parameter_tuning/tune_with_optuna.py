@@ -146,7 +146,7 @@ _WORKER_MODEL_CACHE: dict[str, Any] = {}
 
 def _worker_init(model_name: str) -> None:
     """Load the repair model once per worker process."""
-    from bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns.models import (
+    from bin_packing_optimization.learning_guided_metaheuristics.hybrid_alns.models import (
         load_repair_model,
     )
 
@@ -165,13 +165,13 @@ def _evaluate_one(
     import math
     import time
 
-    from bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns.hybrid_alns_solver import (
+    from bin_packing_optimization.learning_guided_metaheuristics.hybrid_alns.hybrid_alns_solver import (
         BinPackingSolver,
     )
 
     model_bundle = _WORKER_MODEL_CACHE.get("bundle")
     if model_bundle is None:
-        from bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns.models import (
+        from bin_packing_optimization.learning_guided_metaheuristics.hybrid_alns.models import (
             load_repair_model,
         )
 

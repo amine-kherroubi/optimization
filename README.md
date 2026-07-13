@@ -20,7 +20,7 @@ The package under `bin_packing_optimization` provides solver implementations, da
 │   ├── specific_heuristics/
 │   ├── trajectory_based_metaheuristics/
 │   ├── population_based_metaheuristics/
-│   ├── hybrid_learning_metaheuristics/
+│   ├── learning_guided_metaheuristics/
 │   │   └── hybrid_alns/
 │   └── utilities/
 ├── pyproject.toml
@@ -36,7 +36,7 @@ The package under `bin_packing_optimization` provides solver implementations, da
 | Specific heuristics             | Fast constructive heuristics and local improvement procedures.                   |
 | Trajectory-based metaheuristics | Single-solution methods such as simulated annealing and tabu search.             |
 | Population-based metaheuristics | Population-driven methods such as genetic algorithms and ACO.                    |
-| Hybrid learning metaheuristics  | Hybrid ALNS pipelines that combine search heuristics with learned repair models. |
+| Learning-guided metaheuristics  | Hybrid ALNS pipelines that combine search heuristics with learned repair models. |
 
 ## Installation
 

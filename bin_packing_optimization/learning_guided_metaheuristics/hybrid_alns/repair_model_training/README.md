@@ -1,6 +1,6 @@
 # Repair Model Training
 
-This folder contains the offline training workflow for the hybrid ALNS repair model. The scripts here define the feature contract, generate synthetic training data, collect ALNS states, and train the repair model.
+This folder contains the offline training workflow for the learning-guided ALNS repair model. The scripts here define the feature contract, generate synthetic training data, collect ALNS states, and train the repair model.
 
 ## Contents
 
@@ -36,7 +36,7 @@ Artifacts are written next to the training scripts unless an explicit output pat
 ## Example usage
 
 ```python
-from bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns.repair_model_training import (
+from bin_packing_optimization.learning_guided_metaheuristics.hybrid_alns.repair_model_training import (
     collect_alns_states,
     generate_dataset,
     train_repair_model,

@@ -15,11 +15,11 @@ import warnings
 warnings.filterwarnings("ignore")
 
 from bin_packing_optimization.datasets.registry import DATASET_REGISTRY
-from bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns.models import (
+from bin_packing_optimization.learning_guided_metaheuristics.hybrid_alns.models import (
     load_repair_model,
     save_bandit_state,
 )
-import bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns.hybrid_alns_solver as hybrid
+import bin_packing_optimization.learning_guided_metaheuristics.hybrid_alns.hybrid_alns_solver as hybrid
 
 # Training slice — kept disjoint from the test slices used in the article so
 # the bandit doesn't "see" its evaluation set. ``num_items`` chosen on the

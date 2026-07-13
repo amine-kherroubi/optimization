@@ -12,7 +12,7 @@ and saved as an augmentation dataset.
 
 Usage
 -----
-    from bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns.repair_model_training.collect_alns_states import CollectAlnsStatesConfig, collect_alns_states
+    from bin_packing_optimization.learning_guided_metaheuristics.hybrid_alns.repair_model_training.collect_alns_states import CollectAlnsStatesConfig, collect_alns_states
 
     collect_alns_states(CollectAlnsStatesConfig(model_path="repair_model.pkl", instances=500, output="alns_states.pkl"))
 
@@ -45,7 +45,7 @@ except ImportError:
         return iterable
 
 
-from bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns.repair_model_training import (
+from bin_packing_optimization.learning_guided_metaheuristics.hybrid_alns.repair_model_training import (
     features,
 )
 

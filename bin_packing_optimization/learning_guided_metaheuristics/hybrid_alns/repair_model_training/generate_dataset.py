@@ -18,7 +18,7 @@ are sampled as negatives (up to max_negatives).
 
 Usage
 -----
-    from bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns \
+    from bin_packing_optimization.learning_guided_metaheuristics.hybrid_alns \
         .repair_model_training.generate_dataset import GenerateDatasetConfig, generate_dataset
 
     generate_dataset(GenerateDatasetConfig(

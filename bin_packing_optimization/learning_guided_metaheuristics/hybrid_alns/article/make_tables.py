@@ -10,13 +10,13 @@ import statistics as st
 import warnings
 
 from bin_packing_optimization.utilities.benchmarking import create_benchmark
-from bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns.models import (
+from bin_packing_optimization.learning_guided_metaheuristics.hybrid_alns.models import (
     load_repair_model,
 )
 import bin_packing_optimization.specific_heuristics.solver as heur
 import bin_packing_optimization.trajectory_based_metaheuristics.solver as traj
 import bin_packing_optimization.population_based_metaheuristics.solver as pop
-import bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns.hybrid_alns_solver as hybrid
+import bin_packing_optimization.learning_guided_metaheuristics.hybrid_alns.hybrid_alns_solver as hybrid
 
 warnings.filterwarnings("ignore")
 

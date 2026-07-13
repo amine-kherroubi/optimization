@@ -2,7 +2,7 @@
 
 ## Overview
 
-This package contains a hybrid ALNS pipeline that combines search operators with a learned repair model.
+This package contains a learning-guided ALNS pipeline that combines search operators with a learned repair model.
 
 ## Main components
 
@@ -18,7 +18,7 @@ import importlib
 from bin_packing_optimization.utilities.benchmarking import create_benchmark
 
 solver_module = importlib.import_module(
-    "bin_packing_optimization.hybrid_learning_metaheuristics.hybrid_alns.hybrid_alns_solver"
+    "bin_packing_optimization.learning_guided_metaheuristics.hybrid_alns.hybrid_alns_solver"
 )
 
 benchmark = create_benchmark(
@@ -32,7 +32,7 @@ benchmark.save_results_to_csv()
 
 ## Output
 
-Benchmark outputs are written under `results/<dataset_key>/<timestamp>/results.csv`. Trained model artifacts (`.pkl`) are stored under `bin_packing_optimization/hybrid_learning_metaheuristics/hybrid_alns/models/`.
+Benchmark outputs are written under `results/<dataset_key>/<timestamp>/results.csv`. Trained model artifacts (`.pkl`) are stored under `bin_packing_optimization/learning_guided_metaheuristics/hybrid_alns/models/`.
 
 ## Notebook model loading
 
