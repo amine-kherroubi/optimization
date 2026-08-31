@@ -4,7 +4,7 @@
 ![Status](https://img.shields.io/badge/Status-Research%20Project-0A66C2?style=flat)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-A research-oriented Python repository for benchmarking exact, heuristic, and hybrid algorithms on the 1D Bin Packing Problem.
+A research-oriented Python package for benchmarking exact, heuristic, and hybrid algorithms on the 1D Bin Packing Problem.
 
 ## Project overview
 
